@@ -14,13 +14,13 @@ import java.util.List;
 class RerankResponse {
 
     private List<Result> results;
-    private Meta meta;
+    private Usage usage;
+
+    public Usage getUsage() {
+        return usage;
+    }
 
     public List<Result> getResults() {
         return this.results;
-    }
-
-    public Meta getMeta() {
-        return this.meta;
     }
 }

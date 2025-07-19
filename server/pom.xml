@@ -36,6 +36,7 @@
         <markdown.version>0.64.8</markdown.version>
         <hanlp.version>portable-1.8.6</hanlp.version>
         <mapdb.version>3.1.0</mapdb.version>
+        <retrofit2.version>2.9.0</retrofit2.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -182,6 +183,18 @@
                 <groupId>org.mapdb</groupId>
                 <artifactId>mapdb</artifactId>
                 <version>${mapdb.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.squareup.retrofit2</groupId>
+                <artifactId>retrofit</artifactId>
+                <version>${retrofit2.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.squareup.retrofit2</groupId>
+                <artifactId>converter-jackson</artifactId>
+                <version>${retrofit2.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

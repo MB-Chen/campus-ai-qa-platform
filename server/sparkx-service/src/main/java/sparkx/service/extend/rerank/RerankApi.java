@@ -17,7 +17,11 @@ import retrofit2.http.POST;
 
 public interface RerankApi {
 
-    @POST("rerank")
+    @POST("/rerank")
     @Headers({"accept: application/json", "content-type: application/json"})
-    Call<RerankResponse> rerank(@Body RerankRequest request, @Header("Authorization") String authorizationHeader);
+    Call<RerankResponse> comRerank(@Body RerankRequest request, @Header("Authorization") String authorizationHeader);
+
+    @POST("/text-rerank")
+    @Headers({"accept: application/json", "content-type: application/json"})
+    Call<RerankResponse> textRerank(@Body RerankRequest request, @Header("Authorization") String authorizationHeader);
 }

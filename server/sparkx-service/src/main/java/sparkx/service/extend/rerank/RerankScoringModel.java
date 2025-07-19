@@ -56,6 +56,10 @@ public class RerankScoringModel implements ScoringModel {
         this.maxRetries = getOrDefault(maxRetries, 2);
     }
 
+    public static RerankScoringModelBuilder builder() {
+        return new RerankScoringModelBuilder();
+    }
+
     @Override
     public Response<List<Double>> scoreAll(List<TextSegment> segments, String query) {
 
@@ -67,14 +71,14 @@ public class RerankScoringModel implements ScoringModel {
                         .collect(toList()))
                 .build();
 
-        RerankResponse response = withRetryMappingExceptions(() -> client.rerank(request), maxRetries);
+        RerankResponse response = withRetryMappingExceptions(() -> client.rerank(request, modelName), maxRetries);
 
         List<Double> scores = response.getResults().stream()
                 .sorted(comparingInt(Result::getIndex))
                 .map(Result::getRelevanceScore)
                 .collect(toList());
 
-        return Response.from(scores, new TokenUsage(response.getMeta().getBilledUnits().getSearchUnits()));
+        return Response.from(scores, new TokenUsage(response.getUsage().getTotalTokens()));
     }
 
     public static class RerankScoringModelBuilder {

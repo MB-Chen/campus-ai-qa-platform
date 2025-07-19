@@ -75,10 +75,16 @@ public class RerankClient {
         return new RerankClientBuilder();
     }
 
-    RerankResponse rerank(RerankRequest request) {
+    RerankResponse rerank(RerankRequest request, String modelName) {
         try {
-            retrofit2.Response<RerankResponse> retrofitResponse
-                    = rerankApi.rerank(request, authorizationHeader).execute();
+
+            retrofit2.Response<RerankResponse> retrofitResponse;
+            // 通义千问rerank模型的路由与其他模型不同，不是 rerank，所以要单独处理
+            if (modelName.equals("gte-rerank-v2")) {
+                retrofitResponse = rerankApi.textRerank(request, authorizationHeader).execute();
+            } else {
+                retrofitResponse = rerankApi.comRerank(request, authorizationHeader).execute();
+            }
 
             if (retrofitResponse.isSuccessful()) {
                 return retrofitResponse.body();
