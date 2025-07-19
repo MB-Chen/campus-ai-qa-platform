@@ -31,6 +31,7 @@ public class RerankScoringModel implements ScoringModel {
 
     private final RerankClient client;
     private final String modelName;
+    private final String modelFlag;
     private final Integer maxRetries;
 
     public RerankScoringModel(
@@ -42,7 +43,8 @@ public class RerankScoringModel implements ScoringModel {
             Proxy proxy,
             Boolean logRequests,
             Boolean logResponses,
-            Boolean needBearer) {
+            Boolean needBearer,
+            String modelFlag) {
         this.client = RerankClient.builder()
                 .baseUrl(getOrDefault(baseUrl, DEFAULT_BASE_URL))
                 .apiKey(ensureNotBlank(apiKey, "apiKey"))
@@ -53,6 +55,7 @@ public class RerankScoringModel implements ScoringModel {
                 .needBearer(getOrDefault(needBearer, true))
                 .build();
         this.modelName = modelName;
+        this.modelFlag = modelFlag;
         this.maxRetries = getOrDefault(maxRetries, 2);
     }
 
@@ -71,7 +74,7 @@ public class RerankScoringModel implements ScoringModel {
                         .collect(toList()))
                 .build();
 
-        RerankResponse response = withRetryMappingExceptions(() -> client.rerank(request, modelName), maxRetries);
+        RerankResponse response = withRetryMappingExceptions(() -> client.rerank(request, modelFlag), maxRetries);
 
         List<Double> scores = response.getResults().stream()
                 .sorted(comparingInt(Result::getIndex))
@@ -91,6 +94,7 @@ public class RerankScoringModel implements ScoringModel {
         private Boolean logRequests;
         private Boolean logResponses;
         private Boolean needBearer;
+        private String modelFlag;
 
         RerankScoringModelBuilder() {
         }
@@ -140,14 +144,21 @@ public class RerankScoringModel implements ScoringModel {
             return this;
         }
 
+        public RerankScoringModelBuilder modelFlag(String modelFlag) {
+            this.modelFlag = modelFlag;
+            return this;
+        }
+
         public RerankScoringModel build() {
-            return new RerankScoringModel(this.baseUrl, this.apiKey, this.modelName, this.timeout, this.maxRetries, this.proxy, this.logRequests, this.logResponses, this.needBearer);
+            return new RerankScoringModel(this.baseUrl, this.apiKey, this.modelName, this.timeout, this.maxRetries, this.proxy,
+                    this.logRequests, this.logResponses, this.needBearer, this.modelFlag);
         }
 
         public String toString() {
             return "RerankScoringModel.RerankScoringModelBuilder(baseUrl=" + this.baseUrl + ", apiKey=" + this.apiKey + ", modelName="
                     + this.modelName + ", timeout=" + this.timeout + ", maxRetries=" + this.maxRetries + ", proxy=" + this.proxy
-                    + ", logRequests=" + this.logRequests + ", logResponses=" + this.logResponses + ", needBearer=" + this.needBearer + ")";
+                    + ", logRequests=" + this.logRequests + ", logResponses=" + this.logResponses +
+                    ", needBearer=" + this.needBearer + ", modelFlag=" + this.modelFlag + ")";
         }
     }
 }
