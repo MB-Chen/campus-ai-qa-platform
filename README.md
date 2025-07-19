@@ -65,7 +65,7 @@ http://localhost:8189
 
 https://x.sparkshop.cn/
 
-#### 授权咨询
+#### 了解更多细节可咨询
 
 ![应用](screenshot/wechat.png)
 
