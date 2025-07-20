@@ -24,6 +24,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.scoring.ScoringModel;
 import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
@@ -38,11 +39,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import sparkx.service.entity.application.ApplicationEntity;
 import sparkx.service.entity.dataset.KnowledgeDatasetEntity;
+import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.entity.tool.ToolsEntity;
 import sparkx.service.entity.workflow.ApplicationWorkflowRuntimeContextEntity;
 import sparkx.service.extend.SparkEmbeddingStoreContentRetriever;
 import sparkx.service.mapper.application.ApplicationWorkflowRuntimeContextMapper;
 import sparkx.service.mapper.dataset.KnowledgeDatasetMapper;
+import sparkx.service.mapper.system.ModelsMapper;
 import sparkx.service.service.interfaces.application.IAiService;
 import sparkx.service.service.interfaces.dataset.IDatasetSearchService;
 import sparkx.service.validate.application.ApplicationChatValidate;
@@ -73,6 +76,8 @@ public class AssistantBuildHelper {
 
     @Autowired
     MemoryBuildHelper memoryBuildHelper;
+    @Autowired
+    private ModelsMapper modelsMapper;
 
     /**
      * 构建 assistant
@@ -163,6 +168,16 @@ public class AssistantBuildHelper {
         // 检测是否使用了插件
         if (!CollectionUtils.isEmpty(validate.getToolsList())) {
             return buildToolAiService(validate, streamingModel, chatMemoryProvider, retrievalAugmentor);
+        }
+
+        // 是否使用了重排模型
+        if (!applicationInfo.getRerankModelId().isBlank()) {
+
+            ModelsEntity modelInfo = modelsMapper.selectById(applicationInfo.getRerankModelId());
+            if (modelInfo != null) {
+                String apiKey = "";
+                ScoringModel scoringModel;
+            }
         }
 
         return builder
