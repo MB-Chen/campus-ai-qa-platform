@@ -10,6 +10,7 @@
 package sparkx.service.helper;
 
 import cn.hutool.http.HttpRequest;
+import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -27,6 +28,8 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.scoring.ScoringModel;
 import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
+import dev.langchain4j.rag.content.aggregator.ContentAggregator;
+import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
@@ -43,6 +46,7 @@ import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.entity.tool.ToolsEntity;
 import sparkx.service.entity.workflow.ApplicationWorkflowRuntimeContextEntity;
 import sparkx.service.extend.SparkEmbeddingStoreContentRetriever;
+import sparkx.service.extend.rerank.RerankScoringModel;
 import sparkx.service.mapper.application.ApplicationWorkflowRuntimeContextMapper;
 import sparkx.service.mapper.dataset.KnowledgeDatasetMapper;
 import sparkx.service.mapper.system.ModelsMapper;
@@ -154,34 +158,57 @@ public class AssistantBuildHelper {
 
         // 检索增强
         RetrievalAugmentor retrievalAugmentor;
-        if (queryTransformer != null) {
-            retrievalAugmentor = DefaultRetrievalAugmentor.builder()
-                    .queryTransformer(queryTransformer) // 问题压缩
-                    .contentRetriever(contentRetriever) // 内容检索
-                    .build();
-        } else {
-            retrievalAugmentor = DefaultRetrievalAugmentor.builder()
-                    .contentRetriever(contentRetriever) // 内容检索
-                    .build();
-        }
-
-        // 检测是否使用了插件
-        if (!CollectionUtils.isEmpty(validate.getToolsList())) {
-            return buildToolAiService(validate, streamingModel, chatMemoryProvider, retrievalAugmentor);
-        }
+        ContentAggregator contentAggregator = null;
 
         // 是否使用了重排模型
         if (!applicationInfo.getRerankModelId().isBlank()) {
 
             ModelsEntity modelInfo = modelsMapper.selectById(applicationInfo.getRerankModelId());
             if (modelInfo != null) {
-                String apiKey = "";
-                ScoringModel scoringModel;
+                JSONArray jsonArr = JSONUtil.parseArray(modelInfo.getCredential());
+                String apiKey = JSONUtil.parseObj(jsonArr.get(0)).getStr("value");
+                String modelName = modelInfo.getModels().split(",")[0];
+
+                JSONArray optionsArr = JSONUtil.parseArray(modelInfo.getOptions());
+                String baseUrl = JSONUtil.parseObj(optionsArr.get(0)).getStr("value");
+
+                if (!apiKey.isBlank() && !modelName.isBlank() && !baseUrl.isBlank()) {
+
+                    // 构建重排模型
+                    ScoringModel scoringModel = RerankScoringModel.builder()
+                            .apiKey(apiKey)
+                            .baseUrl(baseUrl)
+                            .modelName(modelName)
+                            .modelFlag(modelInfo.getModelFlag())
+                            .build();
+
+                    contentAggregator = ReRankingContentAggregator.builder()
+                            .scoringModel(scoringModel)
+                            .build();
+                }
             }
         }
 
+        DefaultRetrievalAugmentor.DefaultRetrievalAugmentorBuilder tempBuilder = DefaultRetrievalAugmentor.builder()
+                .contentRetriever(contentRetriever); // 内容检索
+
+        if (queryTransformer != null) {
+            tempBuilder.queryTransformer(queryTransformer); // 问题压缩
+        }
+
+        // 内容聚合
+        if (contentAggregator != null) {
+            tempBuilder.contentAggregator(contentAggregator);
+        }
+        retrievalAugmentor = tempBuilder.build();
+
+        // 检测是否使用了插件
+        if (!CollectionUtils.isEmpty(validate.getToolsList())) {
+            return buildToolAiService(validate, streamingModel, chatMemoryProvider, retrievalAugmentor);
+        }
+
         return builder
-                .retrievalAugmentor(retrievalAugmentor)
+                .retrievalAugmentor(retrievalAugmentor) // 索引增强
                 .build();
     }
 
