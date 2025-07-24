@@ -75,16 +75,11 @@ public class RerankClient {
         return new RerankClientBuilder();
     }
 
-    RerankResponse rerank(RerankRequest request, String modelFlag) {
+    RerankResponse rerank(RerankRequest request) {
         try {
 
             retrofit2.Response<RerankResponse> retrofitResponse;
-            // 通义千问rerank模型的路由与其他模型不同，url最后不是rerank，所以要单独处理
-            if (modelFlag.equals("qwen")) {
-                retrofitResponse = rerankApi.textRerank(request, authorizationHeader).execute();
-            } else {
-                retrofitResponse = rerankApi.comRerank(request, authorizationHeader).execute();
-            }
+            retrofitResponse = rerankApi.rerank(request, authorizationHeader).execute();
 
             if (retrofitResponse.isSuccessful()) {
                 return retrofitResponse.body();
