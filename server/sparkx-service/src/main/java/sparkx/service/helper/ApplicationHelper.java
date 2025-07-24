@@ -10,6 +10,7 @@
 package sparkx.service.helper;
 
 import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONUtil;
 import cn.hutool.jwt.JWT;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
@@ -21,6 +22,9 @@ import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.output.Response;
 import dev.langchain4j.model.output.TokenUsage;
+import dev.langchain4j.model.scoring.ScoringModel;
+import dev.langchain4j.rag.content.aggregator.ContentAggregator;
+import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -37,6 +41,7 @@ import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.entity.system.SystemTokensEntity;
 import sparkx.service.entity.tool.ToolsEntity;
 import sparkx.service.entity.workflow.ApplicationWorkflowRuntimeContextEntity;
+import sparkx.service.extend.rerank.RerankScoringModel;
 import sparkx.service.mapper.application.ApplicationDatasetRelationMapper;
 import sparkx.service.mapper.application.ApplicationToolRelationMapper;
 import sparkx.service.mapper.application.ApplicationWorkflowRuntimeContextMapper;
@@ -331,5 +336,41 @@ public class ApplicationHelper {
                 log.error("调用的参数: parameters {}", parameters);
             }
         };
+    }
+
+    /**
+     * 构建rerank模型
+     * @param modelId String
+     * @return ContentAggregator
+     */
+    public ContentAggregator buildRerank(String modelId) {
+
+        ContentAggregator contentAggregator = null;
+        ModelsEntity modelInfo = modelsMapper.selectById(modelId);
+        if (modelInfo != null) {
+            JSONArray jsonArr = JSONUtil.parseArray(modelInfo.getCredential());
+            String apiKey = JSONUtil.parseObj(jsonArr.get(0)).getStr("value");
+            String modelName = modelInfo.getModels().split(",")[0];
+
+            JSONArray optionsArr = JSONUtil.parseArray(modelInfo.getOptions());
+            String baseUrl = JSONUtil.parseObj(optionsArr.get(0)).getStr("value");
+
+            if (!apiKey.isBlank() && !modelName.isBlank() && !baseUrl.isBlank()) {
+
+                // 构建重排模型
+                ScoringModel scoringModel = RerankScoringModel.builder()
+                        .apiKey(apiKey)
+                        .baseUrl(baseUrl)
+                        .modelName(modelName)
+                        .modelFlag(modelInfo.getModelFlag())
+                        .build();
+
+                contentAggregator = ReRankingContentAggregator.builder()
+                        .scoringModel(scoringModel)
+                        .build();
+            }
+        }
+
+        return contentAggregator;
     }
 }

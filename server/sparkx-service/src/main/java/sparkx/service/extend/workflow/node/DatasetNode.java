@@ -153,6 +153,7 @@ public class DatasetNode implements IWorkflowNode {
         // 写入上下文，记录召回信息
         JSONObject outputData = JSONUtil.parseObj(context.getOutputData());
         outputData.set("datasets.search", JSONUtil.toJsonStr(searchRes));
+        outputData.set("datasets.rerankModelId", nodeObject.getStr("rerankModelId"));
         outputData.set("sys.result", content);
         context.setOutputData(outputData.toString());
         applicationWorkflowRuntimeContextMapper.updateById(context);

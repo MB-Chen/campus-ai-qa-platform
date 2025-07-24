@@ -80,8 +80,9 @@ public class AssistantBuildHelper {
 
     @Autowired
     MemoryBuildHelper memoryBuildHelper;
+
     @Autowired
-    private ModelsMapper modelsMapper;
+    ApplicationHelper applicationHelper;
 
     /**
      * 构建 assistant
@@ -163,30 +164,7 @@ public class AssistantBuildHelper {
         // 是否使用了重排模型
         if (!applicationInfo.getRerankModelId().isBlank()) {
 
-            ModelsEntity modelInfo = modelsMapper.selectById(applicationInfo.getRerankModelId());
-            if (modelInfo != null) {
-                JSONArray jsonArr = JSONUtil.parseArray(modelInfo.getCredential());
-                String apiKey = JSONUtil.parseObj(jsonArr.get(0)).getStr("value");
-                String modelName = modelInfo.getModels().split(",")[0];
-
-                JSONArray optionsArr = JSONUtil.parseArray(modelInfo.getOptions());
-                String baseUrl = JSONUtil.parseObj(optionsArr.get(0)).getStr("value");
-
-                if (!apiKey.isBlank() && !modelName.isBlank() && !baseUrl.isBlank()) {
-
-                    // 构建重排模型
-                    ScoringModel scoringModel = RerankScoringModel.builder()
-                            .apiKey(apiKey)
-                            .baseUrl(baseUrl)
-                            .modelName(modelName)
-                            .modelFlag(modelInfo.getModelFlag())
-                            .build();
-
-                    contentAggregator = ReRankingContentAggregator.builder()
-                            .scoringModel(scoringModel)
-                            .build();
-                }
-            }
+            contentAggregator = applicationHelper.buildRerank(applicationInfo.getRerankModelId());
         }
 
         DefaultRetrievalAugmentor.DefaultRetrievalAugmentorBuilder tempBuilder = DefaultRetrievalAugmentor.builder()
