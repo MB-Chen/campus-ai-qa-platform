@@ -361,7 +361,16 @@ export default {
 							that.chatLogList[that.nowIndex].toolUse.push(ev.data)
 						}
 					} else {
+
 						let resData = JSON.parse(ev.data)
+						if (resData.content === '<think>') {
+							resData.content = '<blockquote><think>'
+						}
+
+						if (resData.content === '</think>') {
+							resData.content = '</think></blockquote>'
+						}
+
 						let has = false
 						that.chatLogList[that.nowIndex].content.forEach((item, index) => {
 
@@ -381,6 +390,7 @@ export default {
 							})
 						}
 
+						//console.log(that.chatLogList[that.nowIndex].content[0].content)
 						that.sliderBottom()
 					}
 				},

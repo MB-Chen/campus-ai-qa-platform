@@ -37,6 +37,8 @@
         <hanlp.version>portable-1.8.6</hanlp.version>
         <mapdb.version>3.1.0</mapdb.version>
         <retrofit2.version>2.9.0</retrofit2.version>
+        <langchain4j-ollama.version>1.1.0-rc1</langchain4j-ollama.version>
+        <ollama.version>1.21.3</ollama.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -164,6 +166,18 @@
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-open-ai</artifactId>
                 <version>${langchain4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-ollama</artifactId>
+                <version>${langchain4j-ollama.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>ollama</artifactId>
+                <version>${ollama.version}</version>
             </dependency>
 
             <!-- markdown -->
