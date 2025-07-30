@@ -47,9 +47,9 @@ public class SseEmitterHelper {
 
         // 消息开始
         sendStartSse(emitter);
-        AtomicBoolean hasReasoningContent = new AtomicBoolean(false);
-        AtomicBoolean hasSendStart = new AtomicBoolean(false);
-        AtomicBoolean hasSendEnd = new AtomicBoolean(false);
+        AtomicBoolean hasReasoningContent = new AtomicBoolean(false); // 是否有思考过程
+        AtomicBoolean hasSendStart = new AtomicBoolean(false); // 是有发送了思考开始标识
+        AtomicBoolean hasSendEnd = new AtomicBoolean(false); // 是否发送了思考结束标识
 
         final TimeInterval timer = new TimeInterval();
         tokenStream
@@ -136,27 +136,22 @@ public class SseEmitterHelper {
     public void asyncSend2Client(TokenStream tokenStream, SseEmitter emitter, long runtimeId, String nodeId,
                                  boolean needSend, SendEndCallback sendEndCallback) {
 
-        AtomicBoolean hasReasoningContent = new AtomicBoolean(false);
-        tokenStream
-                .onPartialResponse((content) -> {
-                    if (needSend) {
-                        try {
-                            if (hasReasoningContent.get()) {
-                                emitter.send(Tool.buildSendData(runtimeId, nodeId, "</think>"));
-                            }
+        AtomicBoolean hasReasoningContent = new AtomicBoolean(false); // 是否有思考过程
+        AtomicBoolean hasSendStart = new AtomicBoolean(false); // 是有发送了思考开始标识
+        AtomicBoolean hasSendEnd = new AtomicBoolean(false); // 是否发送了思考结束标识
 
-                            sendSseData(content, emitter, runtimeId, nodeId);
-                        } catch (Exception e) {
-                            emitter.completeWithError(e);
-                        }
-                    }
-                })
+        tokenStream
                 // 思考过程
                 .onPartialThinking((PartialThinking reasoningContent) -> {
                     if (needSend) {
                         try {
                             hasReasoningContent.set(true);
-                            emitter.send(Tool.buildSendData(runtimeId, nodeId, "<think>"));
+
+                            if (!hasSendStart.get()) {
+                                emitter.send(Tool.buildSendData(runtimeId, nodeId, "<think>"));
+                                hasSendStart.set(true);
+                            }
+
                             sendSseData(reasoningContent.text(), emitter, runtimeId, nodeId);
                         } catch (Exception e) {
                             emitter.completeWithError(e);
@@ -166,6 +161,20 @@ public class SseEmitterHelper {
                 // 工具调用
                 .onToolExecuted((ToolExecution toolExecution) -> {
                     sendToolSse(emitter, toolExecution.request().name());
+                })
+                .onPartialResponse((content) -> {
+                    if (needSend) {
+                        try {
+                            if (hasReasoningContent.get() && !hasSendEnd.get()) {
+                                emitter.send(Tool.buildSendData(runtimeId, nodeId, "</think>"));
+                                hasSendStart.set(true);
+                            }
+
+                            sendSseData(content, emitter, runtimeId, nodeId);
+                        } catch (Exception e) {
+                            emitter.completeWithError(e);
+                        }
+                    }
                 })
                 .onCompleteResponse((response) -> {
                     // 输入的token
