@@ -3,7 +3,7 @@
 		<div>
 			<a href="https://ai.sparkshop.cn/" target="_blank">
 				<span class="logo-txt" style="font-size: 18px;margin-top: 5px;">SparkX</span>
-				<span style="font-size: 12px;margin-left: 5px;margin-top: 5px;">开源AI知识库系统</span>
+				<span style="font-size: 12px;margin-left: 5px;margin-top: 5px;">企业智能体开发平台</span>
 			</a>
 		</div>
 		<div style="display: flex; justify-content: center;">

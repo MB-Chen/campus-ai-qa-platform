@@ -238,12 +238,10 @@
 	<el-dialog v-model="showLicenseDialog" width="250px" :close-on-click-modal="false">
 		<div class="license-box">
 			<span class="logo-txt">SparkX</span>
+			<div class="license-item" style="margin-top: 20px;font-weight: bold;font-size: 18px;">企业智能体开发平台</div>
 			<div class="license-item" style="margin-top: 20px">授权公司：{{ decodeUnicode(license.companyName) }}</div>
 			<div class="license-item" style="margin-top: 10px">授权码：{{ license.licenseId }}</div>
 			<div class="license-item" style="margin-top: 10px">当前版本：{{ license.version }}</div>
-			<div class="license-item" style="margin-top: 10px">应用数量：{{ license.appNum }}</div>
-			<div class="license-item" style="margin-top: 10px">知识库数量：{{ license.datasetNum }}</div>
-			<div class="license-item" style="margin-top: 10px">用户数量：{{ license.userNum }}</div>
 		</div>
 	</el-dialog>
 </template>
@@ -415,7 +413,7 @@ function decodeUnicode(str) {
 	display: flex;
 	align-items: center;
 	flex-direction: column;
-	height: 250px;
+	height: 200px;
 	padding: 20px;
 }
 .license-item {

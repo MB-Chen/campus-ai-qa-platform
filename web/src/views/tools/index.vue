@@ -148,6 +148,10 @@ export default {
 				this.page2.total = res.data.total
 			}
 		},
+		// 获取节点资源列表
+		async getWorkflowNodeList() {
+
+		},
 		// 分页
 		handlePageChange(page) {
 			if (this.activeName === 'first') {
