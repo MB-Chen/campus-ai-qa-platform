@@ -31,6 +31,9 @@ public class ToolsController {
     @Autowired
     IToolService iToolService;
 
+    /**
+     * 插件列表
+     */
     @GetMapping("/list")
     public AjaxResult<PageResult<ToolsListVo>> index(ToolQueryVo queryVo) {
 

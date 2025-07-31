@@ -16,6 +16,13 @@
 						</el-menu>
 					</el-scrollbar>
 				</div>
+				<a href="https://x.sparkshop.cn" target="_blank" style="margin: 0 auto;margin-bottom: 15px;">
+					<el-icon
+						size="23"
+						color="#909399">
+						<Tickets />
+					</el-icon>
+				</a>
 				<el-dropdown @command="handleCommand">
 					<div class="user-info" style="margin-bottom: 20px">
 						<el-avatar style="width: 35px;height: 35px;margin-left: 13px;cursor: pointer;" :src="userAvatar" />
@@ -259,6 +266,7 @@ import { ElMessage } from 'element-plus'
 
 import {useRoute, useRouter} from 'vue-router'
 import tool from "@/utils/tool.js";
+import {Tickets} from "@element-plus/icons-vue";
 
 const route = useRoute()
 const router = useRouter()

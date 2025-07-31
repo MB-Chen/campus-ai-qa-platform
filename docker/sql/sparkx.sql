@@ -591,3 +591,26 @@ COMMENT ON COLUMN "public"."application_tool_relation"."tool_id" IS '插件id';
 COMMENT ON COLUMN "public"."application_tool_relation"."create_time" IS '创建时间';
 COMMENT ON COLUMN "public"."application_tool_relation"."update_time" IS '更新时间';
 COMMENT ON TABLE "public"."application_tool_relation" IS '应用插件关联表';
+
+
+CREATE TABLE "public"."workflow_node" (
+  "id" INT4 NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 START 1 CACHE 1),
+  "name" VARCHAR (155) COLLATE "pg_catalog"."default" DEFAULT '' :: CHARACTER VARYING,
+  "description" VARCHAR (255) COLLATE "pg_catalog"."default" DEFAULT '' :: CHARACTER VARYING,
+  "type" INT2 DEFAULT 1,
+  "status" INT2 DEFAULT 1,
+  "node_data" JSON,
+  "create_time" TIMESTAMP (6),
+  "update_time" TIMESTAMP (6),
+  CONSTRAINT "workflow_node_pkey" PRIMARY KEY ("id")
+);
+
+COMMENT ON COLUMN "public"."workflow_node"."id" IS 'id';
+COMMENT ON COLUMN "public"."workflow_node"."name" IS '资源名称';
+COMMENT ON COLUMN "public"."workflow_node"."description" IS '描述';
+COMMENT ON COLUMN "public"."workflow_node"."type" IS '类型 1:数据库 2:API';
+COMMENT ON COLUMN "public"."workflow_node"."status" IS '状态 1:启用 2:禁用';
+COMMENT ON COLUMN "public"."workflow_node"."node_data" IS '节点配置';
+COMMENT ON COLUMN "public"."workflow_node"."create_time" IS '创建时间';
+COMMENT ON COLUMN "public"."workflow_node"."update_time" IS '更新时间';
+COMMENT ON TABLE "public"."workflow_node" IS '编排资源表';

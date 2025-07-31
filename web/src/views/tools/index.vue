@@ -32,10 +32,38 @@
 				@addTool="addTools"
 				@menu="handleClick">
 			</mcp-item>
+
+			<node-item
+				v-if="activeName === 'third'"
+				:node-list="nodeList"
+				@addTool="addTools"
+				@menu="handleClick">
+			</node-item>
 		</el-card>
 
-		<Pages :form="searchForm" :page-obj="page" @pageChange="handlePageChange" @pageJump="getList" v-if="activeName === 'first'"></Pages>
-		<Pages :form="searchForm" :page-obj="page2" @pageChange="handlePageChange" @pageJump="getMCPToolsList" v-if="activeName === 'second'"></Pages>
+		<Pages
+			:form="searchForm"
+			:page-obj="page"
+			@pageChange="handlePageChange"
+			@pageJump="getList"
+			v-if="activeName === 'first'">
+		</Pages>
+
+		<Pages
+			:form="searchForm2"
+			:page-obj="page2"
+			@pageChange="handlePageChange"
+			@pageJump="getMCPToolsList"
+			v-if="activeName === 'second'">
+		</Pages>
+
+		<Pages
+			:form="searchForm3"
+			:page-obj="page3"
+			@pageChange="handlePageChange"
+			@pageJump="getMCPToolsList"
+			v-if="activeName === 'third'">
+		</Pages>
 	</el-container>
 
 	<el-drawer
@@ -57,9 +85,10 @@ import SaveDialog from "./save.vue"
 import McpDialog from "./mcp.vue"
 import DiyItem from "./item/diy.vue"
 import McpItem from "./item/mcp.vue"
+import NodeItem from "./item/node.vue"
 
 export default {
-	components: {Delete, MoreFilled, Plus, Edit, Pages, SaveDialog, McpDialog, DiyItem, McpItem},
+	components: {Delete, MoreFilled, Plus, Edit, Pages, SaveDialog, McpDialog, DiyItem, McpItem, NodeItem},
 	data() {
 		return {
 			searchForm: {
@@ -68,21 +97,31 @@ export default {
 				page: 1,
 				limit: 14
 			},
-			page: {
-				total: 0
-			},
 			searchForm2: {
 				title: '',
 				type: 2,
 				page: 1,
 				limit: 14
 			},
+			searchForm3: {
+				title: '',
+				type: 3,
+				page: 1,
+				limit: 14
+			},
+			page: {
+				total: 0
+			},
 			page2: {
+				total: 0
+			},
+			page3: {
 				total: 0
 			},
 			activeName: 'first',
 			commonToolsList: [],
 			mcpToolsList: [],
+			nodeList: [],
 			drawer: false,
 			mcpDialogVisible: false,
 			title: "创建插件"
