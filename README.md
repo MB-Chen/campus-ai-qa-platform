@@ -79,6 +79,14 @@ https://x.sparkshop.cn/
 ![编排](screenshot/6.png)
 ![文档](screenshot/7.png)
 
+#### 迭代计划
+- [ ] 编排增加数据库节点
+- [ ] 编排增加API节点
+- [ ] 系统支持API调用
+- [ ] 支持SearXNG搜索功能
+- [ ] 支持智普AI搜索功能
+- [ ] 支持图片理解
+
 #### 交流群
 ![应用](screenshot/qun.jpg)
 
