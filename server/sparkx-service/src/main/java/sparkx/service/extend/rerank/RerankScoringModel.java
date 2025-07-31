@@ -91,7 +91,6 @@ public class RerankScoringModel implements ScoringModel {
         private Boolean logRequests;
         private Boolean logResponses;
         private Boolean needBearer;
-        private String modelFlag;
 
         RerankScoringModelBuilder() {
         }
@@ -138,11 +137,6 @@ public class RerankScoringModel implements ScoringModel {
 
         public RerankScoringModelBuilder needBearer(Boolean needBearer) {
             this.needBearer = needBearer;
-            return this;
-        }
-
-        public RerankScoringModelBuilder modelFlag(String modelFlag) {
-            this.modelFlag = modelFlag;
             return this;
         }
 
