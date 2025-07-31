@@ -3,35 +3,110 @@
 		<el-card style="height: 900px" shadow="never">
 			<div class="title">工具箱</div>
 
-			<div class="menu-bar">
-				<div class="menu-item" :class="{'menu-item-active': activeName === 'first'}" @click="selectTab('first')">
-					<span class="iconfont icon-chajian" style="font-size: 18px !important;margin-right: 5px;"></span>
-					自定义插件
-				</div>
-				<div class="menu-item" :class="{'menu-item-active': activeName === 'second'}" @click="selectTab('second')">
-					<span class="iconfont icon-MCP" style="font-size: 18px !important;margin-right: 5px;"></span>
-					MCP插件
-				</div>
-				<div class="menu-item" :class="{'menu-item-active': activeName === 'third'}" @click="selectTab('third')">
-					<span class="iconfont icon-renwuliucheng" style="font-size: 18px !important;margin-right: 5px;"></span>
-					编排资源
-				</div>
-			</div>
-			<div style="width: 100%;border: 1px dashed #e2e2e2;margin-top: 10px"></div>
+			<el-tabs v-model="activeName" style="padding: 20px;">
+				<el-tab-pane label="自定义插件" name="first">
+					<el-row class="store-list">
+						<el-col :span="4" class="store-item">
+							<el-card class="add-box" shadow="never" @click="addTools(1)">
+								<div class="add-item-box">
+									<div class="add-icon">
+										<el-icon class="icon-color">
+											<Plus />
+										</el-icon>
+									</div>
+									<div class="add-store-name"> 创建插件</div>
+								</div>
+							</el-card>
+						</el-col>
 
-			<diy-item
-				v-if="activeName === 'first'"
-				:common-tools-list="commonToolsList"
-				@addTool="addTools"
-				@menu="handleClick">
-			</diy-item>
+						<el-col :span="4" class="store-item" v-for="item in commonToolsList" :key="item.id">
+							<el-card style="height: 170px;" shadow="never">
+								<div class="title-box">
+									<div class="title-left">
+										<div class="title-label">{{ item.title.substring(0, 1) }}</div>
+										<div class="title-info">
+											<div class="line1 knowledge-title">{{ item.title }}</div>
+										</div>
+									</div>
+								</div>
+								<div class="description">{{ item.description }}</div>
+								<div class="tool-bar">
+									<div class="tool-time">创建时间: {{ item.createTime }}</div>
+									<el-dropdown trigger="click" @command="handleClick($event, item)">
+										<el-icon>
+											<MoreFilled />
+										</el-icon>
+										<template #dropdown>
+											<el-dropdown-menu>
+												<el-dropdown-item command="edit">
+													<el-icon>
+														<Edit />
+													</el-icon> 编辑
+												</el-dropdown-item>
+												<el-dropdown-item command="delete">
+													<el-icon>
+														<Delete />
+													</el-icon> 删除</el-dropdown-item>
+											</el-dropdown-menu>
+										</template>
+									</el-dropdown>
+								</div>
+							</el-card>
+						</el-col>
+					</el-row>
+				</el-tab-pane>
+				<el-tab-pane label="MCP插件" name="second">
+					<el-row class="store-list">
+						<el-col :span="4" class="store-item">
+							<el-card class="add-box" shadow="never" @click="addTools(2)">
+								<div class="add-item-box">
+									<div class="add-icon">
+										<el-icon class="icon-color">
+											<Plus />
+										</el-icon>
+									</div>
+									<div class="add-store-name"> 创建插件</div>
+								</div>
+							</el-card>
+						</el-col>
 
-			<mcp-item
-				v-if="activeName === 'second'"
-				:mcp-tools-list="mcpToolsList"
-				@addTool="addTools"
-				@menu="handleClick">
-			</mcp-item>
+						<el-col :span="4" class="store-item" v-for="item in mcpToolsList" :key="item.id">
+							<el-card style="height: 170px;" shadow="never">
+								<div class="title-box">
+									<div class="title-left">
+										<div class="title-label">{{ item.title.substring(0, 1) }}</div>
+										<div class="title-info">
+											<div class="line1 knowledge-title">{{ item.title }}</div>
+										</div>
+									</div>
+								</div>
+								<div class="description">{{ item.description }}</div>
+								<div class="tool-bar">
+									<div class="tool-time">创建时间: {{ item.createTime }}</div>
+									<el-dropdown trigger="click" @command="handleClick($event, item)">
+										<el-icon>
+											<MoreFilled />
+										</el-icon>
+										<template #dropdown>
+											<el-dropdown-menu>
+												<el-dropdown-item command="edit">
+													<el-icon>
+														<Edit />
+													</el-icon> 编辑
+												</el-dropdown-item>
+												<el-dropdown-item command="delete">
+													<el-icon>
+														<Delete />
+													</el-icon> 删除</el-dropdown-item>
+											</el-dropdown-menu>
+										</template>
+									</el-dropdown>
+								</div>
+							</el-card>
+						</el-col>
+					</el-row>
+				</el-tab-pane>
+			</el-tabs>
 		</el-card>
 
 		<Pages :form="searchForm" :page-obj="page" @pageChange="handlePageChange" @pageJump="getList" v-if="activeName === 'first'"></Pages>
@@ -55,11 +130,9 @@ import Pages from "@/components/pages/index.vue"
 import {Delete, MoreFilled, Plus, Edit} from "@element-plus/icons-vue"
 import SaveDialog from "./save.vue"
 import McpDialog from "./mcp.vue"
-import DiyItem from "./item/diy.vue"
-import McpItem from "./item/mcp.vue"
 
 export default {
-	components: {Delete, MoreFilled, Plus, Edit, Pages, SaveDialog, McpDialog, DiyItem, McpItem},
+	components: {Delete, MoreFilled, Plus, Edit, Pages, SaveDialog, McpDialog},
 	data() {
 		return {
 			searchForm: {
@@ -144,10 +217,6 @@ export default {
 			this.mcpDialogVisible = false
 			this.getMCPToolsList()
 		},
-		// 选择tab
-		selectTab(type) {
-			this.activeName = type
-		},
 		// 操作菜单
 		handleClick(event, row) {
 			if (event === 'edit') {
@@ -187,5 +256,101 @@ export default {
 </script>
 
 <style scoped>
-@import './item/index.css';
+.title {
+	font-size: 18px;
+	font-weight: bold;
+	padding-bottom: 20px;
+	border-bottom: 1px solid #f4f4f4;
+}
+.store-list {
+	width: 100%;
+}
+.store-item {
+	height: 100%;
+	margin-top: 20px;
+	cursor: pointer;
+	margin-right: 20px;
+}
+.add-box {
+	height: 170px;
+	background: #eff0f1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.add-icon {
+	height: 25px;
+	width: 25px;
+	background: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.add-box:hover {
+	border: 1px dashed var(--el-color-theme);
+	background: #fff;
+}
+.add-box:hover .add-store-name {
+	color: var(--el-color-theme);
+}
+.add-box:hover .add-icon {
+	border: 1px solid var(--el-color-theme);
+}
+.add-box:hover .icon-color {
+	color: var(--el-color-theme);
+}
+.add-item-box {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 170px;
+}
+.add-store-name {
+	font-size: 16px;margin-left: 10px
+}
+.title-box {
+	width: 100%;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.title-left {
+	display: flex;
+	height: 40px;
+	align-items: center;
+	color: #1f2329;
+}
+.knowledge-title {
+	margin-left: 10px;
+	width: 250px;
+}
+.title-label {
+	background: var(--el-color-theme);
+	color: #fff;
+	border-radius: 10px;
+	height: 40px;
+	width: 40px;
+	line-height: 40px;
+	text-align: center;
+	font-weight: bold;
+}
+.description {
+	margin-top: 15px;
+	color: #606266;
+	height: 55px;
+	width: 100%;
+	overflow: hidden;
+}
+.tool-bar {
+	width: 100%;
+	border-top: 1px solid #e2e2e2;
+	padding-top: 10px;
+	display: flex;
+	justify-content: space-between;
+}
+.tool-time {
+	font-size: 12px;
+	color: #606266;
+}
 </style>
