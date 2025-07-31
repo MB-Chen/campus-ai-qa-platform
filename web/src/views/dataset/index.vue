@@ -1,7 +1,7 @@
 <template>
 	<el-container style="padding: 20px" class='store-div-box'>
+		<div class="title">知识库</div>
 		<el-card style="height: 900px" shadow="never">
-			<div class="title">知识库</div>
 			<el-form :inline="true" :model="searchForm" class="demo-form-inline" style="float: right;margin-top: 10px" label-width="5px">
 				<el-form-item style="margin-right: 10px !important;">
 					<el-select v-model="searchForm.type" placeholder="选择范围" style="width: 110px" clearable>
@@ -216,7 +216,7 @@ export default{
 	font-size: 18px;
 	font-weight: bold;
 	padding-bottom: 20px;
-	border-bottom: 1px solid #f4f4f4;
+	padding-left: 20px;
 }
 .store-list {
 	width: 100%;

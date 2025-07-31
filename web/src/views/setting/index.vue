@@ -1,7 +1,7 @@
 <template>
 	<el-container style="padding: 20px">
+		<div class="title">系统设置</div>
 		<el-card shadow="never">
-			<div class="title">系统设置</div>
 			<el-row class="tac">
 				<el-col :span="2" style="margin-right: 20px">
 					<div class="menu">
@@ -88,7 +88,7 @@ export default {
 		font-size: 18px;
 		font-weight: bold;
 		padding-bottom: 20px;
-		border-bottom: 1px solid #f4f4f4;
+		padding-left: 20px;
 	}
 	.tac {
 		width: 100%;
