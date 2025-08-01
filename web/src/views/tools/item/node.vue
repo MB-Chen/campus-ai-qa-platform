@@ -50,13 +50,53 @@
 			</el-col>
 		</el-row>
 	</el-card>
+
+	<Pages
+		:form="searchForm"
+		:page-obj="page"
+		@pageChange="handlePageChange"
+		@pageJump="getList">
+	</Pages>
+
+	<el-dialog
+		title="选择资源类型"
+		v-model="visible"
+		:width="600"
+		:close-on-click-modal="false"
+		@closed="$emit('closed')">
+		<div class="node-list flex-center-all space-between">
+			<div class="node-item flex-center flex-column" @click="addFlowNode(1)">
+				<div class="icon-class">
+					<el-icon size="28"><Coin /></el-icon>
+				</div>
+				<span style="margin-top: 2px">数据库</span>
+			</div>
+			<div class="node-item flex-center flex-column" @click="addFlowNode(2)">
+				<div class="icon-class" style="background: #409EFF">
+					<el-icon size="28"><ChromeFilled /></el-icon>
+				</div>
+				<span style="margin-top: 5px">API</span>
+			</div>
+		</div>
+	</el-dialog>
+
+	<el-drawer
+		:size="1000"
+		v-model="drawer"
+		:title="title"
+		append-to-body
+		destroy-on-close>
+		<db-dialog ref="saveDialog" @closed="drawer = false" @success="handleSuccess"></db-dialog>
+	</el-drawer>
 </template>
 
 <script>
-import {Delete, MoreFilled, Plus, Edit} from "@element-plus/icons-vue"
+import {Delete, MoreFilled, Plus, Edit, Coin, ChromeFilled} from "@element-plus/icons-vue"
+import Pages from "@/components/pages/index.vue"
+import DbDialog from '../db.vue'
 
 export default {
-	components: {Delete, MoreFilled, Plus, Edit},
+	components: {DbDialog, ChromeFilled, Coin, Pages, Delete, MoreFilled, Plus, Edit},
 	data() {
 		return {
 			nodeList: [],
@@ -66,21 +106,74 @@ export default {
 				page: 1,
 				limit: 14
 			},
-			title: "创建插件",
+			title: "创建资源",
 			page: {
 				total: 0
 			},
-			drawer: false
+			drawer: false,
+			visible: false
 		}
 	},
 	methods: {
+		// 获取列表
+		async getList() {
+			let res = await this.$API.workflowNode.list.get(this.searchForm)
+			if (res.code === 0) {
+				this.commonToolsList = res.data.data
+				this.page.total = res.data.total
+			}
+		},
+		// 分页
+		handlePageChange(page) {
+			this.searchForm.page = page
+			this.getList()
+		},
 		// 添加插件
-		addTools(type) {
-			this.$emit("addTool", type)
+		addTools() {
+			this.visible = true
+		},
+		// 确认增加
+		addFlowNode(type) {
+			if (type === 1) {
+				this.visible = false
+				this.drawer = true
+				this.title = '创建资源'
+
+				this.$nextTick(() => {
+					this.$refs.saveDialog.open('add')
+				})
+			}
+		},
+		// 添加插件成功
+		handleSuccess() {
+			this.drawer = false
+			this.getList()
 		},
 		// 操作菜单
-		handleClick(event, item) {
-			this.$emit("menu", event, item)
+		handleClick(event, row) {
+			if (event === 'edit') {
+
+				this.title = "编辑资源"
+				this.drawer = true
+				this.$nextTick(() => {
+					this.$refs.saveDialog.open('edit').setData(row)
+				})
+
+			} else if (event === 'delete') {
+				this.$confirm('此操作将永久删除该资源 是否继续?', '提示', {
+					confirmButtonText: '确定',
+					cancelButtonText: '取消',
+					type: 'warning'
+				}).then(async () => {
+					let res = await this.$API.workflowNode.del.get({id: row.id})
+					if (res.code === 0) {
+						this.$message.success(res.msg)
+						this.getList()
+					} else {
+						this.$message.error(res.msg)
+					}
+				}).catch(() => {})
+			}
 		}
 	}
 }
@@ -88,4 +181,23 @@ export default {
 
 <style scoped>
 @import './index.css';
+.node-list {
+	width: 100%;
+	padding: 20px;
+	background: #f4f4f4;
+}
+.node-item {
+	width: 250px;
+	background: #fff;
+	padding: 20px;
+	height: 100px;
+	border-radius: 10px;
+	cursor: pointer;
+}
+.icon-class {
+	padding: 3px 5px;
+	background: #E6A23C;
+	border-radius: 3px;
+	color: #fff;
+}
 </style>

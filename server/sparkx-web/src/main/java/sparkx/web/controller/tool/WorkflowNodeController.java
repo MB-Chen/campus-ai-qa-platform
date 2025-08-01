@@ -19,7 +19,7 @@ import sparkx.service.service.interfaces.tool.IWorkflowNodeService;
 import sparkx.service.vo.tool.ToolQueryVo;
 import sparkx.service.vo.tool.WorkflowNodeListVo;
 
-@RequestMapping("api/flowNode")
+@RequestMapping("api/workflowNode")
 @RestController
 public class WorkflowNodeController {
 
