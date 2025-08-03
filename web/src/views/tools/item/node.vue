@@ -137,7 +137,7 @@ export default {
 			if (type === 1) {
 				this.visible = false
 				this.drawer = true
-				this.title = '创建资源'
+				this.title = '创建数据库'
 
 				this.$nextTick(() => {
 					this.$refs.saveDialog.open('add')
@@ -153,7 +153,7 @@ export default {
 		handleClick(event, row) {
 			if (event === 'edit') {
 
-				this.title = "编辑资源"
+				this.title = "编辑数据库"
 				this.drawer = true
 				this.$nextTick(() => {
 					this.$refs.saveDialog.open('edit').setData(row)

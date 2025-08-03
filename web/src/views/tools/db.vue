@@ -12,7 +12,7 @@
 				<el-radio :label="1" v-model="form.status">启用</el-radio>
 				<el-radio :label="2" v-model="form.status">禁用</el-radio>
 			</el-form-item>
-			<el-form-item label="数据库字段">
+			<el-form-item label="数据库字段" prop="nodeData">
 				<el-button type="primary" :icon="Plus" size="small" style="margin-bottom: 10px" @click="addField">添加字段</el-button>
 				<el-table :data="form.nodeData" style="width: 100%" border>
 					<el-table-column label="字段名称">
@@ -81,6 +81,9 @@ export default {
 				],
 				status: [
 					{required: true, message: '资源状态不能为空', trigger: 'blur'}
+				],
+				nodeData: [
+					{required: true, message: '数据库字段不能为空', trigger: 'blur'}
 				]
 			},
 			defaultField: [
@@ -110,8 +113,30 @@ export default {
 
 			return this
 		},
-		optSubmit() {
+		optSubmit(formName) {
+			this.$refs[formName].validate(async (valid) => {
+				if (valid) {
 
+					if (!/^[a-zA-Z_]+$/.test(this.form.name)) {
+						this.$message.error('数据库名只包含英文字母和下划线')
+						return false
+					}
+
+					let res
+					if (this.mode === 'add') {
+						res = await this.$API.workflowNode.add.post(this.form)
+					} else {
+						res = await this.$API.workflowNode.edit.post(this.form)
+					}
+
+					if (res.code === 0) {
+						this.$message.success(res.msg)
+						this.$emit('success')
+					} else {
+						this.$message.error(res.msg)
+					}
+				}
+			})
 		},
 		setData(row) {
 			this.form = row
