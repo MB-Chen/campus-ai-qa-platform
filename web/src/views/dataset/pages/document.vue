@@ -67,7 +67,12 @@
 							向量化中
 						</span>
 						<span v-if="scope.row.status === 3" style="color: #67C23A;cursor: pointer">已完成</span>
-						<span v-if="scope.row.status === 4" style="color: var(--el-color-primary);cursor: pointer">数据入库中</span>
+						<span v-if="scope.row.status === 4" style="color: var(--el-color-primary);cursor: pointer">
+							<el-icon class="custom-loading-icon">
+								<Loading />
+							</el-icon>
+							入库中
+						</span>
 					</template>
 				</el-table-column>
 				<el-table-column
@@ -287,7 +292,7 @@ export default {
 			// 没有在向量化的文档，则清理定时器
 			let running = false
 			res.data.data.forEach(item => {
-				if (item.status === 2 || item.questionStatus === 2) {
+				if ((item.status === 2 || item.status === 4) || item.questionStatus === 2) {
 					running = true
 				}
 			})

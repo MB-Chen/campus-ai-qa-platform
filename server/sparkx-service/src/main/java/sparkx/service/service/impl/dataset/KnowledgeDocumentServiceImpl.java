@@ -151,7 +151,6 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
      * @param previewVo PreviewVo
      */
     @Override
-    @Async
     public void uploadFile(PreviewVo previewVo) {
 
         try {
@@ -185,30 +184,8 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                     knowledgeDocument.setCreateTime(Tool.nowDateTime());
 
                     knowledgeDocumentMapper.insert(knowledgeDocument);
-                    int fileSize = 0;
-                    List<CompletableFuture<Void>> futures = new ArrayList<>();
-                    for (Map<String, Object> row : rows) {
-
-                        DocumentDataVo documentDataVo = excelUploadHelper.getDocumentData(row, previewVo);
-
-                        int byteSize = String.valueOf(documentDataVo.getContent()).getBytes(StandardCharsets.UTF_8).length;
-                        fileSize += byteSize;
-                        // 异步入库
-                        CompletableFuture<Void> future = excelUploadHelper.inertToDb(previewVo, documentId, documentDataVo);
-                        futures.add(future);
-                    }
-
-                    // 等待所有任务完成
-                    int finalFileSize = fileSize;
-                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                            .thenRun(() -> {
-                                // 更新文件大小
-                                KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
-                                documentInfo.setFileSize(finalFileSize);
-                                documentInfo.setStatus(DocumentStatusEnum.PENDING.getCode());
-                                knowledgeDocumentMapper.updateById(documentInfo);
-                            })
-                            .join();
+                    // 异步入库
+                    excelUploadHelper.inertToDb(rows, previewVo, documentId);
                 }
 
                 reader.close();
