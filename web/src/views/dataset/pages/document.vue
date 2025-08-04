@@ -67,6 +67,7 @@
 							向量化中
 						</span>
 						<span v-if="scope.row.status === 3" style="color: #67C23A;cursor: pointer">已完成</span>
+						<span v-if="scope.row.status === 4" style="color: var(--el-color-primary);cursor: pointer">数据入库中</span>
 					</template>
 				</el-table-column>
 				<el-table-column

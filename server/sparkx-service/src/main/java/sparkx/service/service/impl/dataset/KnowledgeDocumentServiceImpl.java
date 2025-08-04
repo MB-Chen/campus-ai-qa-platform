@@ -171,7 +171,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                     knowledgeDocument.setName(sheetName);
                     String documentId = IdUtil.randomUUID();
                     knowledgeDocument.setDocumentId(documentId);
-                    knowledgeDocument.setStatus(StatusEnum.YES.getCode());
+                    knowledgeDocument.setStatus(DocumentStatusEnum.INSERT.getCode());
                     knowledgeDocument.setQuestionStatus(StatusEnum.YES.getCode());
                     knowledgeDocument.setActive(StatusEnum.YES.getCode());
                     knowledgeDocument.setDatasetId(previewVo.getDatasetId());

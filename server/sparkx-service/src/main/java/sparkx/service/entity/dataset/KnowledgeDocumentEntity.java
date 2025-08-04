@@ -44,7 +44,7 @@ public class KnowledgeDocumentEntity implements Serializable {
     private long fileSize;
 
     /**
-    * 状态 1:待索引 2:索引中 3:索引完成
+    * 状态 1:待索引 2:索引中 3:索引完成 4:数据入库中
     */
     @TableField(value = "status")
     private Integer status;

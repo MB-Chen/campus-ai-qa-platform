@@ -48,7 +48,7 @@ CREATE INDEX "idx_dataset" ON "public"."knowledge_document" USING btree (
 COMMENT ON COLUMN "public"."knowledge_document"."document_id" IS '唯一标识';
 COMMENT ON COLUMN "public"."knowledge_document"."name" IS '文件名称';
 COMMENT ON COLUMN "public"."knowledge_document"."file_size" IS '字符长度';
-COMMENT ON COLUMN "public"."knowledge_document"."status" IS '状态 1:待索引 2:索引中 3:索引完成';
+COMMENT ON COLUMN "public"."knowledge_document"."status" IS '状态 1:待索引 2:索引中 3:索引完成 4:数据入库中';
 COMMENT ON COLUMN "public"."knowledge_document"."question_status" IS '生成问题状态 1:待生成 2:生成中 3:生成完成';
 COMMENT ON COLUMN "public"."knowledge_document"."active" IS '状态 1:正常 2:禁用';
 COMMENT ON COLUMN "public"."knowledge_document"."dataset_id" IS '所属知识库';

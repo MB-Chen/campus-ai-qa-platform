@@ -13,7 +13,8 @@ public enum DocumentStatusEnum {
 
     PENDING(1, "待生成"),
     RUNNING(2, "生成中"),
-    COMPLETE(3, "索引完成");
+    COMPLETE(3, "索引完成"),
+    INSERT(4, "数据入库中");
 
     /**
      * 构造方法
