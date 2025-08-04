@@ -24,6 +24,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 import sparkx.common.core.PageResult;
 import sparkx.common.enums.DocumentStatusEnum;
+import sparkx.common.enums.QuestionStatusEnum;
 import sparkx.common.enums.StatusEnum;
 import sparkx.common.exception.BusinessException;
 import sparkx.common.utils.Tool;
@@ -175,7 +176,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                     String documentId = IdUtil.randomUUID();
                     knowledgeDocument.setDocumentId(documentId);
                     knowledgeDocument.setStatus(DocumentStatusEnum.INSERT.getCode());
-                    knowledgeDocument.setQuestionStatus(StatusEnum.YES.getCode());
+                    knowledgeDocument.setQuestionStatus(QuestionStatusEnum.PENDING.getCode());
                     knowledgeDocument.setActive(StatusEnum.YES.getCode());
                     knowledgeDocument.setDatasetId(previewVo.getDatasetId());
                     knowledgeDocument.setParagraphNum(rows.size());
@@ -239,7 +240,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
             knowledgeDocument.setDocumentId(documentId);
             knowledgeDocument.setFileSize(document.getFileSize());
             knowledgeDocument.setStatus(StatusEnum.YES.getCode());
-            knowledgeDocument.setQuestionStatus(StatusEnum.YES.getCode());
+            knowledgeDocument.setQuestionStatus(QuestionStatusEnum.PENDING.getCode());
             knowledgeDocument.setActive(StatusEnum.YES.getCode());
             knowledgeDocument.setDatasetId(documentSaveVo.getDatasetId());
             knowledgeDocument.setParagraphNum(document.getContent().size());
