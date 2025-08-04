@@ -28,6 +28,7 @@ import sparkx.service.vo.document.PreviewVo;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 
 @Component
@@ -48,7 +49,7 @@ public class ExcelUploadHelper {
      * @param documentId documentId
      */
     @Async
-    public void inertToDb(PreviewVo previewVo, String documentId, DocumentDataVo documentDataVo) {
+    public CompletableFuture<Void> inertToDb(PreviewVo previewVo, String documentId, DocumentDataVo documentDataVo) {
 
         String title = documentDataVo.getTitle();
         String content = documentDataVo.getContent();
@@ -91,6 +92,8 @@ public class ExcelUploadHelper {
                 knowledgeQuestionParagraphMapper.insert(questionParagraph);
             }
         }
+
+        return CompletableFuture.completedFuture(null);
     }
 
     /**

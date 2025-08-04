@@ -17,6 +17,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -41,6 +42,7 @@ import sparkx.service.vo.document.*;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 
 @Service
@@ -148,6 +150,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
      * @param previewVo PreviewVo
      */
     @Override
+    @Async
     public void uploadFile(PreviewVo previewVo) {
 
         try {
@@ -182,6 +185,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
 
                     knowledgeDocumentMapper.insert(knowledgeDocument);
                     int fileSize = 0;
+                    List<CompletableFuture<Void>> futures = new ArrayList<>();
                     for (Map<String, Object> row : rows) {
 
                         DocumentDataVo documentDataVo = excelUploadHelper.getDocumentData(row, previewVo);
@@ -189,13 +193,21 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                         int byteSize = String.valueOf(documentDataVo.getContent()).getBytes(StandardCharsets.UTF_8).length;
                         fileSize += byteSize;
                         // 异步入库
-                        excelUploadHelper.inertToDb(previewVo, documentId, documentDataVo);
+                        CompletableFuture<Void> future = excelUploadHelper.inertToDb(previewVo, documentId, documentDataVo);
+                        futures.add(future);
                     }
 
-                    // 更新文件大小
-                    KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
-                    documentInfo.setFileSize(fileSize);
-                    knowledgeDocumentMapper.updateById(documentInfo);
+                    // 等待所有任务完成
+                    int finalFileSize = fileSize;
+                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                            .thenRun(() -> {
+                                // 更新文件大小
+                                KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
+                                documentInfo.setFileSize(finalFileSize);
+                                documentInfo.setStatus(DocumentStatusEnum.PENDING.getCode());
+                                knowledgeDocumentMapper.updateById(documentInfo);
+                            })
+                            .join();
                 }
 
                 reader.close();
