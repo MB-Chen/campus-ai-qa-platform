@@ -182,7 +182,6 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
 
                     knowledgeDocumentMapper.insert(knowledgeDocument);
                     int fileSize = 0;
-                    CountDownLatch latch = new CountDownLatch(rows.size());
                     for (Map<String, Object> row : rows) {
 
                         DocumentDataVo documentDataVo = excelUploadHelper.getDocumentData(row, previewVo);
@@ -190,15 +189,13 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                         int byteSize = String.valueOf(documentDataVo.getContent()).getBytes(StandardCharsets.UTF_8).length;
                         fileSize += byteSize;
                         // 异步入库
-                        excelUploadHelper.inertToDb(previewVo, documentId, documentDataVo, latch);
+                        excelUploadHelper.inertToDb(previewVo, documentId, documentDataVo);
                     }
 
                     // 更新文件大小
                     KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
                     documentInfo.setFileSize(fileSize);
                     knowledgeDocumentMapper.updateById(documentInfo);
-
-                    latch.wait();
                 }
 
                 reader.close();
@@ -206,8 +203,6 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
 
         } catch (IllegalStateException | IOException e) {
             throw new BusinessException("上传失败" + e.getMessage());
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
         }
     }
 

@@ -10,6 +10,7 @@
 package sparkx.service.helper;
 
 import cn.hutool.core.util.IdUtil;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -45,10 +46,9 @@ public class ExcelUploadHelper {
      * 异步执行导入
      * @param previewVo previewVo
      * @param documentId documentId
-     * @param latch CountDownLatch
      */
     @Async
-    public void inertToDb(PreviewVo previewVo, String documentId, DocumentDataVo documentDataVo, CountDownLatch latch) {
+    public void inertToDb(PreviewVo previewVo, String documentId, DocumentDataVo documentDataVo) {
 
         String title = documentDataVo.getTitle();
         String content = documentDataVo.getContent();
@@ -91,8 +91,6 @@ public class ExcelUploadHelper {
                 knowledgeQuestionParagraphMapper.insert(questionParagraph);
             }
         }
-
-        latch.countDown();
     }
 
     /**
