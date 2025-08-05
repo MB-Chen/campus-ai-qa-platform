@@ -599,7 +599,7 @@ CREATE TABLE "public"."workflow_node" (
   "description" VARCHAR (255) COLLATE "pg_catalog"."default" DEFAULT '' :: CHARACTER VARYING,
   "type" INT2 DEFAULT 1,
   "status" INT2 DEFAULT 1,
-  "node_data" JSON,
+  "node_data" text COLLATE "pg_catalog"."default",
   "create_time" TIMESTAMP (6),
   "update_time" TIMESTAMP (6),
   CONSTRAINT "workflow_node_pkey" PRIMARY KEY ("id")

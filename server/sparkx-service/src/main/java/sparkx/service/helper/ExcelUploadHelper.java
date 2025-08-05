@@ -66,7 +66,13 @@ public class ExcelUploadHelper {
             int fileSize = 0;
             for (Map<String, Object> row : rows) {
 
-                fileSize = asyncWrite2Db(row, fileSize, previewVo, documentId, latch);
+                DocumentDataVo documentDataVo = getDocumentData(row, previewVo);
+                int byteSize = String.valueOf(documentDataVo.getContent()).getBytes(StandardCharsets.UTF_8).length;
+                fileSize += byteSize;
+
+                // 异步入库
+                asyncWrite2Db(documentDataVo, previewVo, documentId, latch);
+
                 // 前端实现size增长效果
                 KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
                 documentInfo.setFileSize(fileSize);
@@ -125,18 +131,13 @@ public class ExcelUploadHelper {
 
     /**
      * 异步批量入库
-     * @param row Map<String, Object>
-     * @param fileSize int
+     * @param documentDataVo DocumentDataVo
      * @param previewVo PreviewVo
      * @param documentId String
      * @param latch CountDownLatch
-     * @return int
      */
-    private int asyncWrite2Db(Map<String, Object> row, int fileSize, PreviewVo previewVo, String documentId, CountDownLatch latch) {
-
-        DocumentDataVo documentDataVo = getDocumentData(row, previewVo);
-        int byteSize = String.valueOf(documentDataVo.getContent()).getBytes(StandardCharsets.UTF_8).length;
-        fileSize += byteSize;
+    @Async
+    public void asyncWrite2Db(DocumentDataVo documentDataVo, PreviewVo previewVo, String documentId, CountDownLatch latch) {
 
         String title = documentDataVo.getTitle();
         String content = documentDataVo.getContent();
@@ -181,7 +182,5 @@ public class ExcelUploadHelper {
         }
 
         latch.countDown();
-
-        return fileSize;
     }
 }

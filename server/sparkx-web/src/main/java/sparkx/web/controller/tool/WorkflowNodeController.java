@@ -10,12 +10,12 @@
 package sparkx.web.controller.tool;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 import sparkx.common.core.AjaxResult;
 import sparkx.common.core.PageResult;
 import sparkx.service.service.interfaces.tool.IWorkflowNodeService;
+import sparkx.service.validate.tool.WorkflowNodeDataValidate;
 import sparkx.service.vo.tool.ToolQueryVo;
 import sparkx.service.vo.tool.WorkflowNodeListVo;
 
@@ -33,5 +33,24 @@ public class WorkflowNodeController {
     public AjaxResult<PageResult<WorkflowNodeListVo>> index(ToolQueryVo queryVo) {
 
         return AjaxResult.success(iWorkflowNodeService.getWorkflowNodeList(queryVo));
+    }
+
+    /**
+     * 添加编排资源
+     */
+    @PostMapping("/add")
+    public AjaxResult<Object> add(@RequestBody @Validated WorkflowNodeDataValidate validate) {
+
+        iWorkflowNodeService.addWorkflowNode(validate);
+        return AjaxResult.success();
+    }
+
+    /**
+     * 编辑编排资源
+     */
+    @PostMapping("/edit")
+    public AjaxResult<Object> edit() {
+
+        return AjaxResult.success();
     }
 }

@@ -10,6 +10,7 @@
 package sparkx.service.service.interfaces.tool;
 
 import sparkx.common.core.PageResult;
+import sparkx.service.validate.tool.WorkflowNodeDataValidate;
 import sparkx.service.vo.tool.ToolQueryVo;
 import sparkx.service.vo.tool.WorkflowNodeListVo;
 
@@ -21,4 +22,10 @@ public interface IWorkflowNodeService {
      * @return PageResult<WorkflowNodeListVo>
      */
     PageResult<WorkflowNodeListVo> getWorkflowNodeList(ToolQueryVo queryVo);
+
+    /**
+     * 添加资源节点
+     * @param validate WorkflowNodeDataValidate
+     */
+    void addWorkflowNode(WorkflowNodeDataValidate validate);
 }

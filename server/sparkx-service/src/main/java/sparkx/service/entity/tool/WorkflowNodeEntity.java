@@ -61,7 +61,7 @@ public class WorkflowNodeEntity implements Serializable {
     /**
     * 节点配置
     */
-    @TableField(value = "node_data", typeHandler = JacksonTypeHandler.class)
+    @TableField(value = "node_data")
     private String nodeData;
 
     /**

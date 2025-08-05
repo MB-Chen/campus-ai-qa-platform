@@ -100,7 +100,8 @@ export default {
 			fieldType: [
 				{label: 'Integer', value: 'Integer'},
 				{label: 'String', value: 'String'},
-				{label: 'Timestamp', value: 'Timestamp'}
+				{label: 'Timestamp', value: 'Timestamp'},
+				{label: 'Double', value: 'Double'},
 			],
 			loading: false,
 			mode: 'add'

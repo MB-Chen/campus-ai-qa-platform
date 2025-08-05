@@ -9,7 +9,10 @@
 // +----------------------------------------------------------------------
 package sparkx.service.mapper.tool;
 
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import sparkx.common.core.IBaseMapper;
 import sparkx.service.entity.tool.WorkflowNodeEntity;
 
@@ -19,4 +22,10 @@ import sparkx.service.entity.tool.WorkflowNodeEntity;
 @Mapper
 public interface WorkflowNodeMapper extends IBaseMapper<WorkflowNodeEntity> {
 
+    @Select("SELECT COUNT(*) FROM information_schema.tables " +
+            "WHERE table_schema = 'public' AND table_name = #{tableName}")
+    int existsTable(@Param("tableName") String tableName);
+
+    @Insert("${ddl}")
+    void createTable(@Param("ddl") String ddl);
 }
