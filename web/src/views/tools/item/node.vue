@@ -17,16 +17,18 @@
 			<el-col :span="4" class="store-item" v-for="item in nodeList" :key="item.id">
 				<el-card style="height: 170px;" shadow="never">
 					<div class="title-box">
-						<div class="title-left">
-							<div class="title-label">{{ item.title.substring(0, 1) }}</div>
+						<div class="title-left flex-all-center">
+							<div class="node-icon">
+								<el-icon size="28"><Coin /></el-icon>
+							</div>
 							<div class="title-info">
-								<div class="line1 knowledge-title">{{ item.title }}</div>
+								<div class="line1 knowledge-title">{{ item.name }}</div>
 							</div>
 						</div>
 					</div>
 					<div class="description">{{ item.description }}</div>
 					<div class="tool-bar">
-						<div class="tool-time">创建时间: {{ item.createTime }}</div>
+						<div class="tool-time">创建时间: {{ item.createTime && item.createTime.replace("T", " ") }}</div>
 						<el-dropdown trigger="click" @command="handleClick($event, item)">
 							<el-icon>
 								<MoreFilled />
@@ -114,12 +116,15 @@ export default {
 			visible: false
 		}
 	},
+	mounted() {
+		this.getList()
+	},
 	methods: {
 		// 获取列表
 		async getList() {
 			let res = await this.$API.workflowNode.list.get(this.searchForm)
 			if (res.code === 0) {
-				this.commonToolsList = res.data.data
+				this.nodeList = res.data.data
 				this.page.total = res.data.total
 			}
 		},
@@ -199,5 +204,11 @@ export default {
 	background: #E6A23C;
 	border-radius: 3px;
 	color: #fff;
+}
+.node-icon {
+	background: #E6A23C;
+	color: #fff;
+	padding: 3px;
+	border-radius: 5px;
 }
 </style>

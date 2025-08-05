@@ -26,7 +26,7 @@
 					</div>
 					<div class="description">{{ item.description }}</div>
 					<div class="tool-bar">
-						<div class="tool-time">创建时间: {{ item.createTime }}</div>
+						<div class="tool-time">创建时间: {{ item.createTime && item.createTime.replace("T", " ") }}</div>
 						<el-dropdown trigger="click" @command="handleClick($event, item)">
 							<el-icon>
 								<MoreFilled />

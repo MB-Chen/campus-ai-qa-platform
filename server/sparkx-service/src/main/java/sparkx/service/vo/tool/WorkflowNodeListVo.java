@@ -45,4 +45,9 @@ public class WorkflowNodeListVo implements Serializable {
      * 状态 1:启用 2:禁用
      */
     private Integer status;
+
+    /**
+     * 创建时间
+     */
+    private LocalDateTime createTime;
 }
