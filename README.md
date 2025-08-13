@@ -6,7 +6,7 @@
 
 [![Gitee star](https://gitee.com/shop-sparker/spark-x/badge/star.svg?theme=gvp)](https://gitee.com/shop-sparker/spark-x/stargazers)
 [![Gitee fork](https://gitee.com/shop-sparker/spark-x/badge/fork.svg?theme=gvp)](https://gitee.com/shop-sparker/spark-x/members)
-[![License](https://img.shields.io/badge/license-Apache-2.0-green)](https://gitee.com/shop-sparker/spark-x/blob/master/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache2.0-green)](https://gitee.com/shop-sparker/spark-x/blob/master/LICENSE)
 
 </div>
 
