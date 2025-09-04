@@ -392,6 +392,7 @@ const showLicense = () => {
 }
 
 function decodeUnicode(str) {
+    if (!str) return '';
 	str = str.replace(/\\/g, "%");
 	return unescape(str);
 }
