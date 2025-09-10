@@ -65,6 +65,12 @@ body {
 	align-items: center;
 	justify-content: center;
 }
+.flex-column {
+	flex-direction: column;
+}
+.space-between {
+	justify-content: space-between;
+}
 .el-card {
 	border-radius: 10px !important;
 }

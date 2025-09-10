@@ -1,5 +1,5 @@
 // +----------------------------------------------------------------------
-// | SparkX 基于大语言模型和 RAG 的知识库问答系统
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
 // +----------------------------------------------------------------------
 // | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
 // +----------------------------------------------------------------------
@@ -17,12 +17,14 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.multipart.MultipartFile;
 import sparkx.common.core.PageResult;
 import sparkx.common.enums.DocumentStatusEnum;
+import sparkx.common.enums.QuestionStatusEnum;
 import sparkx.common.enums.StatusEnum;
 import sparkx.common.exception.BusinessException;
 import sparkx.common.utils.Tool;
@@ -30,15 +32,19 @@ import sparkx.service.entity.dataset.*;
 import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.fileSplitter.FileHandleFactory;
 import sparkx.service.fileSplitter.FileHandleInterface;
+import sparkx.service.helper.ExcelUploadHelper;
 import sparkx.service.mapper.dataset.*;
 import sparkx.service.mapper.system.ModelsMapper;
 import sparkx.service.service.interfaces.dataset.IKnowledgeDocumentService;
 import sparkx.service.task.EmbeddingDocumentTask;
+import sparkx.service.vo.dataset.DocumentDataVo;
 import sparkx.service.vo.document.*;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 
 @Service
 public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
@@ -62,10 +68,10 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
     private ModelsMapper modelsMapper;
 
     @Autowired
-    private KnowledgeQuestionMapper knowledgeQuestionMapper;
+    KnowledgeDatasetMapper knowledgeDatasetMapper;
 
     @Autowired
-    KnowledgeDatasetMapper knowledgeDatasetMapper;
+    ExcelUploadHelper excelUploadHelper;
 
     /**
      * 知识库下文档列表
@@ -168,8 +174,8 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                     knowledgeDocument.setName(sheetName);
                     String documentId = IdUtil.randomUUID();
                     knowledgeDocument.setDocumentId(documentId);
-                    knowledgeDocument.setStatus(StatusEnum.YES.getCode());
-                    knowledgeDocument.setQuestionStatus(StatusEnum.YES.getCode());
+                    knowledgeDocument.setStatus(DocumentStatusEnum.INSERT.getCode());
+                    knowledgeDocument.setQuestionStatus(QuestionStatusEnum.PENDING.getCode());
                     knowledgeDocument.setActive(StatusEnum.YES.getCode());
                     knowledgeDocument.setDatasetId(previewVo.getDatasetId());
                     knowledgeDocument.setParagraphNum(rows.size());
@@ -178,77 +184,8 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                     knowledgeDocument.setCreateTime(Tool.nowDateTime());
 
                     knowledgeDocumentMapper.insert(knowledgeDocument);
-                    int fileSize = 0;
-                    for (Map<String, Object> row : rows) {
-                        StringBuilder content = new StringBuilder();
-                        String title = "";
-                        String question = "";
-
-                        if (previewVo.getFileType().equals("excel")) {
-                            for (Map.Entry<String, Object> entry : row.entrySet()) {
-                                content.append(entry.getKey()).append(":").append(entry.getValue()).append(" ");
-                            }
-                        } else {
-                            int i = 0;
-                            for (Map.Entry<String, Object> entry : row.entrySet()) {
-                                if (i == 0) {
-                                    title = String.valueOf(entry.getValue());
-                                } else if (i == 1) {
-                                    content.append(entry.getValue());
-                                } else if (i == 2) {
-                                    question = String.valueOf(entry.getValue());
-                                }
-
-                                i++;
-                            }
-                        }
-
-                        int byteSize = String.valueOf(content).getBytes(StandardCharsets.UTF_8).length;
-                        fileSize += byteSize;
-
-                        KnowledgeParagraphEntity paragraph = new KnowledgeParagraphEntity();
-                        paragraph.setParagraphId(IdUtil.randomUUID());
-                        paragraph.setTitle(title);
-                        paragraph.setContent(content.toString());
-                        paragraph.setDatasetId(previewVo.getDatasetId());
-                        paragraph.setDocumentId(documentId);
-                        paragraph.setStatus(DocumentStatusEnum.PENDING.getCode());
-                        paragraph.setActive(DocumentStatusEnum.PENDING.getCode());
-                        paragraph.setCreateTime(Tool.nowDateTime());
-
-                        knowledgeParagraphMapper.insert(paragraph);
-
-                        // 如果是QA问题
-                        if (previewVo.getFileType().equals("qa") && !question.isBlank()) {
-                            List<String> queationList = Arrays.stream(question.split("\n")).toList();
-
-                            for (String questionItem : queationList) {
-                                // 写入问题
-                                KnowledgeQuestionEntity questionEntity = new KnowledgeQuestionEntity();
-                                questionEntity.setQuestionId(IdUtil.randomUUID());
-                                questionEntity.setContent(questionItem);
-                                questionEntity.setHitNums(0);
-                                questionEntity.setDatasetId(paragraph.getDatasetId());
-                                questionEntity.setCreateTime(Tool.nowDateTime());
-                                knowledgeQuestionMapper.insert(questionEntity);
-
-                                // 写入问题关联
-                                KnowledgeQuestionParagraphEntity questionParagraph = new KnowledgeQuestionParagraphEntity();
-                                questionParagraph.setUuid(IdUtil.randomUUID());
-                                questionParagraph.setDatasetId(paragraph.getDatasetId());
-                                questionParagraph.setDocumentId(paragraph.getDocumentId());
-                                questionParagraph.setParagraphId(paragraph.getParagraphId());
-                                questionParagraph.setQuestionId(questionEntity.getQuestionId());
-                                questionParagraph.setCreateTime(Tool.nowDateTime());
-                                knowledgeQuestionParagraphMapper.insert(questionParagraph);
-                            }
-                        }
-                    }
-
-                    // 更新文件大小
-                    KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
-                    documentInfo.setFileSize(fileSize);
-                    knowledgeDocumentMapper.updateById(documentInfo);
+                    // 异步入库
+                    excelUploadHelper.inertToDb(rows, previewVo, documentId);
                 }
 
                 reader.close();
@@ -280,7 +217,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
             knowledgeDocument.setDocumentId(documentId);
             knowledgeDocument.setFileSize(document.getFileSize());
             knowledgeDocument.setStatus(StatusEnum.YES.getCode());
-            knowledgeDocument.setQuestionStatus(StatusEnum.YES.getCode());
+            knowledgeDocument.setQuestionStatus(QuestionStatusEnum.PENDING.getCode());
             knowledgeDocument.setActive(StatusEnum.YES.getCode());
             knowledgeDocument.setDatasetId(documentSaveVo.getDatasetId());
             knowledgeDocument.setParagraphNum(document.getContent().size());

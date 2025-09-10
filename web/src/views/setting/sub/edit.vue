@@ -189,6 +189,7 @@ export default {
 			if (this.form.type != 3) {
 				this.form.models = this.modelsArr.join(",")
 			}
+			this.form.functionCalling = this.functionArr.join(",")
 
 			this.$refs[formName].validate(async (valid) => {
 				if (valid) {

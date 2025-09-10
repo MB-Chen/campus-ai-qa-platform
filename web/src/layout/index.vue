@@ -16,6 +16,13 @@
 						</el-menu>
 					</el-scrollbar>
 				</div>
+				<a href="https://x.sparkshop.cn" target="_blank" style="margin: 0 auto;margin-bottom: 15px;">
+					<el-icon
+						size="23"
+						color="#909399">
+						<Tickets />
+					</el-icon>
+				</a>
 				<el-dropdown @command="handleCommand">
 					<div class="user-info" style="margin-bottom: 20px">
 						<el-avatar style="width: 35px;height: 35px;margin-left: 13px;cursor: pointer;" :src="userAvatar" />
@@ -231,12 +238,10 @@
 	<el-dialog v-model="showLicenseDialog" width="250px" :close-on-click-modal="false">
 		<div class="license-box">
 			<span class="logo-txt">SparkX</span>
+			<div class="license-item" style="margin-top: 20px;font-weight: bold;font-size: 18px;">企业智能体开发平台</div>
 			<div class="license-item" style="margin-top: 20px">授权公司：{{ decodeUnicode(license.companyName) }}</div>
 			<div class="license-item" style="margin-top: 10px">授权码：{{ license.licenseId }}</div>
 			<div class="license-item" style="margin-top: 10px">当前版本：{{ license.version }}</div>
-			<div class="license-item" style="margin-top: 10px">应用数量：{{ license.appNum }}</div>
-			<div class="license-item" style="margin-top: 10px">知识库数量：{{ license.datasetNum }}</div>
-			<div class="license-item" style="margin-top: 10px">用户数量：{{ license.userNum }}</div>
 		</div>
 	</el-dialog>
 </template>
@@ -259,6 +264,7 @@ import { ElMessage } from 'element-plus'
 
 import {useRoute, useRouter} from 'vue-router'
 import tool from "@/utils/tool.js";
+import {Tickets} from "@element-plus/icons-vue";
 
 const route = useRoute()
 const router = useRouter()
@@ -408,7 +414,7 @@ function decodeUnicode(str) {
 	display: flex;
 	align-items: center;
 	flex-direction: column;
-	height: 250px;
+	height: 200px;
 	padding: 20px;
 }
 .license-item {

@@ -25,7 +25,7 @@
 					</div>
 					<div class="base-style">
 						<el-button type="danger" @click="goChat">本地调试</el-button>
-						<el-button @click="goPublish">前往发布</el-button>
+						<el-button @click="goPublish" v-if="appInfo.status == 1">前往发布</el-button>
 						<el-button @click="showDeploy" v-if="appInfo.status == 2">三方嵌入</el-button>
 					</div>
 				</div>

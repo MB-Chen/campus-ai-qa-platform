@@ -345,14 +345,27 @@ export default {
 					} else if (event === '[ERROR]') {
 						that.nowIndex = that.chatLogList.length - 1
 						that.chatLogList[that.nowIndex].source = 'ai'
-						that.chatLogList[that.nowIndex].content = '系统配置出现了错误: ' + ev.data
+						let pluginsError = 'Cannot invoke "String.split(String, int)" because "content" is null'
+						let tips = ''
+						if (ev.data == pluginsError) {
+							tips = '\n【温馨提示：一般遇到  大多是模型不支持插件导致的】'
+						}
+						that.chatLogList[that.nowIndex].content = []
+						that.chatLogList[that.nowIndex].content[0] = {
+							nodeId: 0,
+							content: '当前模型出现了错误: ' + ev.data + "。" + tips
+						}
 						that.stopAnswer()
 					} else if (event === '[META]') { // 通知召回数据
 						that.chatLogList[that.nowIndex].retrievedList = JSON.parse(ev.data)
 					} else if (event === '[LOGIN_OUT]') {
 						that.nowIndex = that.chatLogList.length - 1
 						that.chatLogList[that.nowIndex].source = 'ai'
-						that.chatLogList[that.nowIndex].content = '登录过期，请重新登录'
+						that.chatLogList[that.nowIndex].content = []
+						that.chatLogList[that.nowIndex].content[0] = {
+							nodeId: 0,
+							content: '登录过期，请重新登录'
+						}
 						that.stopAnswer()
 					} else if (event === '[TOOL]') {
 						if (!that.chatLogList[that.nowIndex].toolUse) {

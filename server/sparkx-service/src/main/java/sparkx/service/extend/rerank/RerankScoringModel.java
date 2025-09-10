@@ -1,5 +1,5 @@
 // +----------------------------------------------------------------------
-// | SparkX 基于大语言模型和 RAG 的知识库问答系统
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
 // +----------------------------------------------------------------------
 // | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
 // +----------------------------------------------------------------------
@@ -91,7 +91,6 @@ public class RerankScoringModel implements ScoringModel {
         private Boolean logRequests;
         private Boolean logResponses;
         private Boolean needBearer;
-        private String modelFlag;
 
         RerankScoringModelBuilder() {
         }
@@ -138,11 +137,6 @@ public class RerankScoringModel implements ScoringModel {
 
         public RerankScoringModelBuilder needBearer(Boolean needBearer) {
             this.needBearer = needBearer;
-            return this;
-        }
-
-        public RerankScoringModelBuilder modelFlag(String modelFlag) {
-            this.modelFlag = modelFlag;
             return this;
         }
 

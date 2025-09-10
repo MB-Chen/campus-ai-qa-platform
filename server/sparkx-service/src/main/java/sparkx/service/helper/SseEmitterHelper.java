@@ -1,5 +1,5 @@
 // +----------------------------------------------------------------------
-// | SparkX 基于大语言模型和 RAG 的知识库问答系统
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
 // +----------------------------------------------------------------------
 // | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
 // +----------------------------------------------------------------------
@@ -81,6 +81,7 @@ public class SseEmitterHelper {
 
                         sendSseData(reasoningContent.text(), emitter, runtimeId, nodeId);
                     } catch (Exception e) {
+                        sendErrorSse(emitter, e.getMessage());
                         emitter.completeWithError(e);
                     }
                 })
@@ -97,6 +98,7 @@ public class SseEmitterHelper {
 
                         sendSseData(content, emitter, runtimeId, nodeId);
                     } catch (Exception e) {
+                        sendErrorSse(emitter, e.getMessage());
                         emitter.completeWithError(e);
                     }
                 })
@@ -119,7 +121,10 @@ public class SseEmitterHelper {
                     // 关闭sse
                     emitter.complete();
                 })
-                .onError(Throwable::printStackTrace)
+                .onError(e -> {
+                    sendErrorSse(emitter, e.getMessage());
+                    emitter.completeWithError(e);
+                })
                 .start();
     }
 
@@ -154,6 +159,7 @@ public class SseEmitterHelper {
 
                             sendSseData(reasoningContent.text(), emitter, runtimeId, nodeId);
                         } catch (Exception e) {
+                            sendErrorSse(emitter, e.getMessage());
                             emitter.completeWithError(e);
                         }
                     }
@@ -172,6 +178,7 @@ public class SseEmitterHelper {
 
                             sendSseData(content, emitter, runtimeId, nodeId);
                         } catch (Exception e) {
+                            sendErrorSse(emitter, e.getMessage());
                             emitter.completeWithError(e);
                         }
                     }
@@ -191,7 +198,10 @@ public class SseEmitterHelper {
 
                     sendEndCallback.accept(JSONUtil.toJsonStr(resMap));
                 })
-                .onError(Throwable::printStackTrace)
+                .onError(e -> {
+                    sendErrorSse(emitter, e.getMessage());
+                    emitter.completeWithError(e);
+                })
                 .start();
     }
 
@@ -284,7 +294,7 @@ public class SseEmitterHelper {
      * @param runtimeId Long
      * @param nodeId String
      */
-    private void sendSseData(String content, SseEmitter emitter, Long runtimeId, String nodeId) {
+    private void sendSseData(String content, SseEmitter emitter, Long runtimeId, String nodeId) throws Exception {
         // 加空格配合前端的fetchEventSource进行解析，
         // 见https://github.com/Azure/fetch-event-source/blob/45ac3cfffd30b05b79fbf95c21e67d4ef59aa56a/src/parse.ts#L129-L133
         try {
@@ -308,10 +318,8 @@ public class SseEmitterHelper {
                 emitter.send(Tool.buildSendData(runtimeId, nodeId, content));
             }
 
-        } catch (IOException e) {
-            //log.error("拆解AI返回信息失败：", e);
-            sendErrorSse(emitter, e.getMessage());
-            //emitter.complete();
+        } catch (Exception e) {
+            throw new Exception(e.getMessage());
         }
     }
 }

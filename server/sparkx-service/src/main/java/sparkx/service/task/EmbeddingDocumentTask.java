@@ -1,5 +1,5 @@
 // +----------------------------------------------------------------------
-// | SparkX 基于大语言模型和 RAG 的知识库问答系统
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
 // +----------------------------------------------------------------------
 // | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
 // +----------------------------------------------------------------------
@@ -17,6 +17,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.output.Response;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -26,6 +27,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import sparkx.common.enums.DocumentStatusEnum;
+import sparkx.common.enums.QuestionStatusEnum;
 import sparkx.common.enums.SourceType;
 import sparkx.common.enums.StatusEnum;
 import sparkx.common.utils.MarkChunk;
@@ -44,6 +46,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class EmbeddingDocumentTask {
 
@@ -87,27 +90,36 @@ public class EmbeddingDocumentTask {
     @Async
     public void executeAsyncTask(String documentId, KnowledgeDatasetEntity datasetInfo) {
 
-        // 查询文档所属的段落
-        List<KnowledgeParagraphEntity> paragraphEntityList = knowledgeParagraphMapper.selectList(
-                new QueryWrapper<KnowledgeParagraphEntity>()
-                .eq("document_id", documentId).eq("active", StatusEnum.YES.getCode()));
+        try {
 
-        if (!CollectionUtils.isEmpty(paragraphEntityList)) {
-            // 删除已经向量化的数据
-            knowledgeEmbeddingMapper.delete(new QueryWrapper<KnowledgeEmbeddingEntity>().eq("document_id", documentId));
+            // 查询文档所属的段落
+            List<KnowledgeParagraphEntity> paragraphEntityList = knowledgeParagraphMapper.selectList(
+                    new QueryWrapper<KnowledgeParagraphEntity>()
+                            .eq("document_id", documentId).eq("active", StatusEnum.YES.getCode()));
 
-            // 选择embedding模型
-            embeddingModel = embeddingModelBuildHelper.build(datasetInfo);
+            if (!CollectionUtils.isEmpty(paragraphEntityList)) {
+                // 删除已经向量化的数据
+                knowledgeEmbeddingMapper.delete(new QueryWrapper<KnowledgeEmbeddingEntity>().eq("document_id", documentId));
 
-            for (KnowledgeParagraphEntity paragraph : paragraphEntityList) {
-                this.embeddingSingleParagraph(paragraph);
+                // 选择embedding模型
+                embeddingModel = embeddingModelBuildHelper.build(datasetInfo);
+
+                for (KnowledgeParagraphEntity paragraph : paragraphEntityList) {
+                    this.embeddingSingleParagraph(paragraph);
+                }
+
+                // 标记向量化完成
+                KnowledgeDocumentEntity finalUpdateEntity = knowledgeDocumentMapper.selectById(documentId);
+                finalUpdateEntity.setStatus(DocumentStatusEnum.COMPLETE.getCode());
+                finalUpdateEntity.setEmbeddingTime(Tool.nowDateTime());
+                finalUpdateEntity.setUpdateTime(Tool.nowDateTime());
+                knowledgeDocumentMapper.updateById(finalUpdateEntity);
             }
-
-            // 标记向量化完成
+        } catch (Exception e) {
+            log.error("向量化段落: {}, 报错: {}", datasetInfo, e.getMessage());
+            // 还原状态，方便前端状态显示
             KnowledgeDocumentEntity finalUpdateEntity = knowledgeDocumentMapper.selectById(documentId);
-            finalUpdateEntity.setStatus(DocumentStatusEnum.COMPLETE.getCode());
-            finalUpdateEntity.setEmbeddingTime(Tool.nowDateTime());
-            finalUpdateEntity.setUpdateTime(Tool.nowDateTime());
+            finalUpdateEntity.setStatus(DocumentStatusEnum.PENDING.getCode());
             knowledgeDocumentMapper.updateById(finalUpdateEntity);
         }
     }
@@ -148,50 +160,59 @@ public class EmbeddingDocumentTask {
 
         for (String documentId : documentIds) {
 
-            KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
-            documentInfo.setQuestionStatus(2); // 生成中
-            knowledgeDocumentMapper.updateById(documentInfo);
+            try {
 
-            // 查出分段内容
-            List<KnowledgeParagraphEntity> paragraphList = knowledgeParagraphMapper.selectList(
-                    new QueryWrapper<KnowledgeParagraphEntity>().eq("document_id", documentId).eq("status", 1));
+                KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
+                documentInfo.setQuestionStatus(QuestionStatusEnum.RUNNING.getCode()); // 生成中
+                knowledgeDocumentMapper.updateById(documentInfo);
 
-            for (KnowledgeParagraphEntity paragraph : paragraphList) {
+                // 查出分段内容
+                List<KnowledgeParagraphEntity> paragraphList = knowledgeParagraphMapper.selectList(
+                        new QueryWrapper<KnowledgeParagraphEntity>().eq("document_id", documentId).eq("status", StatusEnum.YES.getCode()));
 
-                String question = questionVo.getPrompt().replace("{data}", paragraph.getContent());
-                ChatResponse chatResponse = chatModel.chat(UserMessage.from(question));
+                for (KnowledgeParagraphEntity paragraph : paragraphList) {
 
-                // 记录token使用情况
-                applicationHelper.writeTokenLog("question", modelInfo.getName(), chatResponse.tokenUsage());
+                    String question = questionVo.getPrompt().replace("{data}", paragraph.getContent());
+                    ChatResponse chatResponse = chatModel.chat(UserMessage.from(question));
 
-                Document doc = Jsoup.parse(chatResponse.aiMessage().text());
-                Elements questions = doc.select("question");
+                    // 记录token使用情况
+                    applicationHelper.writeTokenLog("question", modelInfo.getName(), chatResponse.tokenUsage());
 
-                for (Element questionMatch : questions) {
+                    Document doc = Jsoup.parse(chatResponse.aiMessage().text());
+                    Elements questions = doc.select("question");
 
-                    // 写入问题
-                    KnowledgeQuestionEntity questionEntity = new KnowledgeQuestionEntity();
-                    questionEntity.setQuestionId(IdUtil.randomUUID());
-                    questionEntity.setContent(questionMatch.text());
-                    questionEntity.setHitNums(0);
-                    questionEntity.setDatasetId(paragraph.getDatasetId());
-                    questionEntity.setCreateTime(Tool.nowDateTime());
-                    knowledgeQuestionMapper.insert(questionEntity);
+                    for (Element questionMatch : questions) {
 
-                    // 写入问题关联
-                    KnowledgeQuestionParagraphEntity questionParagraph = new KnowledgeQuestionParagraphEntity();
-                    questionParagraph.setUuid(IdUtil.randomUUID());
-                    questionParagraph.setDatasetId(paragraph.getDatasetId());
-                    questionParagraph.setDocumentId(paragraph.getDocumentId());
-                    questionParagraph.setParagraphId(paragraph.getParagraphId());
-                    questionParagraph.setQuestionId(questionEntity.getQuestionId());
-                    questionParagraph.setCreateTime(Tool.nowDateTime());
-                    knowledgeQuestionParagraphMapper.insert(questionParagraph);
+                        // 写入问题
+                        KnowledgeQuestionEntity questionEntity = new KnowledgeQuestionEntity();
+                        questionEntity.setQuestionId(IdUtil.randomUUID());
+                        questionEntity.setContent(questionMatch.text());
+                        questionEntity.setHitNums(0);
+                        questionEntity.setDatasetId(paragraph.getDatasetId());
+                        questionEntity.setCreateTime(Tool.nowDateTime());
+                        knowledgeQuestionMapper.insert(questionEntity);
+
+                        // 写入问题关联
+                        KnowledgeQuestionParagraphEntity questionParagraph = new KnowledgeQuestionParagraphEntity();
+                        questionParagraph.setUuid(IdUtil.randomUUID());
+                        questionParagraph.setDatasetId(paragraph.getDatasetId());
+                        questionParagraph.setDocumentId(paragraph.getDocumentId());
+                        questionParagraph.setParagraphId(paragraph.getParagraphId());
+                        questionParagraph.setQuestionId(questionEntity.getQuestionId());
+                        questionParagraph.setCreateTime(Tool.nowDateTime());
+                        knowledgeQuestionParagraphMapper.insert(questionParagraph);
+                    }
                 }
-            }
 
-            documentInfo.setQuestionStatus(3); // 已生成
-            knowledgeDocumentMapper.updateById(documentInfo);
+                documentInfo.setQuestionStatus(QuestionStatusEnum.COMPLETE.getCode()); // 已生成
+                knowledgeDocumentMapper.updateById(documentInfo);
+            } catch (Exception e) {
+                log.error("生成问题: {}, 失败: {}", documentId, e.getMessage());
+                // 还原状态，方便前端显示
+                KnowledgeDocumentEntity documentInfo = knowledgeDocumentMapper.selectById(documentId);
+                documentInfo.setQuestionStatus(QuestionStatusEnum.PENDING.getCode()); // 待生成
+                knowledgeDocumentMapper.updateById(documentInfo);
+            }
         }
     }
 

@@ -48,7 +48,7 @@ CREATE INDEX "idx_dataset" ON "public"."knowledge_document" USING btree (
 COMMENT ON COLUMN "public"."knowledge_document"."document_id" IS '唯一标识';
 COMMENT ON COLUMN "public"."knowledge_document"."name" IS '文件名称';
 COMMENT ON COLUMN "public"."knowledge_document"."file_size" IS '字符长度';
-COMMENT ON COLUMN "public"."knowledge_document"."status" IS '状态 1:待索引 2:索引中 3:索引完成';
+COMMENT ON COLUMN "public"."knowledge_document"."status" IS '状态 1:待索引 2:索引中 3:索引完成 4:数据入库中';
 COMMENT ON COLUMN "public"."knowledge_document"."question_status" IS '生成问题状态 1:待生成 2:生成中 3:生成完成';
 COMMENT ON COLUMN "public"."knowledge_document"."active" IS '状态 1:正常 2:禁用';
 COMMENT ON COLUMN "public"."knowledge_document"."dataset_id" IS '所属知识库';
@@ -398,7 +398,7 @@ INSERT INTO "public"."models" VALUES ('5f6f2e36-df9d-429d-a58c-ed282g6cf8d2', '�
 INSERT INTO "public"."models" VALUES ('5f7f2e32-df7b-428d-a56b-ed272f9cf7c8', '字节豆包', 'doubao', 1, '[{"field":"apiKey","value":""}]', '[{"field":"temperature","name":"温度","range":[0.01,1],"value":0.95},{"field":"url","name":"模型地址","value": "https://ark.cn-beijing.volces.com/api/v3/"}]', 1, 'doubao-1-5-pro-32k-250115,doubao-1-5-pro-256k-250115', '/icons/doubao.png', 'doubao-1-5-pro-32k-250115,doubao-1-5-pro-256k-250115', NULL, NULL);
 INSERT INTO "public"."models" VALUES ('a4bc5132-d374-411d-89e2-ba8d98778865', '智普AI', 'zhipu', 2, '[{"field":"apiKey","value":""}]', '', 1, 'embedding-2,embedding-3', '/icons/zhipu.png', '', NULL, NULL);
 INSERT INTO "public"."models" VALUES ('5f4f2e11-df8b-408d-a54b-ed271b6cf5c4', '百度千帆', 'qianfan', 1, '[{"field":"apiKey","value":""}]', '[{"field":"temperature","name":"温度","range":[0.01,1],"value":0.95},{"field":"url","name":"模型地址","value":"https://qianfan.baidubce.com/v2"}]', 1, 'ernie-3.5-8k,ernie-4.5-turbo-128k,ernie-4.5-turbo-32k,ernie-speed-128k,ernie-speed-pro-128k', '/icons/baidu.png', '', NULL, '2025-07-11 09:49:26');
-INSERT INTO "public"."models" VALUES ('5f6f2e21-df9b-418d-a54b-ed271g6cf6c5', '智普AI', 'zhipu', 1, '[{"field":"apiKey","value":""}]', '[{"field":"temperature","name":"温度","range":[0.01,1],"value":0.95}]', 1, 'glm-4,glm-4v,glm-4-0520,glm-4-air,glm-4-airx,glm-4-flash', '/icons/zhipu.png', '', NULL, '2025-07-07 12:05:50');
+INSERT INTO "public"."models" VALUES ('5f6f2e21-df9b-418d-a54b-ed271g6cf6c5', '智普AI', 'zhipu', 1, '[{"field":"apiKey","value":""}]', '[{"field":"temperature","name":"温度","range":[0.01,1],"value":0.95}]', 1, 'glm-4.5,glm-4,glm-4v,glm-4-0520,glm-4-air,glm-4-airx,glm-4-flash', '/icons/zhipu.png', '', NULL, '2025-07-07 12:05:50');
 INSERT INTO "public"."models" VALUES ('6f4f2e11-df9b-418d-a64b-ed272b6cf5c5', '百度千帆', 'qianfan', 3, '[{"field":"apiKey","value":""}]', '[{"field":"url","name":"模型地址","value":"https://qianfan.baidubce.com/v2/"}]', 1, 'bce-reranker-base', '/icons/baidu.png', '', '2025-03-30 21:22:35', '2025-07-19 11:34:34');
 INSERT INTO "public"."models" VALUES ('6f4f2e21-df9d-419d-a65b-ed272b6cf5c8', '智普AI', 'zhipu', 3, '[{"field":"apiKey","value":""}]', '[{"field":"url","name":"模型地址","value": "https://open.bigmodel.cn/api/paas/v4/"}]', 1, 'rerank', '/icons/zhipu.png', '', '2025-03-30 21:22:35', '2025-07-19 11:44:50');
 INSERT INTO "public"."models" VALUES ('6f6f2e81-eg9b-429d-a57b-ed371g6cf8c9', 'Ollama', 'ollama', 1, '[{"field":"apiKey","value":"SparkX"}]', '[{"field":"temperature","name":"温度","range":[0.01,1],"value":0.95},{"field":"url","name":"模型地址","value": "http://localhost:11434"}]', 1, '', '/icons/ollama.png', '', NULL, '2025-07-29 12:05:50');
@@ -591,3 +591,26 @@ COMMENT ON COLUMN "public"."application_tool_relation"."tool_id" IS '插件id';
 COMMENT ON COLUMN "public"."application_tool_relation"."create_time" IS '创建时间';
 COMMENT ON COLUMN "public"."application_tool_relation"."update_time" IS '更新时间';
 COMMENT ON TABLE "public"."application_tool_relation" IS '应用插件关联表';
+
+
+CREATE TABLE "public"."workflow_node" (
+  "id" INT4 NOT NULL GENERATED ALWAYS AS IDENTITY (INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 START 1 CACHE 1),
+  "name" VARCHAR (155) COLLATE "pg_catalog"."default" DEFAULT '' :: CHARACTER VARYING,
+  "description" VARCHAR (255) COLLATE "pg_catalog"."default" DEFAULT '' :: CHARACTER VARYING,
+  "type" INT2 DEFAULT 1,
+  "status" INT2 DEFAULT 1,
+  "node_data" text COLLATE "pg_catalog"."default",
+  "create_time" TIMESTAMP (6),
+  "update_time" TIMESTAMP (6),
+  CONSTRAINT "workflow_node_pkey" PRIMARY KEY ("id")
+);
+
+COMMENT ON COLUMN "public"."workflow_node"."id" IS 'id';
+COMMENT ON COLUMN "public"."workflow_node"."name" IS '资源名称';
+COMMENT ON COLUMN "public"."workflow_node"."description" IS '描述';
+COMMENT ON COLUMN "public"."workflow_node"."type" IS '类型 1:数据库 2:API';
+COMMENT ON COLUMN "public"."workflow_node"."status" IS '状态 1:启用 2:禁用';
+COMMENT ON COLUMN "public"."workflow_node"."node_data" IS '节点配置';
+COMMENT ON COLUMN "public"."workflow_node"."create_time" IS '创建时间';
+COMMENT ON COLUMN "public"."workflow_node"."update_time" IS '更新时间';
+COMMENT ON TABLE "public"."workflow_node" IS '编排资源表';

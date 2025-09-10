@@ -1,5 +1,5 @@
 // +----------------------------------------------------------------------
-// | SparkX 基于大语言模型和 RAG 的知识库问答系统
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
 // +----------------------------------------------------------------------
 // | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
 // +----------------------------------------------------------------------
@@ -31,6 +31,9 @@ public class ToolsController {
     @Autowired
     IToolService iToolService;
 
+    /**
+     * 插件列表
+     */
     @GetMapping("/list")
     public AjaxResult<PageResult<ToolsListVo>> index(ToolQueryVo queryVo) {
 
