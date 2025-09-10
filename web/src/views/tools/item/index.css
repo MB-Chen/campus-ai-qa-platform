@@ -98,7 +98,8 @@
 .menu-bar {
 	margin: 0 auto;
 	margin-top: 10px;
-	width: 400px;
+	#width: 400px;
+	width: 250px;
 	padding: 10px 20px;
 	border-radius: 10px;
 	display: flex;

@@ -63,7 +63,7 @@
 				<div class="file-list">
 					<div class="file-item" v-for="(item, index) in fileList" :key="index">
 						<div class="file-info">
-							<img :src="`/src/assets/files_icon/` + getExtByName(item.name) + `.png`" style="width: 30px;">
+							<img :src="`/img/files_icon/` + getExtByName(item.name) + `.png`" style="width: 30px;">
 							<div class="file-data">
 								<div class="file-data-title line1">{{ item.name }}</div>
 								<div class="file-data-size">{{ $TOOL.formatBytes(item.size) }}</div>

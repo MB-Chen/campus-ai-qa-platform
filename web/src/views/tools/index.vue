@@ -41,7 +41,7 @@ export default {
 			menuData: [
 				{title: '自定义插件', id: 'first', icon: 'icon-chajian'},
 				{title: 'MCP插件', id: 'second', icon: 'icon-MCP'},
-				{title: '编排资源', id: 'third', icon: 'icon-renwuliucheng'},
+				//{title: '编排资源', id: 'third', icon: 'icon-renwuliucheng'},
 			]
 		}
 	},
