@@ -257,7 +257,7 @@ export default{
 }
 .knowledge-title {
 	margin-left: 10px;
-	width: 250px;
+	width: 200px;
 }
 .author {
 	margin-left: 10px;
