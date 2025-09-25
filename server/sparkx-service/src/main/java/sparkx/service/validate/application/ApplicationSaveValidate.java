@@ -18,6 +18,7 @@ import sparkx.service.vo.tool.ToolsSimpleListVo;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -130,7 +131,7 @@ public class ApplicationSaveValidate implements Serializable {
     /**
     * 相似度
     */
-    private double similarity;
+    private BigDecimal similarity;
 
     /**
     * 召回数量

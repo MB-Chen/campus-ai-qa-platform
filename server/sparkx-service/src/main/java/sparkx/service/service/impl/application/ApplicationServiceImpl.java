@@ -359,7 +359,7 @@ public class ApplicationServiceImpl implements IApplicationService {
     @Override
     public SseEmitter sseChat(ApplicationChatValidate validate) {
 
-        SseEmitter emitter = new SseEmitter();
+        SseEmitter emitter = new SseEmitter(300000L); // 5分钟超时
 
         try {
 

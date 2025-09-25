@@ -9,6 +9,7 @@
 // +----------------------------------------------------------------------
 package sparkx.web.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import sparkx.common.core.AjaxResult;
 import sparkx.common.enums.ExceptionEnum;
 import sparkx.common.exception.BusinessException;
@@ -39,6 +41,16 @@ public class ExceptionHandlerConfig {
     public AjaxResult<Object> exceptionHandler(BusinessException e) {
         log.info("业务信息" + e.getErrorMsg());
         return AjaxResult.failed(e.getCode(), e.getErrorMsg());
+    }
+
+    /**
+     * SSE 超时异常处理
+     */
+    @ExceptionHandler(value = AsyncRequestTimeoutException.class)
+    public void handleAsyncTimeout(AsyncRequestTimeoutException e, HttpServletResponse response) {
+        log.warn("SSE 连接超时: {}", e.getMessage());
+        // 对于 SSE 超时，不返回错误响应，只是记录日志
+        response.setStatus(HttpServletResponse.SC_OK);
     }
 
     /**
@@ -77,11 +89,24 @@ public class ExceptionHandlerConfig {
     }
 
     /**
+     * IO异常处理（客户端断开连接）
+     */
+    @ExceptionHandler(value = java.io.IOException.class)
+    public void handleIOException(java.io.IOException e) {
+        log.debug("客户端断开连接: {}", e.getMessage());
+        // 不返回响应，避免在已断开的连接上写入数据
+    }
+
+    /**
      * 未知异常处理
      */
     @ExceptionHandler(value = Exception.class)
     @ResponseBody
     public AjaxResult<Object> exceptionHandler(Exception e) {
+        // 排除已经处理的IO异常
+        if (e instanceof java.io.IOException) {
+            return null;
+        }
         // 把错误信息输入到日志中
         log.error(ErrorUtil.errorInfoToString(e));
         return AjaxResult.failed(Integer.valueOf(ExceptionEnum.UNKNOWN.getCode()), ExceptionEnum.UNKNOWN.getMsg());

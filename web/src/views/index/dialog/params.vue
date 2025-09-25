@@ -89,7 +89,12 @@ export default {
 	data() {
 		return {
 			visible: false,
-			form: {},
+			form: {
+				searchMode: 'embedding',
+				similarity: 0.7,
+				topRank: 3,
+				rerankModelId: ''
+			},
 			rerankList: []
 		}
 	},
@@ -108,7 +113,11 @@ export default {
 			this.$emit("success", this.form)
 		},
 		setData(row) {
-			this.form = row
+			// 合并数据，保留默认值
+			this.form = {
+				...this.form,
+				...row
+			}
 		},
 		// 获取重排模型
 		async getRerankList() {
