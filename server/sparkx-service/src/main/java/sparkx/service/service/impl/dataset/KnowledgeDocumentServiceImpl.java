@@ -9,6 +9,7 @@
 // +----------------------------------------------------------------------
 package sparkx.service.service.impl.dataset;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.poi.excel.ExcelReader;
 import cn.hutool.poi.excel.ExcelUtil;
@@ -131,7 +132,10 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService{
                 FileHandleFactory fileHandleFactory = new FileHandleFactory();
 
                 // 选择文件处理器
-                String ext = originalFilename.split("\\.")[1];
+                String ext = FileUtil.extName(originalFilename);
+                if (ext == null) {
+                    ext = "";
+                }
                 FileHandleInterface fileHandle = fileHandleFactory.getSplitter(ext);
                 List<DocumentItemVo> itemListVo = fileHandle.handle(bytes, previewVo);
 
