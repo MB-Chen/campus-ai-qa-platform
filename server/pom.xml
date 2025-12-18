@@ -31,13 +31,13 @@
         <pagehelper.version>3.5.10.1</pagehelper.version>
         <validator.version>9.0.0.CR1</validator.version>
         <jackson.version>2.18.2</jackson.version>
-        <langchain4j.version>1.2.0</langchain4j.version>
-        <langchain4j-community.version>1.1.0-beta7</langchain4j-community.version>
+        <langchain4j.version>1.9.1</langchain4j.version>
+        <langchain4j-community.version>1.9.1-beta17</langchain4j-community.version>
         <markdown.version>0.64.8</markdown.version>
         <hanlp.version>portable-1.8.6</hanlp.version>
         <mapdb.version>3.1.0</mapdb.version>
         <retrofit2.version>2.9.0</retrofit2.version>
-        <langchain4j-ollama.version>1.2.0</langchain4j-ollama.version>
+        <langchain4j-ollama.version>1.9.1</langchain4j-ollama.version>
         <ollama.version>1.21.3</ollama.version>
     </properties>
 
