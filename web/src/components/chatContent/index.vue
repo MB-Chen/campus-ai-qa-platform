@@ -345,16 +345,16 @@ export default {
 					} else if (event === '[ERROR]') {
 						that.nowIndex = that.chatLogList.length - 1
 						that.chatLogList[that.nowIndex].source = 'ai'
-						let pluginsError = 'Cannot invoke "String.split(String, int)" because "content" is null'
-						let tips = ''
-						if (ev.data == pluginsError) {
-							tips = '\n【温馨提示：一般遇到  大多是模型不支持插件导致的】'
-						}
+						
+						// 解析错误信息
+						let errorMessage = that.parseErrorMessage(ev.data)
+						
 						that.chatLogList[that.nowIndex].content = []
 						that.chatLogList[that.nowIndex].content[0] = {
 							nodeId: 0,
-							content: '当前模型出现了错误: ' + ev.data + "。" + tips
+							content: errorMessage
 						}
+						
 						that.stopAnswer()
 					} else if (event === '[META]') { // 通知召回数据
 						that.chatLogList[that.nowIndex].retrievedList = JSON.parse(ev.data)
@@ -414,7 +414,7 @@ export default {
 					console.log('错误原因', err)
 					that.$message.error(err)
 					throw new Error("终止连接")
-				},
+				}
 			});
 		},
 		stopAnswer() {
@@ -470,6 +470,11 @@ export default {
 		reChat(row) {
 			this.chatMsg = row.question + '\n'
 			this.send()
+		},
+		// 解析错误信息
+		parseErrorMessage(errorData) {
+			// 直接返回原始错误信息，不再进行友好转换
+			return errorData
 		}
 	}
 }

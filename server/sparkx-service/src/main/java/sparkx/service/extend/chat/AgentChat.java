@@ -21,10 +21,12 @@ import sparkx.service.helper.AssistantBuildHelper;
 import sparkx.service.helper.ChatModelBuildHelper;
 import sparkx.service.helper.StreamChatModelBuildHelper;
 import sparkx.service.mapper.system.ModelsMapper;
+import lombok.extern.slf4j.Slf4j;
 import sparkx.service.service.interfaces.application.IAiService;
 import sparkx.service.validate.application.ApplicationChatValidate;
 
 @Component
+@Slf4j
 public class AgentChat implements IChat {
 
     @Autowired
@@ -60,18 +62,41 @@ public class AgentChat implements IChat {
         validate.setToolsList(applicationHelper.getRelationFullToolList(validate.getAppId()));
 
         // step 1 构建模型流式应答对象
-        StreamingChatModel streamingChatModel = streamChatModelBuildHelper.build(modelInfo, applicationInfo);
+        StreamingChatModel streamingChatModel;
+        try {
+            streamingChatModel = streamChatModelBuildHelper.build(modelInfo, applicationInfo);
+        } catch (Exception e) {
+            log.error("构建流式聊天模型时发生错误: {}", e.getMessage(), e);
+            throw e;
+        }
+        
         // step 2 构建模型普通对象，用于问题优化下使用
-        ChatModel chatModel = chatModelBuildHelper.build(modelInfo, applicationInfo);
+        ChatModel chatModel;
+        try {
+            chatModel = chatModelBuildHelper.build(modelInfo, applicationInfo);
+        } catch (Exception e) {
+            log.error("构建普通聊天模型时发生错误: {}", e.getMessage(), e);
+            throw e;
+        }
+        
         // step 3 构建 IAiService
-        IAiService assistant = assistantBuildHelper.build(applicationInfo, validate, streamingChatModel, chatModel);
+        IAiService assistant;
+        try {
+            assistant = assistantBuildHelper.build(applicationInfo, validate, streamingChatModel, chatModel);
+        } catch (Exception e) {
+            log.error("构建AI服务时发生错误: {}", e.getMessage(), e);
+            throw e;
+        }
 
         TokenStream tokenStream;
         if (applicationInfo.getPrompt().isBlank()) {
+            log.info("Creating token stream with chatInTokenStream");
             tokenStream = assistant.chatInTokenStream(validate.getContent());
         } else {
+            log.info("Creating token stream with chatWithSystem");
             tokenStream = assistant.chatWithSystem(applicationInfo.getPrompt(), validate.getContent());
         }
+        log.info("Token stream created successfully");
 
         return tokenStream;
     }

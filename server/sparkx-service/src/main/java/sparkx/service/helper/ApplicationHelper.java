@@ -65,8 +65,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import dev.langchain4j.exception.ModelNotFoundException;
 
 @Component
 @Slf4j
@@ -342,6 +346,17 @@ public class ApplicationHelper {
                 log.error("调用的消息: message {}", messages);
                 ChatRequestParameters parameters = chatRequest.parameters();
                 log.error("调用的参数: parameters {}", parameters);
+            }
+
+            public void onError(Throwable throwable) {
+                // Log the error details
+                log.error("调用AI模型时发生错误: {}", throwable.getMessage(), throwable);
+                
+                // Also log the stack trace for debugging
+                StringWriter sw = new StringWriter();
+                PrintWriter pw = new PrintWriter(sw);
+                throwable.printStackTrace(pw);
+                log.error("完整的错误堆栈信息: {}", sw.toString());
             }
         };
     }

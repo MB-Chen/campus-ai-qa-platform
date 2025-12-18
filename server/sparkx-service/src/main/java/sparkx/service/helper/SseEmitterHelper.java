@@ -28,6 +28,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import dev.langchain4j.exception.ModelNotFoundException;
+
 @Slf4j
 @Component
 public class SseEmitterHelper {
@@ -141,10 +143,15 @@ public class SseEmitterHelper {
                     }
                 })
                 .onError(e -> {
+                    log.error("TokenStream error occurred: {}", e.getMessage(), e);
                     
-                    if (!emitterCompleted.getAndSet(true)) {
-                        sendErrorSse(emitter, e.getMessage(), emitterCompleted);
-                        emitter.completeWithError(e);
+                    if (!emitterCompleted.get()) {
+                        // 提供更友好的错误信息
+                        String errorMessage = extractFriendlyErrorMessage(e);
+                        log.info("Sending friendly error message: {}", errorMessage);
+                        sendErrorSse(emitter, errorMessage, emitterCompleted);
+                        emitterCompleted.set(true);
+                        emitter.complete();
                     }
                 })
                 .start();
@@ -239,10 +246,15 @@ public class SseEmitterHelper {
                     sendEndCallback.accept(JSONUtil.toJsonStr(resMap));
                 })
                 .onError(e -> {
+                    log.error("TokenStream error occurred: {}", e.getMessage(), e);
                     
-                    if (!emitterCompleted.getAndSet(true)) {
-                        sendErrorSse(emitter, e.getMessage(), emitterCompleted);
-                        emitter.completeWithError(e);
+                    if (!emitterCompleted.get()) {
+                        // 提供更友好的错误信息
+                        String errorMessage = extractFriendlyErrorMessage(e);
+                        log.info("Sending friendly error message: {}", errorMessage);
+                        sendErrorSse(emitter, errorMessage, emitterCompleted);
+                        emitterCompleted.set(true);
+                        emitter.complete();
                     }
                 })
                 .start();
@@ -366,18 +378,26 @@ public class SseEmitterHelper {
      * @param msg String
      */
     public void sendErrorSse(SseEmitter sseEmitter, String msg, AtomicBoolean emitterCompleted) {
-
-        if (emitterCompleted.get()) {
-            return;
-        }
+        // 移除这个检查，因为我们需要确保错误消息能够发送出去
+        // if (emitterCompleted.get()) {
+        //     return;
+        // }
 
         try {
+            log.info("Sending error message via SSE: {}", msg);
             sseEmitter.send(SseEmitter.event().name(SparkXConstant.SSEEventName.ERROR).data(msg));
+            log.info("Error message sent successfully via SSE");
         } catch (IllegalStateException e) {
+            log.warn("Failed to send error via SSE - IllegalStateException: {}", e.getMessage());
             emitterCompleted.set(true);
         } catch (IOException e) {
+            log.warn("Failed to send error via SSE - IOException: {}", e.getMessage());
             emitterCompleted.set(true);
             sseEmitter.completeWithError(e);
+        } catch (Exception e) {
+            log.error("Unexpected error when sending SSE error: {}", e.getMessage(), e);
+            emitterCompleted.set(true);
+            sseEmitter.complete();
         }
     }
 
@@ -392,6 +412,32 @@ public class SseEmitterHelper {
         } catch (IOException e) {
             sseEmitter.completeWithError(e);
         }
+    }
+
+    /**
+     * 从异常中提取原始错误信息
+     * @param e Throwable
+     * @return 原始错误信息
+     */
+    private String extractFriendlyErrorMessage(Throwable e) {
+        log.info("Extracting original error message for exception: {}", e != null ? e.getClass().getName() : "null");
+        
+        if (e == null) {
+            log.info("Exception is null, returning default error message");
+            return "请求处理失败";
+        }
+
+        String message = e.getMessage();
+        log.info("Exception message: {}", message);
+        
+        if (message == null || message.isEmpty()) {
+            log.info("Message is null or empty, returning exception class name");
+            return e.getClass().getSimpleName();
+        }
+
+        // 直接返回原始错误信息，不再进行友好转换
+        log.info("Returning original error message");
+        return message;
     }
 
     /**

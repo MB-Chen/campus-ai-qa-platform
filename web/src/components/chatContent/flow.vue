@@ -319,16 +319,14 @@ export default {
 					} else if (event === '[ERROR]') {
 						that.nowIndex = that.chatLogList.length - 1
 						that.chatLogList[that.nowIndex].source = 'ai'
-						let pluginsError = 'Cannot invoke "String.split(String, int)" because "content" is null'
-						let tips = ''
-						if (ev.data == pluginsError) {
-							tips = '\n【温馨提示：一般遇到  大多是模型不支持插件导致的】'
-						}
+						
+						// 直接使用原始错误信息，不再进行友好转换
 						that.chatLogList[that.nowIndex].content = []
 						that.chatLogList[that.nowIndex].content[0] = {
 							nodeId: 0,
-							content: '当前模型出现了错误: ' + ev.data + "。" + tips
+							content: ev.data
 						}
+						
 						that.stopAnswer()
 					} else if (event === '[META]') { // 通知召回数据
 						that.chatLogList[that.nowIndex].retrievedList = JSON.parse(ev.data)
