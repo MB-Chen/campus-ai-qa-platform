@@ -144,6 +144,10 @@ export default {
 				container: containerRef, // 容器元素
 				selecting: true,
 				history: true, // 启动历史记录
+				panning: {
+					enabled: true, // 启用画布拖拽
+					eventTypes: ['leftMouseDown'], // 支持左键拖拽
+				},
 				interacting: {
 					nodeMovable: true, // 可拖拽节点
 					edgeMovable: false // 可拖拽边
