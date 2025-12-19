@@ -30,6 +30,7 @@ import dev.langchain4j.rag.content.aggregator.ContentAggregator;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
+import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.tool.ToolProvider;
 import dev.langchain4j.service.tool.ToolProviderResult;
@@ -107,10 +108,12 @@ public class AssistantBuildHelper {
         }
 
         // 构建服务
+        @SuppressWarnings("unchecked")
         AiServices<IAiService> builder =
-                        AiServices.builder(IAiService.class)
+                        (AiServices<IAiService>) (AiServices<?>) AiServices.builder(IAiService.class)
                         .streamingChatModel(streamingModel)
-                        .chatMemoryProvider(chatMemoryProvider);
+                        .chatMemoryProvider(chatMemoryProvider)
+                        .registerListener(applicationHelper.observability());
         // 未关联知识库
         if (validate.getDatasetList().isEmpty()) {
 
@@ -195,6 +198,13 @@ public class AssistantBuildHelper {
     private IAiService buildToolAiService(ApplicationChatValidate validate, StreamingChatModel streamingModel,
                                           ChatMemoryProvider chatMemoryProvider, RetrievalAugmentor retrievalAugmentor) {
 
+        // 检查是否为智谱AI工具调用场景
+        boolean isZhipuWithTools = streamingModel.getClass().getSimpleName().contains("Zhipu");
+        if (isZhipuWithTools) {
+            log.warn("检测到智谱AI + 工具调用场景，可能存在消息格式兼容性问题");
+            // 可以在这里添加特殊处理逻辑
+        }
+
         // 构建插件
         ToolProvider toolProvider;
         if (validate.getToolsList().get(0).getType().equals(1)) {
@@ -204,11 +214,13 @@ public class AssistantBuildHelper {
         }
 
         // 构建服务
+        @SuppressWarnings("unchecked")
         AiServices<IAiService> builder =
-                AiServices.builder(IAiService.class)
+                (AiServices<IAiService>) (AiServices<?>) AiServices.builder(IAiService.class)
                 .streamingChatModel(streamingModel)
                 .chatMemoryProvider(chatMemoryProvider)
-                .toolProvider(toolProvider);
+                .toolProvider(toolProvider)
+                .registerListener(applicationHelper.observability());
 
         if (retrievalAugmentor == null) {
             return builder.build();
@@ -271,7 +283,29 @@ public class AssistantBuildHelper {
                         }
                     }
 
-                    return httpRequest.form(arguments).execute().body();
+                    String result = httpRequest.form(arguments).execute().body();
+                    
+                    // 修复智谱AI工具调用返回格式
+                    // 确保返回的是有效的JSON格式
+                    if (result != null && !result.trim().isEmpty()) {
+                        try {
+                            // 尝试解析为JSON，如果失败则包装
+                            JSONUtil.parseObj(result);
+                        } catch (Exception e) {
+                            log.debug("工具返回结果不是JSON格式，尝试包装: {}", result);
+                            // 包装成JSON格式
+                            cn.hutool.json.JSONObject wrapper = new cn.hutool.json.JSONObject();
+                            wrapper.set("result", result);
+                            result = wrapper.toString();
+                        }
+                        
+                        // 确保返回结果格式正确
+                        if (result != null && !result.trim().isEmpty()) {
+                            log.debug("工具执行结果: {}", result);
+                        }
+                    }
+                    
+                    return result;
                 });
             }
 

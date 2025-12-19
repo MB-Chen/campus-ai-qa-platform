@@ -14,6 +14,7 @@ import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.service.TokenStream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import sparkx.service.entity.application.ApplicationEntity;
 import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.helper.ApplicationHelper;

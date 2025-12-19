@@ -15,18 +15,25 @@ import dev.langchain4j.community.model.zhipu.ZhipuAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import sparkx.service.entity.application.ApplicationEntity;
 import sparkx.service.entity.system.ModelsEntity;
 
 import java.time.Duration;
+import java.util.List;
 
+@Slf4j
 @Component
 public class ChatModelBuildHelper {
 
     private ModelsEntity modelInfo;
 
     private ApplicationEntity applicationInfo;
+
+    @Autowired
+    ApplicationHelper applicationHelper;
 
     /**
      * 构建model
@@ -55,20 +62,26 @@ public class ChatModelBuildHelper {
 
     /**
      * 构建智普
-     * @return StreamingChatModel
+     * @return ChatModel
      */
     private ChatModel buildZhiPu() {
 
         JSONArray jsonConfig = JSONUtil.parseArray(modelInfo.getCredential());
         String key = jsonConfig.getJSONObject(0).getStr("value");
 
-        return ZhipuAiChatModel.builder()
-                .apiKey(key)
-                .temperature(applicationInfo.getTemperature()) // 温度
-                .model(applicationInfo.getModelName())
-                .connectTimeout(Duration.ofSeconds(60))
-                .readTimeout(Duration.ofSeconds(60))
-                .build();
+        try {
+            return ZhipuAiChatModel.builder()
+                    .apiKey(key)
+                    .temperature(applicationInfo.getTemperature()) // 温度
+                    .model(applicationInfo.getModelName())
+                    .connectTimeout(Duration.ofSeconds(60))
+                    .readTimeout(Duration.ofSeconds(60))
+                    .listeners(List.of(applicationHelper.chatModelObservability()))
+                    .build();
+        } catch (Exception e) {
+            log.error("构建智谱AI聊天模型失败: {}", e.getMessage(), e);
+            throw new RuntimeException("智谱AI模型构建失败: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -102,6 +115,7 @@ public class ChatModelBuildHelper {
                 .baseUrl(url)
                 .apiKey(key)
                 .modelName(applicationInfo.getModelName())
+                .listeners(List.of(applicationHelper.chatModelObservability()))
                 .build();
     }
 }

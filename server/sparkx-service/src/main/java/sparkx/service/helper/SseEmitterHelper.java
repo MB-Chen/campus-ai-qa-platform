@@ -66,6 +66,24 @@ public class SseEmitterHelper {
         AtomicBoolean hasSendEnd = new AtomicBoolean(false); // 是否发送了思考结束标识
 
         final TimeInterval timer = new TimeInterval();
+        
+        // 创建超时任务，防止智谱AI工具调用时卡住
+        ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
+        ScheduledFuture<?> timeoutTask = timeoutExecutor.schedule(() -> {
+            if (!emitterCompleted.get()) {
+                log.warn("智谱AI响应超时，runtimeId: {}, 已等待: {}秒", runtimeId, timer.intervalSecond());
+                if (!emitterCompleted.getAndSet(true)) {
+                    try {
+                        sendErrorSse(emitter, "智谱AI响应超时，请重试或切换到其他模型", emitterCompleted);
+                        emitter.complete();
+                    } catch (Exception e) {
+                        log.error("发送超时错误消息失败: {}", e.getMessage(), e);
+                    }
+                }
+            }
+            timeoutExecutor.shutdown();
+        }, 120, TimeUnit.SECONDS); // 2分钟超时
+
         tokenStream
                 // 整理并转换召回的片段数据，返回前端
                 .onRetrieved((retrievedList) -> {
@@ -122,6 +140,10 @@ public class SseEmitterHelper {
                 })
                 .onCompleteResponse((response) -> {
                     
+                    // 取消超时任务
+                    timeoutTask.cancel(false);
+                    timeoutExecutor.shutdown();
+                    
                     // 输入的token
                     int inputTokenCount = response.tokenUsage().totalTokenCount();
                     // 输出的token
@@ -144,6 +166,10 @@ public class SseEmitterHelper {
                 })
                 .onError(e -> {
                     log.error("TokenStream error occurred: {}", e.getMessage(), e);
+                    
+                    // 取消超时任务
+                    timeoutTask.cancel(false);
+                    timeoutExecutor.shutdown();
                     
                     if (!emitterCompleted.get()) {
                         // 提供更友好的错误信息
@@ -384,9 +410,8 @@ public class SseEmitterHelper {
         // }
 
         try {
-            log.info("Sending error message via SSE: {}", msg);
+
             sseEmitter.send(SseEmitter.event().name(SparkXConstant.SSEEventName.ERROR).data(msg));
-            log.info("Error message sent successfully via SSE");
         } catch (IllegalStateException e) {
             log.warn("Failed to send error via SSE - IllegalStateException: {}", e.getMessage());
             emitterCompleted.set(true);
@@ -420,23 +445,15 @@ public class SseEmitterHelper {
      * @return 原始错误信息
      */
     private String extractFriendlyErrorMessage(Throwable e) {
-        log.info("Extracting original error message for exception: {}", e != null ? e.getClass().getName() : "null");
-        
         if (e == null) {
-            log.info("Exception is null, returning default error message");
             return "请求处理失败";
         }
 
         String message = e.getMessage();
-        log.info("Exception message: {}", message);
-        
         if (message == null || message.isEmpty()) {
-            log.info("Message is null or empty, returning exception class name");
             return e.getClass().getSimpleName();
         }
 
-        // 直接返回原始错误信息，不再进行友好转换
-        log.info("Returning original error message");
         return message;
     }
 
@@ -455,6 +472,12 @@ public class SseEmitterHelper {
         }
 
         try {
+            // 检查content是否为null，避免NullPointerException
+            if (content == null) {
+                log.warn("Content is null, skipping sendSseData");
+                return;
+            }
+            
             String[] lines = content.split("[\\n]", -1);
             if (lines.length > 1) {
                 emitter.send(Tool.buildSendData(runtimeId, nodeId, lines[0]));
