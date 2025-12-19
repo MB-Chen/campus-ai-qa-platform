@@ -19,7 +19,7 @@
         </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- rollover daily -->
-            <fileNamePattern>logs/logs/error-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <fileNamePattern>logs/error-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <timeBasedFileNamingAndTriggeringPolicy
                     class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
                 <!-- or whenever the file size reaches 100MB -->
@@ -72,6 +72,43 @@
             </timeBasedFileNamingAndTriggeringPolicy>
         </rollingPolicy>
     </appender>
+    
+    <!-- LangChain4j 可观测性专用日志 -->
+    <appender name="LANGCHAIN4J-OUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/langchain4j-observability.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} -%msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- rollover daily -->
+            <fileNamePattern>logs/langchain4j-observability-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <timeBasedFileNamingAndTriggeringPolicy
+                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <!-- or whenever the file size reaches 100MB -->
+                <maxFileSize>100MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+    </appender>
+
+    <!-- LangChain4j 相关日志配置 -->
+    <logger name="sparkx.service.helper.ApplicationHelper" level="INFO" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LANGCHAIN4J-OUT"/>
+        <appender-ref ref="ERROR-OUT"/>
+    </logger>
+    
+    <!-- ZhipuAI 相关日志配置 -->
+    <logger name="dev.langchain4j.model.zhipu" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LANGCHAIN4J-OUT"/>
+        <appender-ref ref="DEBUG-OUT"/>
+    </logger>
+    
+    <!-- LangChain4j 核心日志 -->
+    <logger name="dev.langchain4j" level="INFO" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="LANGCHAIN4J-OUT"/>
+    </logger>
 
     <root level="info">
         <appender-ref ref="STDOUT"/>

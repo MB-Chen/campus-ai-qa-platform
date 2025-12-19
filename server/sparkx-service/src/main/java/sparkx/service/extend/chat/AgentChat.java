@@ -9,9 +9,12 @@
 // +----------------------------------------------------------------------
 package sparkx.service.extend.chat;
 
+import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.ToolProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import sparkx.service.entity.application.ApplicationEntity;
@@ -21,10 +24,12 @@ import sparkx.service.helper.AssistantBuildHelper;
 import sparkx.service.helper.ChatModelBuildHelper;
 import sparkx.service.helper.StreamChatModelBuildHelper;
 import sparkx.service.mapper.system.ModelsMapper;
+import lombok.extern.slf4j.Slf4j;
 import sparkx.service.service.interfaces.application.IAiService;
 import sparkx.service.validate.application.ApplicationChatValidate;
 
 @Component
+@Slf4j
 public class AgentChat implements IChat {
 
     @Autowired

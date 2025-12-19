@@ -40,18 +40,17 @@ public class SparkDocumentSplitter {
 
             // 文本解析器
             Document document = parser.parse(inputStream);
-            DocumentSplitter splitter;
+            List<TextSegment> segments;
             // 如果是自定义拆分
             if (previewVo.getSplitType().equals(2) && !previewVo.getPattern().isBlank()) {
 
-                DocumentSplitter subSplitter = new DocumentByParagraphSplitter(previewVo.getSplitLen(), 10);
-                splitter = new DocumentByRegexSplitter("[" + previewVo.getPattern() + "]", "\n", previewVo.getSplitLen(), 10, subSplitter);
+                TextSplitter splitter = new TextSplitter(previewVo.getPattern(), previewVo.getSplitLen(), 10);
+                segments = splitter.split(document);
             } else {
                 // 512个字符 10个重合度拆分文本
-                splitter = new DocumentByParagraphSplitter(previewVo.getSplitLen(), 10);
+                DocumentSplitter splitter = new DocumentByParagraphSplitter(previewVo.getSplitLen(), 10);
+                segments = splitter.split(document);
             }
-
-            List<TextSegment> segments = splitter.split(document);
 
             List<DocumentItemVo> itemListVo = new LinkedList<>();
             segments.forEach(segment -> {

@@ -64,6 +64,24 @@ public class SseEmitterHelper {
         AtomicBoolean hasSendEnd = new AtomicBoolean(false); // 是否发送了思考结束标识
 
         final TimeInterval timer = new TimeInterval();
+        
+        // 创建超时任务，防止智谱AI工具调用时卡住
+        ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor();
+        ScheduledFuture<?> timeoutTask = timeoutExecutor.schedule(() -> {
+            if (!emitterCompleted.get()) {
+                log.warn("智谱AI响应超时，runtimeId: {}, 已等待: {}秒", runtimeId, timer.intervalSecond());
+                if (!emitterCompleted.getAndSet(true)) {
+                    try {
+                        sendErrorSse(emitter, "智谱AI响应超时，请重试或切换到其他模型", emitterCompleted);
+                        emitter.complete();
+                    } catch (Exception e) {
+                        log.error("发送超时错误消息失败: {}", e.getMessage(), e);
+                    }
+                }
+            }
+            timeoutExecutor.shutdown();
+        }, 120, TimeUnit.SECONDS); // 2分钟超时
+
         tokenStream
                 // 整理并转换召回的片段数据，返回前端
                 .onRetrieved((retrievedList) -> {
@@ -119,11 +137,23 @@ public class SseEmitterHelper {
                     }
                 })
                 .onCompleteResponse((response) -> {
+
+                    // 取消超时任务
+                    timeoutTask.cancel(false);
+                    timeoutExecutor.shutdown();
                     
                     // 输入的token
-                    int inputTokenCount = response.tokenUsage().totalTokenCount();
-                    // 输出的token
-                    int outputTokenCount = response.tokenUsage().outputTokenCount();
+                    int inputTokenCount = 0;
+                    int outputTokenCount = 0;
+                    int totalTokenCount = 0;
+                    
+                    // 安全获取token使用情况，避免NullPointerException
+                    if (response.tokenUsage() != null) {
+                        inputTokenCount = response.tokenUsage().inputTokenCount() != null ? response.tokenUsage().inputTokenCount() : 0;
+                        outputTokenCount = response.tokenUsage().outputTokenCount() != null ? response.tokenUsage().outputTokenCount() : 0;
+                        totalTokenCount = response.tokenUsage().totalTokenCount() != null ? response.tokenUsage().totalTokenCount() : 0;
+                    }
+                    
                     // 计算耗时
                     long second = timer.intervalSecond();
 
@@ -131,7 +161,7 @@ public class SseEmitterHelper {
                     Map<String, Object> resMap = new HashMap<>();
                     resMap.put("inputTokens", inputTokenCount);
                     resMap.put("outputTokens", outputTokenCount);
-                    resMap.put("totalTokens", response.tokenUsage().totalTokenCount());
+                    resMap.put("totalTokens", totalTokenCount);
                     resMap.put("time", second);
                     sendEndSse(emitter, JSONUtil.toJsonStr(resMap), emitterCompleted);
 
@@ -141,10 +171,19 @@ public class SseEmitterHelper {
                     }
                 })
                 .onError(e -> {
+                    log.error("TokenStream error occurred: {}", e.getMessage(), e);
                     
-                    if (!emitterCompleted.getAndSet(true)) {
-                        sendErrorSse(emitter, e.getMessage(), emitterCompleted);
-                        emitter.completeWithError(e);
+                    // 取消超时任务
+                    timeoutTask.cancel(false);
+                    timeoutExecutor.shutdown();
+                    
+                    if (!emitterCompleted.get()) {
+                        // 提供更友好的错误信息
+                        String errorMessage = extractFriendlyErrorMessage(e);
+                        log.info("Sending friendly error message: {}", errorMessage);
+                        sendErrorSse(emitter, errorMessage, emitterCompleted);
+                        emitterCompleted.set(true);
+                        emitter.complete();
                     }
                 })
                 .start();
@@ -225,24 +264,36 @@ public class SseEmitterHelper {
                 .onCompleteResponse((response) -> {
                     
                     // 输入的token
-                    int inputTokenCount = response.tokenUsage().totalTokenCount();
-                    // 输出的token
-                    int outputTokenCount = response.tokenUsage().outputTokenCount();
+                    int inputTokenCount = 0;
+                    int outputTokenCount = 0;
+                    int totalTokenCount = 0;
+                    
+                    // 安全获取token使用情况，避免NullPointerException
+                    if (response.tokenUsage() != null) {
+                        inputTokenCount = response.tokenUsage().inputTokenCount() != null ? response.tokenUsage().inputTokenCount() : 0;
+                        outputTokenCount = response.tokenUsage().outputTokenCount() != null ? response.tokenUsage().outputTokenCount() : 0;
+                        totalTokenCount = response.tokenUsage().totalTokenCount() != null ? response.tokenUsage().totalTokenCount() : 0;
+                    }
 
                     // 发送结束信号
                     Map<String, Object> resMap = new HashMap<>();
                     resMap.put("inputTokenCount", inputTokenCount);
                     resMap.put("outputTokenCount", outputTokenCount);
-                    resMap.put("totalTokenCount", response.tokenUsage().totalTokenCount());
-                    resMap.put("content", response.aiMessage().text());
+                    resMap.put("totalTokenCount", totalTokenCount);
+                    resMap.put("content", response.aiMessage() != null ? response.aiMessage().text() : "");
 
                     sendEndCallback.accept(JSONUtil.toJsonStr(resMap));
                 })
                 .onError(e -> {
+                    log.error("TokenStream error occurred: {}", e.getMessage(), e);
                     
-                    if (!emitterCompleted.getAndSet(true)) {
-                        sendErrorSse(emitter, e.getMessage(), emitterCompleted);
-                        emitter.completeWithError(e);
+                    if (!emitterCompleted.get()) {
+                        // 提供更友好的错误信息
+                        String errorMessage = extractFriendlyErrorMessage(e);
+                        log.info("Sending friendly error message: {}", errorMessage);
+                        sendErrorSse(emitter, errorMessage, emitterCompleted);
+                        emitterCompleted.set(true);
+                        emitter.complete();
                     }
                 })
                 .start();
@@ -366,18 +417,25 @@ public class SseEmitterHelper {
      * @param msg String
      */
     public void sendErrorSse(SseEmitter sseEmitter, String msg, AtomicBoolean emitterCompleted) {
-
-        if (emitterCompleted.get()) {
-            return;
-        }
+        // 移除这个检查，因为我们需要确保错误消息能够发送出去
+        // if (emitterCompleted.get()) {
+        //     return;
+        // }
 
         try {
+
             sseEmitter.send(SseEmitter.event().name(SparkXConstant.SSEEventName.ERROR).data(msg));
         } catch (IllegalStateException e) {
+            log.warn("Failed to send error via SSE - IllegalStateException: {}", e.getMessage());
             emitterCompleted.set(true);
         } catch (IOException e) {
+            log.warn("Failed to send error via SSE - IOException: {}", e.getMessage());
             emitterCompleted.set(true);
             sseEmitter.completeWithError(e);
+        } catch (Exception e) {
+            log.error("Unexpected error when sending SSE error: {}", e.getMessage(), e);
+            emitterCompleted.set(true);
+            sseEmitter.complete();
         }
     }
 
@@ -395,6 +453,29 @@ public class SseEmitterHelper {
     }
 
     /**
+     * 从异常中提取原始错误信息
+     * @param e Throwable
+     * @return 原始错误信息
+     */
+    private String extractFriendlyErrorMessage(Throwable e) {
+        if (e == null) {
+            return "请求处理失败";
+        }
+
+        String message = e.getMessage();
+        if (message == null || message.isEmpty()) {
+            return e.getClass().getSimpleName();
+        }
+
+        // 特殊处理通义千问工具调用的特有错误
+        if (message.contains("messages cannot be null or empty")) {
+            return "通义千问API处理工具调用时遇到问题，请重试或切换到其他模型";
+        }
+
+        return message;
+    }
+
+    /**
      * 发送模型返回数据
      * @param content String
      * @param emitter SseEmitter
@@ -409,6 +490,12 @@ public class SseEmitterHelper {
         }
 
         try {
+            // 检查content是否为null，避免NullPointerException
+            if (content == null) {
+                log.warn("Content is null, skipping sendSseData");
+                return;
+            }
+            
             String[] lines = content.split("[\\n]", -1);
             if (lines.length > 1) {
                 emitter.send(Tool.buildSendData(runtimeId, nodeId, lines[0]));

@@ -2,7 +2,7 @@
 	<div class="chat-content-box">
 		<div class="chat-msg" ref="chatContainer">
 			<!-- 循环对话开始 -->
-			<div class="panel" :style="{background: (item.source === 'user') ? '#f4f4f4' : '#fff' }" v-for="(item, index) in chatLogList" :key="index">
+			<div class="panel" :style="{background: (item.source === 'user') ? '#f4f4f4' : '#fff' }" v-for="(item, index) in processedChatLogList" :key="index">
 				<div class="flex-x-between">
 					<div class="chat-msg-content">
 						<div class="chat-user">
@@ -56,6 +56,11 @@ export default {
 	data() {
 		return {
 			chatLogList: []
+		}
+	},
+	computed: {
+		processedChatLogList() {
+			return this.chatLogList
 		}
 	},
 	mounted() {
@@ -112,20 +117,33 @@ export default {
 						appId: item.appId,
 						sessionId: item.sessionId,
 						source: 'user',
-						content: item.question
+						content: item.question || ''
 					})
+
+					// 处理answer字段，可能是数组或字符串
+					let answerContent = ''
+					if (Array.isArray(item.answer)) {
+						// 如果是数组，拼接所有content
+						answerContent = item.answer.map(ans => ans.content || '').join('')
+					} else if (typeof item.answer === 'string') {
+						// 如果是字符串，直接使用
+						answerContent = item.answer
+					} else {
+						// 其他情况，转换为字符串
+						answerContent = String(item.answer || '')
+					}
 
 					chatLogDataList.push({
 						appId: item.appId,
 						sessionId: item.sessionId,
 						source: 'ai',
-						content: item.answer,
+						content: answerContent,
 						appraise: item.appraise,
 						meta: {
 							time: item.time,
 							tokens: item.tokens,
 						},
-						retrievedList: JSON.parse(item.retrievedList),
+						retrievedList: item.retrievedList ? JSON.parse(item.retrievedList) : [],
 						answerIng: 3
 					})
 				})

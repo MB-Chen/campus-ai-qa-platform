@@ -31,7 +31,7 @@
 			<!-- 循环对话开始 -->
 			<div class="panel"
 				 :style="{background: (item.source === 'user') ? '#f4f4f4' : '#fff' }"
-				 v-for="(item, index) in chatLogList"
+				 v-for="(item, index) in processedChatLogList"
 				 :key="index">
 				<div class="flex-x-between">
 					<div class="chat-msg-content">
@@ -49,7 +49,7 @@
 									<p v-else-if="item.source === 'system'" style="display: flex;align-items: center">{{ item.content }}
 										<el-icon style="margin-left: 5px"><Loading class="rotate-loading"/></el-icon></p>
 									<div v-for="(item2, index2) in item.content" :key="index2" v-else>
-										<MdPreview noIconfont noPrettier :codeFoldable="false" v-model="item.content[index2].content" />
+										<MdPreview noIconfont noPrettier :codeFoldable="false" v-model="item2.content" />
 									</div>
 								</div>
 							</div>
@@ -217,6 +217,26 @@ export default {
 			sessionId: ""
 		}
 	},
+	computed: {
+		processedChatLogList() {
+			return this.chatLogList.map(item => {
+				if (Array.isArray(item.content)) {
+					return {
+						...item,
+						content: item.content.map(subItem => ({
+							...subItem,
+							content: typeof subItem.content === 'string' ? subItem.content : String(subItem.content || '')
+						}))
+					}
+				} else {
+					return {
+						...item,
+						content: typeof item.content === 'string' ? item.content : String(item.content || '')
+					}
+				}
+			})
+		}
+	},
 	mounted() {
 		this.sessionId = this.chatSessionId
 		config({
@@ -272,6 +292,7 @@ export default {
 			if (this.sessionId === "") {
 				let res2 = await this.$API.chat.createSession.post({appId: data.appId})
 				if (res2.code !== 0) {
+					this.$message.error(res2.msg)
 					return false
 				} else {
 					data.sessionId = res2.msg
@@ -345,16 +366,16 @@ export default {
 					} else if (event === '[ERROR]') {
 						that.nowIndex = that.chatLogList.length - 1
 						that.chatLogList[that.nowIndex].source = 'ai'
-						let pluginsError = 'Cannot invoke "String.split(String, int)" because "content" is null'
-						let tips = ''
-						if (ev.data == pluginsError) {
-							tips = '\n【温馨提示：一般遇到  大多是模型不支持插件导致的】'
-						}
+						
+						// 解析错误信息
+						let errorMessage = that.parseErrorMessage(ev.data)
+						
 						that.chatLogList[that.nowIndex].content = []
 						that.chatLogList[that.nowIndex].content[0] = {
 							nodeId: 0,
-							content: '当前模型出现了错误: ' + ev.data + "。" + tips
+							content: errorMessage || ''
 						}
+						
 						that.stopAnswer()
 					} else if (event === '[META]') { // 通知召回数据
 						that.chatLogList[that.nowIndex].retrievedList = JSON.parse(ev.data)
@@ -399,7 +420,7 @@ export default {
 						if (!has) {
 							that.chatLogList[that.nowIndex].content.push({
 								nodeId: resData.nodeId,
-								content: resData.content.replace("-_-_wrap_-_-", "\n")
+								content: (resData.content || '').replace("-_-_wrap_-_-", "\n")
 							})
 						}
 
@@ -412,9 +433,9 @@ export default {
 				},
 				onerror(err) {
 					console.log('错误原因', err)
-					that.$message.error(err)
+					that.$message.error('连接错误')
 					throw new Error("终止连接")
-				},
+				}
 			});
 		},
 		stopAnswer() {
@@ -470,6 +491,11 @@ export default {
 		reChat(row) {
 			this.chatMsg = row.question + '\n'
 			this.send()
+		},
+		// 解析错误信息
+		parseErrorMessage(errorData) {
+			// 直接返回原始错误信息，不再进行友好转换
+			return errorData
 		}
 	}
 }

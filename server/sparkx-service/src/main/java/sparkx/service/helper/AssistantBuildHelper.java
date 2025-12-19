@@ -10,26 +10,24 @@
 package sparkx.service.helper;
 
 import cn.hutool.http.HttpRequest;
-import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.mcp.McpToolProvider;
 import dev.langchain4j.mcp.client.DefaultMcpClient;
 import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.mcp.client.transport.McpTransport;
-import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport;
+import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport;
 import dev.langchain4j.memory.chat.ChatMemoryProvider;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import dev.langchain4j.model.scoring.ScoringModel;
 import dev.langchain4j.rag.DefaultRetrievalAugmentor;
 import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.aggregator.ContentAggregator;
-import dev.langchain4j.rag.content.aggregator.ReRankingContentAggregator;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.transformer.CompressingQueryTransformer;
 import dev.langchain4j.rag.query.transformer.QueryTransformer;
@@ -42,14 +40,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import sparkx.service.entity.application.ApplicationEntity;
 import sparkx.service.entity.dataset.KnowledgeDatasetEntity;
-import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.entity.tool.ToolsEntity;
 import sparkx.service.entity.workflow.ApplicationWorkflowRuntimeContextEntity;
 import sparkx.service.extend.SparkEmbeddingStoreContentRetriever;
-import sparkx.service.extend.rerank.RerankScoringModel;
 import sparkx.service.mapper.application.ApplicationWorkflowRuntimeContextMapper;
 import sparkx.service.mapper.dataset.KnowledgeDatasetMapper;
-import sparkx.service.mapper.system.ModelsMapper;
 import sparkx.service.service.interfaces.application.IAiService;
 import sparkx.service.service.interfaces.dataset.IDatasetSearchService;
 import sparkx.service.validate.application.ApplicationChatValidate;
@@ -117,6 +112,7 @@ public class AssistantBuildHelper {
                         AiServices.builder(IAiService.class)
                         .streamingChatModel(streamingModel)
                         .chatMemoryProvider(chatMemoryProvider);
+                        //.registerListener(applicationHelper.observability());
         // 未关联知识库
         if (validate.getDatasetList().isEmpty()) {
 
@@ -213,8 +209,19 @@ public class AssistantBuildHelper {
         AiServices<IAiService> builder =
                 AiServices.builder(IAiService.class)
                 .streamingChatModel(streamingModel)
-                .chatMemoryProvider(chatMemoryProvider)
                 .toolProvider(toolProvider);
+                //.registerListener(applicationHelper.observability());
+
+        // 只有在内存中有有效消息时才添加 chatMemoryProvider
+        // 这可以避免在首次对话或内存为空时出现"messages cannot be null or empty"错误
+        // 检查内存是否有有效消息
+        String memoryKey = validate.getSessionId() + validate.getAppId() + validate.getCell();
+        List<ChatMessage> existingMessages = memoryBuildHelper.getMessages(memoryKey);
+        boolean hasValidMemory = existingMessages != null && !existingMessages.isEmpty();
+
+        if (hasValidMemory) {
+            builder.chatMemoryProvider(chatMemoryProvider);
+        }
 
         if (retrievalAugmentor == null) {
             return builder.build();
@@ -230,7 +237,7 @@ public class AssistantBuildHelper {
      * @param validate ApplicationChatValidate
      * @return ToolProvider
      */
-    private ToolProvider makeDiyToolProvider(ApplicationChatValidate validate) {
+    public ToolProvider makeDiyToolProvider(ApplicationChatValidate validate) {
 
         return (toolProviderRequest) -> {
 
@@ -277,7 +284,11 @@ public class AssistantBuildHelper {
                         }
                     }
 
-                    return httpRequest.form(arguments).execute().body();
+                    String result = httpRequest.form(arguments).execute().body();
+                    
+                    // 对于通义千问，不需要特殊处理返回格式，直接返回原始结果
+                    // 这样可以避免不必要的JSON包装导致的问题
+                    return result;
                 });
             }
 
@@ -297,8 +308,8 @@ public class AssistantBuildHelper {
         for (ToolsEntity entity : validate.getToolsList()) {
 
             // 构建协议
-            McpTransport transport = new HttpMcpTransport.Builder()
-                    .sseUrl(entity.getApiUrl())
+            McpTransport transport = StreamableHttpMcpTransport.builder()
+                    .url(entity.getApiUrl())
                     .logRequests(true)
                     .logResponses(true)
                     .build();

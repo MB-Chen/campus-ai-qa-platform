@@ -16,6 +16,7 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import dev.langchain4j.exception.ModelNotFoundException;
 import dev.langchain4j.service.TokenStream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -376,25 +377,52 @@ public class ApplicationServiceImpl implements IApplicationService {
                 applicationInfo.setUserId(userData.getUserId()); // 设置为运行用户
                 validate.setContextId(0); // 不在构建模型的时候记录上下文记录
 
-                TokenStream tokenStream = agentChat.streamChat(applicationInfo, validate);
-                // 异步发送消息
-                sseEmitterHelper.asyncSend2Client(tokenStream, emitter, 0, "");
+                try {
+
+                    TokenStream tokenStream = agentChat.streamChat(applicationInfo, validate);
+
+                    // 异步发送消息
+                    sseEmitterHelper.asyncSend2Client(tokenStream, emitter, 0, "");
+                } catch (Exception e) {
+                    log.error("构建AI服务时发生错误: {}", e.getMessage(), e);
+                    throw e; // Re-throw to be caught by the outer catch block
+                }
             } else {
 
                 sseEmitterHelper.sendStartSse(emitter);
                 workflowChat.setEmitter(emitter);
-                workflowChat.streamChat(applicationInfo, validate);
+                try {
+
+                    workflowChat.streamChat(applicationInfo, validate);
+                } catch (Exception e) {
+                    log.error("工作流聊天时发生错误: {}", e.getMessage(), e);
+                    throw e; // Re-throw to be caught by the outer catch block
+                }
             }
 
+        } catch (ModelNotFoundException e) {
+            log.error("模型未找到异常：", e);
+            try {
+                // 发送友好的错误信息给前端
+                String friendlyMessage = "您选择的AI模型暂时不可用，请联系管理员检查模型配置";
+                emitter.send(SseEmitter.event().name(SparkXConstant.SSEEventName.ERROR)
+                        .data(friendlyMessage));
+            } catch (IOException e2) {
+                log.error("发送SSE错误信息失败", e2);
+            } finally {
+                emitter.complete();
+            }
         } catch (Exception e) {
             log.error("构建ai服务出现了问题：", e);
             try {
-
+                // 发送通用错误信息给前端
+                String errorMessage = "系统繁忙，请稍后再试";
                 emitter.send(SseEmitter.event().name(SparkXConstant.SSEEventName.ERROR)
-                        .data(e.getMessage()));
+                        .data(errorMessage));
             } catch (IOException e2) {
-                log.error("startSse error", e2);
-                emitter.completeWithError(e);
+                log.error("发送SSE错误信息失败", e2);
+            } finally {
+                emitter.complete();
             }
         }
 
