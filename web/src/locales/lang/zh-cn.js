@@ -35,5 +35,12 @@ export default {
 		nightmode_msg: '适合光线较弱的环境，当前黑暗模式为beta版本',
 		language: '语言',
 		language_msg: '翻译进行中，暂翻译了本视图的文本',
+	},
+	message: {
+		copySuccess: '复制成功',
+		copyError: '复制错误',
+		pleaseInputQuestion: '请输入问题',
+		connectionError: '连接错误',
+		debugModeNotSupported: '调试模式下不支持该功能'
 	}
 }

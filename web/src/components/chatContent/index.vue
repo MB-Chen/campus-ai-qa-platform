@@ -31,7 +31,7 @@
 			<!-- 循环对话开始 -->
 			<div class="panel"
 				 :style="{background: (item.source === 'user') ? '#f4f4f4' : '#fff' }"
-				 v-for="(item, index) in chatLogList"
+				 v-for="(item, index) in processedChatLogList"
 				 :key="index">
 				<div class="flex-x-between">
 					<div class="chat-msg-content">
@@ -49,7 +49,7 @@
 									<p v-else-if="item.source === 'system'" style="display: flex;align-items: center">{{ item.content }}
 										<el-icon style="margin-left: 5px"><Loading class="rotate-loading"/></el-icon></p>
 									<div v-for="(item2, index2) in item.content" :key="index2" v-else>
-										<MdPreview noIconfont noPrettier :codeFoldable="false" v-model="item.content[index2].content" />
+										<MdPreview noIconfont noPrettier :codeFoldable="false" v-model="item2.content" />
 									</div>
 								</div>
 							</div>
@@ -217,6 +217,26 @@ export default {
 			sessionId: ""
 		}
 	},
+	computed: {
+		processedChatLogList() {
+			return this.chatLogList.map(item => {
+				if (Array.isArray(item.content)) {
+					return {
+						...item,
+						content: item.content.map(subItem => ({
+							...subItem,
+							content: typeof subItem.content === 'string' ? subItem.content : String(subItem.content || '')
+						}))
+					}
+				} else {
+					return {
+						...item,
+						content: typeof item.content === 'string' ? item.content : String(item.content || '')
+					}
+				}
+			})
+		}
+	},
 	mounted() {
 		this.sessionId = this.chatSessionId
 		config({
@@ -272,6 +292,7 @@ export default {
 			if (this.sessionId === "") {
 				let res2 = await this.$API.chat.createSession.post({appId: data.appId})
 				if (res2.code !== 0) {
+					this.$message.error(res2.msg)
 					return false
 				} else {
 					data.sessionId = res2.msg
@@ -352,7 +373,7 @@ export default {
 						that.chatLogList[that.nowIndex].content = []
 						that.chatLogList[that.nowIndex].content[0] = {
 							nodeId: 0,
-							content: errorMessage
+							content: errorMessage || ''
 						}
 						
 						that.stopAnswer()
@@ -399,7 +420,7 @@ export default {
 						if (!has) {
 							that.chatLogList[that.nowIndex].content.push({
 								nodeId: resData.nodeId,
-								content: resData.content.replace("-_-_wrap_-_-", "\n")
+								content: (resData.content || '').replace("-_-_wrap_-_-", "\n")
 							})
 						}
 
@@ -412,7 +433,7 @@ export default {
 				},
 				onerror(err) {
 					console.log('错误原因', err)
-					that.$message.error(err)
+					that.$message.error('连接错误')
 					throw new Error("终止连接")
 				}
 			});

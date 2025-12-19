@@ -65,5 +65,13 @@ export default {
 
 			return await http.get(this.url, data);
 		}
+	},
+	log: {
+		url: `${config.API_URL}/application/log`,
+		name: "会话记录",
+		get: async function(data={}){
+
+			return await http.get(this.url, data);
+		}
 	}
 }

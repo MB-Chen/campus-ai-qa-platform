@@ -1,5 +1,5 @@
 <template>
-	<el-config-provider :locale="locale" :size="config.size" :zIndex="config.zIndex" :button="config.button">
+	<el-config-provider :locale="localeConfig" :size="config.size" :zIndex="config.zIndex" :button="config.button">
 		<router-view></router-view>
 	</el-config-provider>
 </template>
@@ -7,9 +7,22 @@
 <script>
 import '@/assets/alifont/iconfont.css'
 import colorTool from '@/utils/color'
+import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 
 export default {
 	name: 'App',
+	setup() {
+		const { locale, messages } = useI18n()
+		
+		const localeConfig = computed(() => {
+			return messages.value[locale.value].el
+		})
+		
+		return {
+			localeConfig
+		}
+	},
 	data() {
 		return {
 			config: {
@@ -21,12 +34,7 @@ export default {
 			}
 		}
 	},
-	computed: {
-		locale(){
-			return this.$i18n.messages[this.$i18n.locale].el
-		},
-	},
-	created() {
+	mounted() {
 		//设置主题颜色
 		const app_color = this.$CONFIG.COLOR || this.$TOOL.data.get('APP_COLOR')
 		if(app_color){

@@ -22,6 +22,9 @@ const i18n = createI18n({
 	locale: tool.data.get("APP_LANG") || sysConfig.LANG,
 	fallbackLocale: 'zh-cn',
 	globalInjection: true,
+	legacy: false, // 使用Composition API模式
+	silentTranslationWarn: true, // 静默翻译警告
+	silentFallbackWarn: true, // 静默回退警告
 	messages,
 })
 
