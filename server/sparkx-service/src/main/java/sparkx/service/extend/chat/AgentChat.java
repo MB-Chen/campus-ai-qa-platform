@@ -9,12 +9,14 @@
 // +----------------------------------------------------------------------
 package sparkx.service.extend.chat;
 
+import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
+import dev.langchain4j.service.AiServices;
 import dev.langchain4j.service.TokenStream;
+import dev.langchain4j.service.tool.ToolProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
 import sparkx.service.entity.application.ApplicationEntity;
 import sparkx.service.entity.system.ModelsEntity;
 import sparkx.service.helper.ApplicationHelper;
@@ -63,31 +65,11 @@ public class AgentChat implements IChat {
         validate.setToolsList(applicationHelper.getRelationFullToolList(validate.getAppId()));
 
         // step 1 构建模型流式应答对象
-        StreamingChatModel streamingChatModel;
-        try {
-            streamingChatModel = streamChatModelBuildHelper.build(modelInfo, applicationInfo);
-        } catch (Exception e) {
-            log.error("构建流式聊天模型时发生错误: {}", e.getMessage(), e);
-            throw e;
-        }
-        
+        StreamingChatModel streamingChatModel = streamChatModelBuildHelper.build(modelInfo, applicationInfo);
         // step 2 构建模型普通对象，用于问题优化下使用
-        ChatModel chatModel;
-        try {
-            chatModel = chatModelBuildHelper.build(modelInfo, applicationInfo);
-        } catch (Exception e) {
-            log.error("构建普通聊天模型时发生错误: {}", e.getMessage(), e);
-            throw e;
-        }
-        
+        ChatModel chatModel = chatModelBuildHelper.build(modelInfo, applicationInfo);
         // step 3 构建 IAiService
-        IAiService assistant;
-        try {
-            assistant = assistantBuildHelper.build(applicationInfo, validate, streamingChatModel, chatModel);
-        } catch (Exception e) {
-            log.error("构建AI服务时发生错误: {}", e.getMessage(), e);
-            throw e;
-        }
+        IAiService assistant = assistantBuildHelper.build(applicationInfo, validate, streamingChatModel, chatModel);
 
         TokenStream tokenStream;
         if (applicationInfo.getPrompt().isBlank()) {

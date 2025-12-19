@@ -11,6 +11,7 @@ package sparkx.service.helper;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
+import dev.langchain4j.community.model.dashscope.QwenChatModel;
 import dev.langchain4j.community.model.zhipu.ZhipuAiChatModel;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
@@ -56,7 +57,12 @@ public class ChatModelBuildHelper {
             return buildOllama();
         }
 
-        // 千帆、千问、豆包、GPT
+        // 通义千问
+        if (modelInfo.getModelFlag().equals("qwen")) {
+            return buildQwen();
+        }
+
+        // 千帆、豆包、GPT
         return buildOpenAI();
     }
 
@@ -96,6 +102,23 @@ public class ChatModelBuildHelper {
         return OllamaChatModel.builder()
                 .baseUrl(url)
                 .modelName(applicationInfo.getModelName())
+                .build();
+    }
+
+    /**
+     * 构建通义千问模型
+     * @return ChatModel
+     */
+    private ChatModel buildQwen() {
+
+        JSONArray jsonConfig = JSONUtil.parseArray(modelInfo.getCredential());
+        String key = jsonConfig.getJSONObject(0).getStr("value");
+
+        return QwenChatModel.builder()
+                .apiKey(key)
+                .modelName(applicationInfo.getModelName())
+                .temperature((float) applicationInfo.getTemperature())
+                .listeners(List.of(applicationHelper.chatModelObservability()))
                 .build();
     }
 

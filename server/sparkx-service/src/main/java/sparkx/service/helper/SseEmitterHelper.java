@@ -28,8 +28,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import dev.langchain4j.exception.ModelNotFoundException;
-
 @Slf4j
 @Component
 public class SseEmitterHelper {
@@ -139,15 +137,23 @@ public class SseEmitterHelper {
                     }
                 })
                 .onCompleteResponse((response) -> {
-                    
+
                     // 取消超时任务
                     timeoutTask.cancel(false);
                     timeoutExecutor.shutdown();
                     
                     // 输入的token
-                    int inputTokenCount = response.tokenUsage().totalTokenCount();
-                    // 输出的token
-                    int outputTokenCount = response.tokenUsage().outputTokenCount();
+                    int inputTokenCount = 0;
+                    int outputTokenCount = 0;
+                    int totalTokenCount = 0;
+                    
+                    // 安全获取token使用情况，避免NullPointerException
+                    if (response.tokenUsage() != null) {
+                        inputTokenCount = response.tokenUsage().inputTokenCount() != null ? response.tokenUsage().inputTokenCount() : 0;
+                        outputTokenCount = response.tokenUsage().outputTokenCount() != null ? response.tokenUsage().outputTokenCount() : 0;
+                        totalTokenCount = response.tokenUsage().totalTokenCount() != null ? response.tokenUsage().totalTokenCount() : 0;
+                    }
+                    
                     // 计算耗时
                     long second = timer.intervalSecond();
 
@@ -155,7 +161,7 @@ public class SseEmitterHelper {
                     Map<String, Object> resMap = new HashMap<>();
                     resMap.put("inputTokens", inputTokenCount);
                     resMap.put("outputTokens", outputTokenCount);
-                    resMap.put("totalTokens", response.tokenUsage().totalTokenCount());
+                    resMap.put("totalTokens", totalTokenCount);
                     resMap.put("time", second);
                     sendEndSse(emitter, JSONUtil.toJsonStr(resMap), emitterCompleted);
 
@@ -258,16 +264,23 @@ public class SseEmitterHelper {
                 .onCompleteResponse((response) -> {
                     
                     // 输入的token
-                    int inputTokenCount = response.tokenUsage().totalTokenCount();
-                    // 输出的token
-                    int outputTokenCount = response.tokenUsage().outputTokenCount();
+                    int inputTokenCount = 0;
+                    int outputTokenCount = 0;
+                    int totalTokenCount = 0;
+                    
+                    // 安全获取token使用情况，避免NullPointerException
+                    if (response.tokenUsage() != null) {
+                        inputTokenCount = response.tokenUsage().inputTokenCount() != null ? response.tokenUsage().inputTokenCount() : 0;
+                        outputTokenCount = response.tokenUsage().outputTokenCount() != null ? response.tokenUsage().outputTokenCount() : 0;
+                        totalTokenCount = response.tokenUsage().totalTokenCount() != null ? response.tokenUsage().totalTokenCount() : 0;
+                    }
 
                     // 发送结束信号
                     Map<String, Object> resMap = new HashMap<>();
                     resMap.put("inputTokenCount", inputTokenCount);
                     resMap.put("outputTokenCount", outputTokenCount);
-                    resMap.put("totalTokenCount", response.tokenUsage().totalTokenCount());
-                    resMap.put("content", response.aiMessage().text());
+                    resMap.put("totalTokenCount", totalTokenCount);
+                    resMap.put("content", response.aiMessage() != null ? response.aiMessage().text() : "");
 
                     sendEndCallback.accept(JSONUtil.toJsonStr(resMap));
                 })
@@ -452,6 +465,11 @@ public class SseEmitterHelper {
         String message = e.getMessage();
         if (message == null || message.isEmpty()) {
             return e.getClass().getSimpleName();
+        }
+
+        // 特殊处理通义千问工具调用的特有错误
+        if (message.contains("messages cannot be null or empty")) {
+            return "通义千问API处理工具调用时遇到问题，请重试或切换到其他模型";
         }
 
         return message;

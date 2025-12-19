@@ -11,6 +11,7 @@ package sparkx.service.helper;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONUtil;
+import dev.langchain4j.community.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.community.model.zhipu.ZhipuAiStreamingChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
@@ -56,7 +57,12 @@ public class StreamChatModelBuildHelper {
             return buildOllama();
         }
 
-        // 千帆、千问、豆包、GPT
+        // 通义千问
+        if (modelInfo.getModelFlag().equals("qwen")) {
+            return buildQwen();
+        }
+
+        // 千帆、豆包、GPT
         return buildOpenAI();
     }
 
@@ -78,7 +84,7 @@ public class StreamChatModelBuildHelper {
                 .readTimeout(Duration.ofSeconds(60))  // 减少读取超时
                 .listeners(List.of(applicationHelper.chatModelObservability()))
                 .build();
-        
+
         // 使用包装器来处理工具调用兼容性问题
         return new ZhipuAiStreamingChatModelWrapper(originalModel);
     }
@@ -95,6 +101,23 @@ public class StreamChatModelBuildHelper {
         return OllamaStreamingChatModel.builder()
                 .baseUrl(url)
                 .modelName(applicationInfo.getModelName())
+                .build();
+    }
+
+    /**
+     * 构建通义千问流式模型
+     * @return StreamingChatModel
+     */
+    private StreamingChatModel buildQwen() {
+
+        JSONArray jsonConfig = JSONUtil.parseArray(modelInfo.getCredential());
+        String key = jsonConfig.getJSONObject(0).getStr("value");
+
+        // 构建原始的通义千问流式模型
+        return QwenStreamingChatModel.builder()
+                .apiKey(key)
+                .modelName(applicationInfo.getModelName())
+                .temperature((float)applicationInfo.getTemperature())
                 .build();
     }
 
