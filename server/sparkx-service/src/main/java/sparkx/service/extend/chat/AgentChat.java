@@ -90,13 +90,10 @@ public class AgentChat implements IChat {
 
         TokenStream tokenStream;
         if (applicationInfo.getPrompt().isBlank()) {
-            log.info("Creating token stream with chatInTokenStream");
             tokenStream = assistant.chatInTokenStream(validate.getContent());
         } else {
-            log.info("Creating token stream with chatWithSystem");
             tokenStream = assistant.chatWithSystem(applicationInfo.getPrompt(), validate.getContent());
         }
-        log.info("Token stream created successfully");
 
         return tokenStream;
     }

@@ -378,13 +378,11 @@ public class ApplicationServiceImpl implements IApplicationService {
                 validate.setContextId(0); // 不在构建模型的时候记录上下文记录
 
                 try {
-                    log.info("Calling agentChat.streamChat");
+
                     TokenStream tokenStream = agentChat.streamChat(applicationInfo, validate);
-                    log.info("agentChat.streamChat completed successfully");
+
                     // 异步发送消息
-                    log.info("Calling sseEmitterHelper.asyncSend2Client");
                     sseEmitterHelper.asyncSend2Client(tokenStream, emitter, 0, "");
-                    log.info("sseEmitterHelper.asyncSend2Client completed");
                 } catch (Exception e) {
                     log.error("构建AI服务时发生错误: {}", e.getMessage(), e);
                     throw e; // Re-throw to be caught by the outer catch block
@@ -394,9 +392,8 @@ public class ApplicationServiceImpl implements IApplicationService {
                 sseEmitterHelper.sendStartSse(emitter);
                 workflowChat.setEmitter(emitter);
                 try {
-                    log.info("Calling workflowChat.streamChat");
+
                     workflowChat.streamChat(applicationInfo, validate);
-                    log.info("workflowChat.streamChat completed");
                 } catch (Exception e) {
                     log.error("工作流聊天时发生错误: {}", e.getMessage(), e);
                     throw e; // Re-throw to be caught by the outer catch block
