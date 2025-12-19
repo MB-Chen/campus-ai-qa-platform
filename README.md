@@ -10,7 +10,7 @@
 
 </div>
 
-🚀SparkX 是采用 Springboot3 + PgSQL + Vue3 开发的，采用大语言模型 和 编排的AI智能体开发平台。开箱即用、模型任选、灵活编排，支持快速嵌入到第三方业务系统。
+🚀SparkX 是采用 Springboot3 + PgSQL + Vue3 开发的，采用大语言模型 和 编排的AI智能体开发框架。开箱即用、模型任选、灵活编排，支持快速嵌入到第三方业务系统。
 
 > 不好意思临时给自己拉个票啊
 我正在参加 Gitee 2025 最受欢迎的开源软件投票活动，快来给我投票吧！https://gitee.com/activity/2025opensource?ident=IRGJAU  
