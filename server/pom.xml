@@ -1,249 +1,264 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>cn.sparkshop.ai</groupId>
-    <artifactId>cn.sparkshop</artifactId>
-    <version>1.1.5</version>
-    <packaging>pom</packaging>
-    <name>SparkX</name>
-    <description>基于大语言模型和编排的企业智能体开发平台。开箱即用、模型中立、灵活编排，支持快速嵌入到第三方业务系统。</description>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
 
-    <modules>
-        <module>sparkx-common</module>
-        <module>sparkx-service</module>
-        <module>sparkx-web</module>
-    </modules>
+    <groupId>cn.sparkshop.ai</groupId>
+    <artifactId>sparkx-server</artifactId>
+    <version>1.0.0</version>
+    <name>sparkx-server</name>
+    <description>SparkX 智能体开发平台后端</description>
 
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.parameters>true</maven.compiler.parameters>
         <java.version>17</java.version>
-        <hutool.version>5.8.26</hutool.version>
-        <spark.version>1.1.5</spark.version>
-        <lombok.version>1.18.24</lombok.version>
-        <springboot.version>3.4.2</springboot.version>
-        <mybatis-plus.version>3.5.10.1</mybatis-plus.version>
-        <postgresql.version>42.7.5</postgresql.version>
-        <mybatis-plus-join.version>1.2.4</mybatis-plus-join.version>
-        <pagehelper.version>3.5.10.1</pagehelper.version>
-        <validator.version>9.0.0.CR1</validator.version>
-        <jackson.version>2.18.2</jackson.version>
-        <langchain4j.version>1.9.1</langchain4j.version>
-        <langchain4j-community.version>1.9.1-beta17</langchain4j-community.version>
-        <markdown.version>0.64.8</markdown.version>
+        <mybatis-plus.version>3.5.7</mybatis-plus.version>
+        <hutool.version>5.8.27</hutool.version>
+        <springdoc.version>2.2.0</springdoc.version>
+        <minio.version>8.5.12</minio.version>
+        <!-- ===== RAG 知识库 ===== -->
+        <langchain4j.version>1.17.0</langchain4j.version>
+        <okhttp.version>4.12.0</okhttp.version>
+        <ttl.version>2.14.5</ttl.version>
+        <redisson.version>3.31.0</redisson.version>
+        <!-- langchain4j 官方 MCP 集成（与 langchain4j 1.17.x 同节奏的 beta 版本，会传递拉入原生 io.modelcontextprotocol.sdk:mcp） -->
+        <langchain4j-mcp.version>1.17.0-beta27</langchain4j-mcp.version>
+        <!-- 中文分词（关键词检索 tsv 由 Java 预分词，绕开 PG 中文分词扩展） -->
         <hanlp.version>portable-1.8.6</hanlp.version>
-        <mapdb.version>3.1.0</mapdb.version>
-        <retrofit2.version>2.9.0</retrofit2.version>
-        <langchain4j-ollama.version>1.9.1</langchain4j-ollama.version>
-        <ollama.version>1.21.3</ollama.version>
+        <!-- POI 5.5.x 需要 commons-io 2.16+（BoundedInputStream.builder()），
+             Spring Boot 3.3.5 父 POM 默认 2.15.1 会导致 NoSuchMethodError，
+             这里覆盖升级。 -->
+        <commons-io.version>2.16.1</commons-io.version>
     </properties>
 
-    <!-- 依赖声明 -->
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-starter-web</artifactId>
-                <version>${springboot.version}</version>
-            </dependency>
-
-            <!-- 全局工具 -->
-            <dependency>
-                <groupId>cn.sparkshop.ai</groupId>
-                <artifactId>sparkx-common</artifactId>
-                <version>${spark.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>cn.sparkshop.ai</groupId>
-                <artifactId>sparkx-service</artifactId>
-                <version>${spark.version}</version>
-            </dependency>
-
-            <!-- hutool -->
-            <dependency>
-                <groupId>cn.hutool</groupId>
-                <artifactId>hutool-all</artifactId>
-                <version>${hutool.version}</version>
-            </dependency>
-
-            <!-- Lombok -->
-            <dependency>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok</artifactId>
-                <version>${lombok.version}</version>
-            </dependency>
-
-            <!-- mybatis-plus -->
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-                <version>${mybatis-plus.version}</version>
-            </dependency>
-
-            <!-- postgresql -->
-            <dependency>
-                <groupId>org.postgresql</groupId>
-                <artifactId>postgresql</artifactId>
-                <version>${postgresql.version}</version>
-            </dependency>
-
-            <!-- MyBatis-Plus-Join -->
-            <dependency>
-                <groupId>com.github.yulichang</groupId>
-                <artifactId>mybatis-plus-join</artifactId>
-                <version>${mybatis-plus-join.version}</version>
-            </dependency>
-
-            <!-- 分页插件 -->
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-jsqlparser</artifactId>
-                <version>${pagehelper.version}</version>
-            </dependency>
-
-            <!-- 校验器 -->
-            <dependency>
-                <groupId>org.hibernate.validator</groupId>
-                <artifactId>hibernate-validator</artifactId>
-                <version>${validator.version}</version>
-            </dependency>
-
-            <!-- jackson-databind -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-
-            <!-- langchain4j -->
+            <!-- LangChain4j BOM 统一管理版本 -->
             <dependency>
                 <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j</artifactId>
+                <artifactId>langchain4j-bom</artifactId>
                 <version>${langchain4j.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-core</artifactId>
-                <version>${langchain4j.version}</version>
-                <scope>compile</scope>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-document-parser-apache-pdfbox</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-document-parser-apache-poi</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-pgvector</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-embeddings-all-minilm-l6-v2</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-community-zhipu-ai</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-mcp</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-open-ai</artifactId>
-                <version>${langchain4j.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-ollama</artifactId>
-                <version>${langchain4j-ollama.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>dev.langchain4j</groupId>
-                <artifactId>langchain4j-community-dashscope</artifactId>
-                <version>${langchain4j-community.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.testcontainers</groupId>
-                <artifactId>ollama</artifactId>
-                <version>${ollama.version}</version>
-            </dependency>
-
-            <!-- markdown -->
-            <dependency>
-                <groupId>com.vladsch.flexmark</groupId>
-                <artifactId>flexmark-all</artifactId>
-                <version>${markdown.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.hankcs</groupId>
-                <artifactId>hanlp</artifactId>
-                <version>${hanlp.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.mapdb</groupId>
-                <artifactId>mapdb</artifactId>
-                <version>${mapdb.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.squareup.retrofit2</groupId>
-                <artifactId>retrofit</artifactId>
-                <version>${retrofit2.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.squareup.retrofit2</groupId>
-                <artifactId>converter-jackson</artifactId>
-                <version>${retrofit2.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
 
-    <!-- 插件管理 -->
+    <dependencies>
+        <!-- Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Validation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Redis（验证码 + 权限缓存） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- 连接池 -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
+        <!-- MyBatis-Plus -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL 驱动 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+
+        <!-- Hutool：JWT / Captcha / SecureUtil / JSON -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Springdoc OpenAPI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- MinIO：企业云盘对象存储 -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>${minio.version}</version>
+        </dependency>
+
+        <!-- AOP（RagTraceNode 注解采集指标） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- Actuator（指标 + 健康） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- LangChain4j 核心 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+        </dependency>
+
+        <!-- 重排模型（Cohere 接口契约） -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-cohere</artifactId>
+        </dependency>
+
+        <!-- Neo4j 知识图谱集成（langchain4j-community-neo4j，官方文档：https://docs.langchain4j.dev/integrations/embedding-stores/neo4j） -->
+        <!-- 包含 Neo4jEmbeddingStore + Neo4jGraph，传递依赖 neo4j-java-driver -->
+        <!-- 社区模块目前为 beta 状态（API 已稳定），版本对齐 langchain4j 1.17.x -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-community-neo4j</artifactId>
+            <version>1.17.0-beta27</version>
+        </dependency>
+
+        <!-- 文档解析 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-tika</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-pdfbox</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-document-parser-apache-poi</artifactId>
+        </dependency>
+
+        <!-- HanLP 中文分词：chunks.tsv 由 Java 端预分词后写入，
+             查询端 query 也先预分词再交 websearch_to_tsquery。
+             portable 版 jar 自带精简词典，无需额外数据文件。 -->
+        <dependency>
+            <groupId>com.hankcs</groupId>
+            <artifactId>hanlp</artifactId>
+            <version>${hanlp.version}</version>
+        </dependency>
+
+        <!-- POI 5.5.x 需要 commons-io 2.16+（BoundedInputStream.builder()），
+             Spring Boot 3.3.5 父 POM 默认 2.15.1 会导致 NoSuchMethodError，
+             这里显式锁定版本以覆盖所有传递依赖。 -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>${commons-io.version}</version>
+        </dependency>
+
+        <!-- Excel/CSV 一行一块拆分：CSV 解析（正确处理引号/逗号内嵌换行） -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>1.14.1</version>
+        </dependency>
+
+        <!-- 跨线程上下文透传（线程池并行检索/记忆加载传递 TenantContext） -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>transmittable-thread-local</artifactId>
+            <version>${ttl.version}</version>
+        </dependency>
+
+        <!-- 模型容错层：Redisson 分布式锁（会话摘要防并发） -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>${redisson.version}</version>
+        </dependency>
+
+        <!-- 容错层供应商 ChatClient：OkHttp 读 OpenAI 兼容 SSE 流 -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${okhttp.version}</version>
+        </dependency>
+
+        <!-- YAML 解析（提示词模板） -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+
+        <!-- 可观测：OTel 桥接（traceId 写入 MDC，仅本地日志关联，不外发）。
+             micrometer-tracing-bridge-otel 由 SB 父 POM 管理版本；其自带 OTel SDK 依赖足以生成 traceId，
+             无需显式 opentelemetry-sdk-extension-autoconfigure（避免额外网络拉取）。 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!-- MCP 协议：用 langchain4j 官方集成模块（含 HttpMcpTransport / StreamableHttpMcpTransport /
+             DefaultMcpClient / McpToolProvider），底层传递依赖 io.modelcontextprotocol.sdk:mcp，无需手写协议握手。
+             与 langchain4j 1.17.0 对齐的 beta 版本节奏（同 langchain4j-community-neo4j）。 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-mcp</artifactId>
+            <version>${langchain4j-mcp.version}</version>
+        </dependency>
+    </dependencies>
+
     <build>
+        <finalName>sparkx-server</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${springboot.version}</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
-                    <encoding>UTF-8</encoding>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
 </project>

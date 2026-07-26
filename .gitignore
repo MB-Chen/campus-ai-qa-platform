@@ -1,21 +1,49 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+# ===== 平台 / 工具 =====
+.zcode/
+.workbuddy/
+# AI 编程助手类工具（本地状态，不入库）
+.codebuddy/
+.cursor/
+.claude/
+.windsurf/
+.aider/
+.cline/
+.continue/
+.gemini/
+.roo/
+.kiro/
+.idea/
+.vscode/
+*.iml
 
-# Other files and folders
-.settings/
+# ===== 数据库数据 =====
+# 所有 docker 服务的持久化数据统一放这里（postgres / minio / neo4j）
+docker_data/
+# 兼容旧目录名（迁移前残留）
+pg-data/
+minio-data/
+neo4j-data/
+neo4j-logs/
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+# ===== MinerU 运行时产物（模型缓存 / 临时解析文件）=====
+mineru/models/
+mineru/_tmp/
 
+# ===== 后端 (Java / Maven) =====
+server/target/
+server/logs/
+*.class
+*.jar
+*.war
+*.log
+
+# ===== 前端 (Node / Vite) =====
+admin/node_modules/
+admin/dist/
+admin/.cache/
+npm-debug.log*
+yarn-error.log*
+
+# ===== 系统 =====
 .DS_Store
-*/.DS_Store
-
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+Thumbs.db

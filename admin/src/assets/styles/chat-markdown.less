@@ -1,0 +1,645 @@
+@import 'highlight.js/styles/github.css';
+
+// 聊天问答 markdown 排版样式（全局，非 scoped）。
+// 因为内容由 v-stable-html 注入 DOM，scoped 样式无法作用，故在此全局定义。
+// 移植自 WeKnora chat-markdown.less，颜色改为固定值贴合 xservice admin 现有调色。
+.markdown-content {
+  font-size: 14px;
+  color: #333;
+  line-height: 1.625;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  word-break: break-word;
+
+  // 最新流式字符的尾部渐隐
+  .stream-fade-tail {
+    -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.7) 30%, rgba(0, 0, 0, 0) 100%);
+    mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.7) 30%, rgba(0, 0, 0, 0) 100%);
+  }
+
+  p {
+    margin: 0 0 0.25em;
+    line-height: 1.625;
+
+    + p {
+      margin-top: 0.75em;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // 模型常发 **小节标题：** 而非真正标题，渲染时标记为副标题类（markStandaloneStrongParagraphs）
+  p.md-strong-title {
+    margin-top: 1.25em;
+    margin-bottom: 0.5em;
+    line-height: 1.5;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  p + ul,
+  p + ol,
+  ul + p,
+  ol + p,
+  blockquote + p,
+  p + blockquote {
+    margin-top: 0.75em;
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  del {
+    text-decoration: line-through;
+    opacity: 0.72;
+  }
+
+  a {
+    color: #1890ff;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+
+    &:hover {
+      color: #40a9ff;
+    }
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 0.15em 0.45em;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.8125em;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #333;
+    background: #f0f0f0;
+    border: 1px solid #d9d9d9;
+    border-radius: 5px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  }
+
+  // 行内 code 胶囊
+  code:not(pre code) {
+    background: rgba(51, 51, 51, 0.08);
+    padding: 0.15em 0.3em;
+    border-radius: 4px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.875em;
+    font-weight: 500;
+  }
+
+  // 围栏代码块（非增强型）
+  pre:not(.chat-code-block__pre):not(.chat-mermaid-block__canvas) {
+    background: #f6f8fa;
+    padding: 14px 16px;
+    border: 1px solid #eaecef;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.75em 0;
+    line-height: 1.55;
+    font-size: 13px;
+
+    code {
+      background: none;
+      padding: 0;
+      font-size: inherit;
+      font-weight: 400;
+    }
+  }
+
+  // 增强型代码块（带语言标签 + 复制按钮）
+  .chat-code-block {
+    margin: 0.75em 0;
+    border: 1px solid #eaecef;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .chat-code-block__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 36px;
+    padding: 6px 10px 6px 12px;
+    background: #f6f8fa;
+    border-bottom: 1px solid #eaecef;
+  }
+
+  .chat-code-block__lang {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #666;
+    letter-spacing: 0.02em;
+  }
+
+  .chat-code-block__copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #666;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+      border-color: #d9d9d9;
+      color: #333;
+    }
+
+    &.is-copied {
+      color: #07c05f;
+    }
+
+    &.is-error {
+      color: #ff4d4f;
+    }
+  }
+
+  .chat-code-block__copy-icon {
+    flex-shrink: 0;
+  }
+
+  .chat-code-block__pre {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: 0;
+    background: #f6f8fa;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+
+    code {
+      background: transparent;
+      padding: 0;
+      border-radius: 0;
+      font-size: inherit;
+      font-weight: 400;
+      white-space: pre;
+      display: block;
+    }
+  }
+
+  // mermaid 图表块
+  .chat-mermaid-block {
+    margin: 0.75em 0;
+    border: 1px solid #eaecef;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .chat-mermaid-block__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 36px;
+    padding: 6px 10px 6px 12px;
+    background: #f6f8fa;
+    border-bottom: 1px solid #eaecef;
+  }
+
+  .chat-mermaid-block__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #666;
+  }
+
+  .chat-mermaid-block__expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #666;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.06);
+      border-color: #d9d9d9;
+      color: #333;
+    }
+
+    &:disabled,
+    &.is-disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+  }
+
+  .chat-mermaid-block__canvas {
+    margin: 0;
+    padding: 20px 16px 18px;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    overflow-x: auto;
+    text-align: center;
+    cursor: zoom-in;
+
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .node rect,
+    .node circle,
+    .node ellipse,
+    .node polygon,
+    .node path {
+      stroke-width: 1.5px;
+    }
+
+    .edgePath path,
+    .flowchart-link {
+      stroke-width: 1.6px;
+    }
+  }
+
+  .chat-mermaid-block--loading .streaming-mermaid-loading {
+    margin: 0;
+    max-width: none;
+    min-height: 200px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .streaming-mermaid-loading__skeleton,
+  .streaming-image-loading__skeleton {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 160px;
+    background: linear-gradient(100deg, #f3f3f3 30%, #eaeaea 50%, #f3f3f3 70%);
+    background-size: 200% 100%;
+    animation: chat-img-skeleton 1.2s ease-in-out infinite;
+    border-radius: 6px;
+  }
+
+  @keyframes chat-img-skeleton {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  // 列表
+  ul {
+    margin: 0.35em 0 0.75em;
+    padding-left: 1.625em;
+    list-style-type: disc;
+    list-style-position: outside;
+
+    ul {
+      list-style-type: disc;
+      margin: 0.25em 0 0;
+      padding-left: 1.25em;
+    }
+  }
+
+  ol {
+    margin: 0.35em 0 0.75em;
+    padding-left: 1.625em;
+    list-style-type: decimal;
+    list-style-position: outside;
+
+    ol {
+      list-style-type: decimal;
+      margin: 0.25em 0 0;
+      padding-left: 1.25em;
+    }
+  }
+
+  li {
+    margin: 0;
+    line-height: 1.625;
+    padding-left: 0.375em;
+
+    + li {
+      margin-top: 0.375em;
+    }
+
+    &::marker {
+      font-weight: 700;
+      color: #333;
+    }
+
+    > p {
+      margin: 0;
+
+      + p {
+        margin-top: 0.25em;
+      }
+    }
+  }
+
+  ol > li::marker {
+    font-variant-numeric: tabular-nums;
+  }
+
+  li > ul,
+  li > ol {
+    margin-top: 0.25em;
+    margin-bottom: 0;
+  }
+
+  // 任务列表（GFM - [x] / - [ ]）
+  li:has(> input[type='checkbox']) {
+    list-style: none;
+    margin-left: -1.625em;
+    padding-left: 0;
+
+    &::marker {
+      content: none;
+    }
+
+    input[type='checkbox'] {
+      margin: 0 0.5em 0 0;
+      vertical-align: middle;
+      accent-color: #1890ff;
+    }
+  }
+
+  blockquote {
+    border-left: 2px solid #d9d9d9;
+    padding: 0.5em 0 0.5em 1.25em;
+    margin: 0.5em 0 0.75em;
+    color: #666;
+    font-weight: 400;
+    font-style: normal;
+
+    blockquote {
+      margin-top: 0.35em;
+      margin-bottom: 0;
+    }
+
+    p {
+      line-height: 1.5;
+    }
+  }
+
+  hr {
+    margin: 1.75em 0;
+    border: none;
+    border-top: 1px solid #eaecef;
+  }
+
+  h1 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin: 0 0 0.375em;
+    line-height: 1.333;
+  }
+
+  h2 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 1em 0 0.25em;
+    line-height: 1.4;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  h3 {
+    font-size: 1.125em;
+    font-weight: 600;
+    margin: 0.875em 0 0.25em;
+    line-height: 1.556;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    margin: 1em 0 0;
+    line-height: 1.5;
+  }
+
+  h4 { font-size: 1em; }
+  h5 { font-size: 0.9375em; }
+  h6 { font-size: 0.875em; font-weight: 600; color: #666; }
+
+  h1:first-child,
+  h2:first-child,
+  h3:first-child,
+  h4:first-child,
+  h5:first-child,
+  h6:first-child {
+    margin-top: 0;
+  }
+
+  // 表格（横向滚动容器）
+  .chat-markdown-table {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0.875em 0 1em;
+    overflow-x: auto;
+    border: 1px solid #eaecef;
+    border-radius: 8px;
+    background: #fff;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table {
+    word-break: initial;
+    border-collapse: separate;
+    border-spacing: 0;
+    display: table;
+    font-size: 14px;
+    line-height: 1.55;
+    width: max-content;
+    min-width: 0;
+  }
+
+  table thead {
+    background-color: #f6f8fa;
+  }
+
+  table tbody tr:nth-child(2n) {
+    background-color: rgba(246, 248, 250, 0.5);
+  }
+
+  table tr th {
+    font-weight: 600;
+    border: 0;
+    border-right: 1px solid #eaecef;
+    border-bottom: 1px solid #eaecef;
+    background-color: #f6f8fa;
+    text-align: left;
+    margin: 0;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  table tr td {
+    border: 0;
+    border-right: 1px solid #eaecef;
+    border-bottom: 1px solid #eaecef;
+    text-align: left;
+    margin: 0;
+    padding: 8px 12px;
+    vertical-align: top;
+  }
+
+  table tr th:last-child,
+  table tr td:last-child {
+    border-right: 0;
+  }
+
+  table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  table th[align='center'],
+  table td[align='center'] {
+    text-align: center;
+  }
+
+  table th[align='right'],
+  table td[align='right'] {
+    text-align: right;
+  }
+
+  img {
+    max-width: 80%;
+    max-height: 300px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    display: block;
+    margin: 1.25em 0;
+    border: 0.5px solid #eaecef;
+    object-fit: contain;
+    cursor: pointer;
+  }
+
+  p:has(> img:only-child) {
+    margin: 1.25em 0;
+    line-height: 0;
+  }
+
+  .mermaid {
+    margin: 0;
+  }
+
+  // KaTeX 公式
+  .katex {
+    font-size: 1.05em;
+  }
+
+  .katex-display {
+    margin: 0.75em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0;
+  }
+}
+
+// mermaid 全屏查看器（body 直接挂载，不受 .markdown-content 包裹）
+.chat-mermaid-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  animation: chat-mermaid-fade-in 0.18s ease;
+
+  @keyframes chat-mermaid-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+.chat-mermaid-fullscreen__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.chat-mermaid-fullscreen__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chat-mermaid-fullscreen__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-mermaid-fullscreen__btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+.chat-mermaid-fullscreen__viewport {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.chat-mermaid-fullscreen__inner {
+  transform-origin: center center;
+  transition: transform 0.15s ease;
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+
+  svg {
+    max-width: none;
+    width: 100%;
+    height: auto;
+  }
+}

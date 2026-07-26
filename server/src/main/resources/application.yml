@@ -1,0 +1,227 @@
+server:
+  port: 7026
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: sparkx-server
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:5432/sparkx
+    username: sparkx
+    password: 123123
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 600000
+      pool-name: SparkxHikariCP
+      max-lifetime: 1800000
+      connection-init-sql: SELECT 1
+  data:
+    redis:
+      database: 0
+      host: 127.0.0.1
+      port: 6379
+      # 无密码：保持留空即可（配合 RedisPasswordNormalizer，空串会被归一化为 null，
+      #   Redisson 不再发送 AUTH，无密码 Redis 直连成功）。
+      # 有密码：直接在此填入明文，或设环境变量 REDIS_PASSWORD 注入，二者任选其一。
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 5s
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  jackson:
+    deserialization:
+      accept-empty-string-as-null-object: true
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+# MyBatis-Plus（PostgreSQL 下不使用表前缀，驼峰映射）
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    local-cache-scope: statement
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: null
+
+# Springdoc
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+# 业务配置
+sparkx:
+  # JWT 签名密钥
+  jwt-secret: sparkx-secret-2026-9102
+  # token 有效期（小时）
+  jwt-expire: 168
+  # 超级管理员角色 id
+  super-role-id: 1
+  # 企业云盘 MinIO 对象存储
+  minio:
+    endpoint: http://127.0.0.1:9000
+    access-key: minioadmin
+    secret-key: minioadmin
+    bucket: sparkx-drive
+
+# 说明：chat/embedding/rerank/vlm 的 baseUrl/apiKey/model 此处仅作默认兜底；
+# 实际运行优先使用 ai_model 表（页面可编辑）中配置的模型，由 AiModelService 动态读取。
+app:
+  rag:
+    # 嵌入模型默认（兜底，实际走 ai_model 表 type=2 的配置）
+    embedding:
+      provider: "openai"
+      base-url: ${EMBEDDING_BASE_URL:https://api.openai.com/v1}
+      api-key: ${EMBEDDING_API_KEY:${OPENAI_API_KEY:demo-key}}
+      model: ${EMBEDDING_MODEL:text-embedding-3-small}
+      dimension: 1536
+    chat:
+      base-url: ${CHAT_BASE_URL:https://api.openai.com/v1}
+      api-key: ${CHAT_API_KEY:${OPENAI_API_KEY:demo-key}}
+      model: ${CHAT_MODEL:gpt-4o-mini}
+      temperature: 0.3
+      max-tokens: 2048
+    streaming-chat:
+      base-url: ${STREAM_CHAT_BASE_URL:https://api.openai.com/v1}
+      api-key: ${STREAM_CHAT_API_KEY:${OPENAI_API_KEY:demo-key}}
+      model: ${STREAM_CHAT_MODEL:gpt-4o-mini}
+      temperature: 0.3
+      max-tokens: 2048
+    vlm:
+      base-url: ${VLM_BASE_URL:https://api.openai.com/v1}
+      api-key: ${VLM_API_KEY:${OPENAI_API_KEY:demo-key}}
+      model: ${VLM_MODEL:gpt-4o}
+    rerank:
+      base-url: ${RERANK_BASE_URL:https://api.cohere.ai}
+      api-key: ${RERANK_API_KEY:${COHERE_API_KEY:demo-key}}
+      model: ${RERANK_MODEL:rerank-multilingual-v3.0}
+      threshold: 0.3
+      top-k: 30
+    retrieval:
+      embedding-top-k: 30
+      vector-threshold: 0.2
+      # 关键词路（ts_rank_cd）弱命中过滤阈值，仅 mix 模式生效。
+      # ts_rank_cd 无分数下限，高频词（公司/员工）反复出现的长 chunk 会刷出虚高分，
+      # 混入融合会污染排序。低于此值的弱命中直接丢弃（与 Milvus BM25 drop_ratio_search 同思路）。
+      # 0.3（默认）：员工手册类长文档实测能砍掉大部分「公司」刷分噪声。
+      # 调高→更严（召回降低、精度提升）；调低→更宽（召回提升、噪声增多）；设 0→不过滤。
+      keyword-threshold: 0.3
+      enable-query-expansion: true
+      enable-rewrite: true
+      min-hits-for-expansion: 5
+      # 混合检索融合时向量路权重（关键词路权重 = 1 - 此值），范围 [0,1]，建议 0.6~0.8。
+      # 0.7（默认）：偏语义，适合中文 RAG；能压住「高频词反复出现的长 chunk 在关键词路
+      #   刷出虚高 ts_rank_cd」的噪声。0.5：双路平权，适合关键词命中性强的场景。
+      # 0.8+：几乎只信向量，关键词路只作微调。
+      hybrid-vector-weight: 0.7
+    # ★ 多通道融合（RRF）配置——由 FusionPostProcessor（order=3，去重后/retrank前）消费。
+    # 各通道返回的 Content 经 RetrieveStage.annotateWithRrfMetadata 注入 rrf_channel/rrf_weight/rrf_rank，
+    # 这里按通道类型覆盖权重（通道自带 getWeight() 作为代码默认，配置优先）。
+    # 调参依据：观察 RerankPostProcessor 的归因日志 graphIn/graphOut（各通道 rerank 存活率）。
+    fusion:
+      enabled: true
+      # RRF 平滑常数。经典取 60，但本项目候选池小（每通道 topK=10~30），k=20 能拉开头部与长尾差距。
+      rrf-k: 20
+      # RRF 后送入 rerank 的候选池上限（控制 rerank 调用成本）。
+      rerank-candidate-limit: 40
+      channel-weights:
+        # 意图定向通道：强意图场景高精度，平权
+        intent-directed: 1.0
+        hybrid-global: 1.0
+        # 知识图谱通道降权（新接入、跑全局图、证据仅结果侧过滤）。
+        # 长期 rerank 存活率为 0 说明纯成本，应下调到 0.3 或关 KnowledgeGraphChannel。
+        knowledge-graph: 0.5
+        keyword: 1.0
+        parent-child: 1.0
+    fallback:
+      strategy: "model"                  # model | fixed
+    chunking:
+      strategy: "auto"                   # auto | heading | heuristic | recursive
+      chunk-size: 512
+      # 相邻 chunk 的字符级重叠：避免「连续缺勤1天」和「以上视为旷工」这类语义连续的句子被切散。
+      # overlap 尾巴会按句子/段落边界截取（不再硬截字符），所以即使值较小也能保住语义连续性。
+      # 50 对中文约 25 字 + 句子边界对齐，足够衔接上下文又不会让相邻块大段重复。
+      chunk-overlap: 50
+      parent-enabled: true
+      parent-size: 4096
+      child-size: 384
+    cache:
+      semantic-enabled: true
+      semantic-ttl: 3600
+      semantic-similarity: 0.92
+    memory:
+      history-keep-turns: 4
+      summary-enabled: true
+      summary-start-turns: 5
+      summary-max-chars: 200
+      title-max-length: 30
+    # MinerU 入库行为开关（仅行为，不含连接配置——endpoint/apiKey/model 在 ext_service_config 表）
+    # image-mode:
+    #   describe（默认）= VLM 把图片转「描述+OCR」文本替换 markdown 引用（图片不上 MinIO，chunk 无 URL 噪声）
+    #   drop             = 直接删图片引用，不调 VLM（VLM 不可用时的退路）
+    #   keep             = 保留旧行为（上 MinIO + 7 天预签名 URL，向后兼容）
+    mineru:
+      image-mode: ${MINERU_IMAGE_MODE:describe}
+    # 知识图谱：动态装配，无需 yml 开关。
+    # 启动时查 ext_service_config 表：配了 Neo4j → 建真实 Driver；未配 → NoopGraphRepository 兜底，不阻断启动。
+    # 启停由 kg_config.enabled（页面运行期开关）控制，改完即时生效，无需重启。
+    # 提示词语言（.st 模板按 prompt/{language}/ 加载）
+    language: zh
+  # 模型容错层（默认兜底配置；实际运行优先读 ai_model 表）
+  ai:
+    selection:
+      failure-threshold: 2
+      open-duration-ms: 30000
+      first-packet-timeout-seconds: 60
+    stream:
+      message-chunk-size: 5
+    chat:
+      default-model: ${CHAT_MODEL_ID:qwen-plus}
+      deep-thinking-model: ${DEEP_THINKING_MODEL_ID:}
+    embedding:
+      default-model: bge-m3
+    rerank:
+      default-model: rerank-default
+    vlm:
+      default-model: vlm-default
+    memory:
+      history-keep-turns: 4
+      summary-enabled: true
+      summary-start-turns: 5
+      summary-max-chars: 200
+      title-max-length: 30
+    # ollama 容错层 ChatClient 启用开关
+    ollama:
+      enabled: true
+  # MCP 工具：开启后 DefaultMcpToolRegistry / McpParameterExtractor 装配，
+  # DefaultMcpToolService 以 @Primary 注册替换 Noop 兜底，接通「意图树 MCP 节点 → 工具调用」全链路。
+  mcp:
+    enabled: true
+
+# 可观测（仅本地日志 traceId 关联，不外发）
+management:
+  health:
+    neo4j:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+otel:
+  traces:
+    exporter: none

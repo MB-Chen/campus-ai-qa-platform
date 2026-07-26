@@ -1,0 +1,123 @@
+// +----------------------------------------------------------------------
+// | SparkX 基于大语言模型和编排的企业智能体开发平台
+// +----------------------------------------------------------------------
+// | Copyright (c) 2022~2099 http://ai.sparkshop.cn All rights reserved.
+// +----------------------------------------------------------------------
+// | Licensed SparkX 并不是自由软件，未经许可不能去掉 SparkX 相关版权
+// +----------------------------------------------------------------------
+// | Author: NickBai  <1902822973@qq.com>
+// +----------------------------------------------------------------------
+
+package sparkx.sparkshop.knowledge.infra;
+
+import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
+import sparkx.sparkshop.knowledge.infra.chat.StreamCallback;
+import sparkx.sparkshop.knowledge.infra.chat.StreamCancellationHandle;
+
+import java.util.List;
+
+/**
+ * 模型服务门面（文档 5.10.6）—— 业务/管线只注入此接口，零感知多模型存在。
+ *
+ * 所有熔断、首包探测、降级全部内聚在 {@code RoutingLLMService} 实现里。
+ * 业务代码（GenerateStage / IntentClassifier / 摘要服务等）只与本接口对话。
+ */
+public interface LLMService {
+
+    /**
+     * 同步对话（便捷：单条 system+user 或仅 user）。
+     *
+     * @param prompt      完整 prompt（含 system 指令与问题）
+     * @param temperature 采样温度
+     * @param topP        nucleus sampling
+     * @param thinking    是否启用深度思考
+     * @return 模型回复文本
+     */
+    String chat(String prompt, double temperature, double topP, boolean thinking);
+
+    /**
+     * 同步对话（完整请求，多消息）。
+     *
+     * @param request 调用请求（含消息列表）
+     * @return 模型回复文本
+     */
+    String chat(LlmChatRequest request);
+
+    /**
+     * 同步对话（指定模型 id）。
+     *
+     * <p>用于「用户明确选定某个 chat 模型」的场景（如生成问题时选模型）：
+     * modelId 非空时按 ai_model.id 强制路由到该模型（仍走熔断降级骨架），
+     * modelId 为空或对应模型不可用时回退到默认候选链。
+     *
+     * @param request 调用请求（含消息列表）
+     * @param modelId ai_model.id；为 null 时等同 {@link #chat(LlmChatRequest)}
+     * @return 模型回复文本
+     */
+    String chat(LlmChatRequest request, Integer modelId);
+
+    /**
+     * 流式对话（经容错层首包探测 + 降级链）。
+     *
+     * @param request     调用请求
+     * @param callback    流式回调（SSE 推前端）
+     * @param deepThinking 是否深度思考
+     * @return 取消句柄
+     */
+    StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking);
+
+    /**
+     * 流式对话（指定模型 id，强制路由到该模型，仍享熔断降级骨架）。
+     *
+     * <p>用于「用户/智能体明确选定某个 chat 模型」的场景：
+     * modelId 非空时按 ai_model.id 强制路由到该模型，对齐 {@link #chat(LlmChatRequest, Integer)} 的语义。
+     * modelId 为空、对应模型不存在/未注册 ChatClient 时回退到默认候选链（等同 {@link #streamChat(LlmChatRequest, StreamCallback, boolean)}）。
+     *
+     * @param request     调用请求
+     * @param callback    流式回调（SSE 推前端）
+     * @param deepThinking 是否深度思考
+     * @param modelId     ai_model.id；为 null 时等同三参重载
+     * @return 取消句柄
+     */
+    StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking, Integer modelId);
+
+    /**
+     * 文本向量化（用默认兜底 embedding 模型）。
+     *
+     * @param text 文本
+     * @return 向量（float 数组）
+     */
+    float[] embed(String text);
+
+    /**
+     * 文本向量化（按知识库绑定的 embedding 模型）。
+     *
+     * <p>★ 用于查询向量化，与入库向量化保持维度一致：
+     * 按 {@code kb.embedding_model_id} 解析模型，解析失败回退默认模型。
+     *
+     * @param text 文本
+     * @param kbId 知识库 id；为空走默认模型
+     * @return 向量（float 数组）
+     */
+    float[] embed(String text, String kbId);
+
+    /**
+     * 重排打分。
+     *
+     * @param query    查询
+     * @param passages 候选段落
+     * @return 每个段落的相关性分数
+     */
+    List<Float> rerank(String query, List<String> passages);
+
+    /**
+     * 视觉模型图生文（VLM）。
+     *
+     * @param content   图片字节数据
+     * @param mime      图片 MIME 类型
+     * @param prompt    描述/OCR 指令
+     * @param maxTokens 最大生成 token
+     * @return 图片描述文本
+     */
+    String describeImage(byte[] content, String mime, String prompt, int maxTokens);
+}
