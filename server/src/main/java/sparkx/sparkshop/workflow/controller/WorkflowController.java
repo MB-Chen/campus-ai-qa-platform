@@ -27,6 +27,7 @@ import sparkx.sparkshop.system.vo.PageResult;
 import sparkx.sparkshop.workflow.engine.WorkflowChatService;
 import sparkx.sparkshop.workflow.service.IWorkflowService;
 import sparkx.sparkshop.workflow.validate.SaveWorkflowValidate;
+import sparkx.sparkshop.workflow.validate.WorkflowAddValidate;
 import sparkx.sparkshop.workflow.validate.WorkflowChatValidate;
 import sparkx.sparkshop.workflow.validate.WorkflowMetaValidate;
 import sparkx.sparkshop.workflow.vo.RuntimeContextVo;
@@ -63,7 +64,7 @@ public class WorkflowController {
 
     @Operation(summary = "新建编排")
     @PostMapping("/add")
-    public AjaxResult<WorkflowVo> add(@RequestBody @Valid WorkflowMetaValidate validate) {
+    public AjaxResult<WorkflowVo> add(@RequestBody @Valid WorkflowAddValidate validate) {
         return AjaxResult.success(workflowService.add(validate));
     }
 

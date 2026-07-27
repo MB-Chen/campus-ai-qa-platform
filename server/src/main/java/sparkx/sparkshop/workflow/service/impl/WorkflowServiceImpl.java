@@ -27,6 +27,7 @@ import sparkx.sparkshop.workflow.mapper.WorkflowRuntimeContextMapper;
 import sparkx.sparkshop.workflow.mapper.WorkflowRuntimeMapper;
 import sparkx.sparkshop.workflow.service.IWorkflowService;
 import sparkx.sparkshop.workflow.validate.SaveWorkflowValidate;
+import sparkx.sparkshop.workflow.validate.WorkflowAddValidate;
 import sparkx.sparkshop.workflow.validate.WorkflowMetaValidate;
 import sparkx.sparkshop.workflow.vo.RuntimeContextVo;
 import sparkx.sparkshop.workflow.vo.SaveWorkflowVo;
@@ -81,7 +82,7 @@ public class WorkflowServiceImpl implements IWorkflowService {
     }
 
     @Override
-    public WorkflowVo add(WorkflowMetaValidate validate) {
+    public WorkflowVo add(WorkflowAddValidate validate) {
         Workflow wf = new Workflow();
         wf.setId(UUID.randomUUID().toString().replace("-", ""));
         wf.setName(validate.getName() == null || validate.getName().isBlank()

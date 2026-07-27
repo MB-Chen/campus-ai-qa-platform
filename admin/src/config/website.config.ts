@@ -3,7 +3,7 @@ import logoImage from '@/assets/images/logo.png';
 import loginImage from '@/assets/images/account-logo.png';
 
 // 默认标题（与 .env 的 VITE_GLOB_APP_TITLE 保持一致）
-const DEFAULT_TITLE = '企业级AI智能体';
+const DEFAULT_TITLE = 'SparkX';
 
 export const websiteConfig = reactive({
   title: DEFAULT_TITLE,

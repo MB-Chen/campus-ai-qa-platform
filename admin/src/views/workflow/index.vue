@@ -2,8 +2,8 @@
   <div>
     <div class="n-layout-page-header">
       <n-card :bordered="false" title="编排管理">
-        可视化流程编排：拖拽 Start → 知识检索/LLM/意图分类/条件分支/智能体 → 回复 节点，
-        串联 DAG 并调试，支持 SSE 流式执行与执行详情回溯
+        可视化流程编排：拖拽 Start → 知识检索/LLM/意图分类/条件分支/智能体 → 回复 节点， 串联 DAG
+        并调试，支持 SSE 流式执行与执行详情回溯
       </n-card>
     </div>
 
@@ -22,7 +22,9 @@
           </template>
         </n-input>
         <n-button type="primary" secondary @click="handleSearch">
-          <template #icon><n-icon><SearchOutlined /></n-icon></template>
+          <template #icon
+            ><n-icon><SearchOutlined /></n-icon
+          ></template>
           搜索
         </n-button>
         <n-button type="primary" secondary @click="openCreate">+ 新建编排</n-button>
@@ -55,12 +57,8 @@
               </span>
             </div>
             <div class="kb-actions">
-              <n-button size="tiny" quaternary type="primary" @click="openEdit(wf)"
-                >编辑</n-button
-              >
-              <n-button size="tiny" quaternary type="info" @click="openDebug(wf)"
-                >调试</n-button
-              >
+              <n-button size="tiny" quaternary type="primary" @click="openEdit(wf)">编辑</n-button>
+              <n-button size="tiny" quaternary type="info" @click="openDebug(wf)">调试</n-button>
               <n-button size="tiny" quaternary @click="handleCopy(wf)">复制</n-button>
               <n-button size="tiny" quaternary type="error" @click="handleDelete(wf)"
                 >删除</n-button
@@ -83,13 +81,50 @@
         />
       </div>
     </n-card>
+
+    <!-- 新建编排弹窗 -->
+    <n-modal v-model:show="showCreate" preset="card" title="新建编排" style="width: 520px">
+      <n-form
+        ref="createFormRef"
+        :model="createForm"
+        :rules="createRules"
+        label-placement="left"
+        label-width="100px"
+      >
+        <n-form-item label="编排名称" path="name">
+          <n-input
+            v-model:value="createForm.name"
+            placeholder="请输入编排名称"
+            :maxlength="50"
+            show-count
+          />
+        </n-form-item>
+        <n-form-item label="描述" path="description">
+          <n-input
+            v-model:value="createForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="可选，描述该编排用途"
+            :maxlength="255"
+          />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showCreate = false">取消</n-button>
+          <n-button type="primary" strong secondary :loading="creating" @click="handleCreateConfirm"
+            >确定</n-button
+          >
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, onMounted } from 'vue';
+  import { ref, reactive, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
-  import { useMessage, useDialog } from 'naive-ui';
+  import { useMessage, useDialog, type FormInst, type FormRules } from 'naive-ui';
   import { SearchOutlined, DeploymentUnitOutlined } from '@vicons/antd';
   import {
     getWorkflowList,
@@ -109,6 +144,18 @@
   const page = ref(1);
   const size = ref(10);
   const total = ref(0);
+
+  // 新建编排弹窗
+  const showCreate = ref(false);
+  const creating = ref(false);
+  const createFormRef = ref<FormInst | null>(null);
+  const createForm = reactive({
+    name: '',
+    description: '',
+  });
+  const createRules: FormRules = {
+    name: [{ required: true, message: '请输入编排名称', trigger: ['blur', 'input'] }],
+  };
 
   async function loadList() {
     loading.value = true;
@@ -146,11 +193,32 @@
   }
 
   async function openCreate() {
-    const res: any = await addWorkflow({ name: '未命名编排', description: '' });
-    if (res && res.code === 0 && res.data?.id) {
-      router.push('/workflow/edit?id=' + res.data.id).catch(() => {});
-    } else {
-      message.error(res?.message || '新建失败');
+    showCreate.value = true;
+  }
+
+  async function handleCreateConfirm() {
+    try {
+      await createFormRef.value?.validate();
+    } catch (e) {
+      return;
+    }
+    creating.value = true;
+    try {
+      const res: any = await addWorkflow({
+        name: createForm.name.trim(),
+        description: createForm.description || undefined,
+      });
+      if (res && res.code === 0 && res.data?.id) {
+        showCreate.value = false;
+        message.success('编排已创建');
+        router.push('/workflow/edit?id=' + res.data.id).catch(() => {});
+      } else {
+        message.error(res?.message || '新建失败');
+      }
+    } catch (e) {
+      message.error('新建失败');
+    } finally {
+      creating.value = false;
     }
   }
   function openEdit(wf: Workflow) {
@@ -190,8 +258,9 @@
 
   function formatTime(s?: string): string {
     if (!s) return '-';
-    // 截到分钟
-    return s.length > 16 ? s.substring(0, 16) : s;
+    // 截到分钟，并把 ISO 的 T 换成空格
+    const t = s.length > 16 ? s.substring(0, 16) : s;
+    return t.replace('T', ' ');
   }
 
   onMounted(() => {

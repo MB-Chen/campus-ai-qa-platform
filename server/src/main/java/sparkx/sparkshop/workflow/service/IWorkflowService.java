@@ -12,6 +12,7 @@ package sparkx.sparkshop.workflow.service;
 import sparkx.sparkshop.system.vo.PageQuery;
 import sparkx.sparkshop.system.vo.PageResult;
 import sparkx.sparkshop.workflow.validate.SaveWorkflowValidate;
+import sparkx.sparkshop.workflow.validate.WorkflowAddValidate;
 import sparkx.sparkshop.workflow.validate.WorkflowMetaValidate;
 import sparkx.sparkshop.workflow.vo.RuntimeContextVo;
 import sparkx.sparkshop.workflow.vo.SaveWorkflowVo;
@@ -31,7 +32,7 @@ public interface IWorkflowService {
     SaveWorkflowVo info(String id);
 
     /** 新建（返回 id） */
-    WorkflowVo add(WorkflowMetaValidate validate);
+    WorkflowVo add(WorkflowAddValidate validate);
 
     /** 改名称/描述 */
     void editMeta(WorkflowMetaValidate validate);

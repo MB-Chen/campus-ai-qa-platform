@@ -25,23 +25,74 @@
       class="sider-fixed-bottom"
       :class="{ collapsed }"
     >
-      <!-- 当前登录用户 -->
-      <n-dropdown
-        placement="right-start"
+      <!-- 当前登录用户：点击弹出精致下拉面板 -->
+      <n-popover
         trigger="click"
-        :options="userMenuOptions"
-        @select="handleUserMenuSelect"
+        placement="right-start"
+        :width="240"
+        raw
+        :show-arrow="false"
+        class="user-popover"
       >
-        <div class="sider-user" :class="{ collapsed }">
-          <n-avatar round size="small" :color="avatarBgColor" style="flex-shrink: 0">
-            {{ userInitial }}
-          </n-avatar>
-          <span v-if="!collapsed" class="sider-user-name">{{ displayName }}</span>
-          <n-icon v-if="!collapsed" size="14" class="sider-user-arrow">
-            <RightOutlined />
-          </n-icon>
+        <template #trigger>
+          <div class="sider-user" :class="{ collapsed }">
+            <n-avatar round size="small" :color="avatarBgColor" style="flex-shrink: 0">
+              {{ userInitial }}
+            </n-avatar>
+            <span v-if="!collapsed" class="sider-user-name">{{ displayName }}</span>
+            <n-icon v-if="!collapsed" size="14" class="sider-user-arrow">
+              <RightOutlined />
+            </n-icon>
+          </div>
+        </template>
+
+        <!-- ===== 自定义下拉面板内容 ===== -->
+        <div class="user-panel">
+          <!-- 用户信息头部 -->
+          <div class="user-panel-header">
+            <n-avatar round :size="36" :color="avatarBgColor">
+              {{ userInitial }}
+            </n-avatar>
+            <div class="user-panel-info">
+              <span class="user-panel-name">{{ displayName }}</span>
+              <span class="user-panel-role">管理员</span>
+            </div>
+          </div>
+
+          <!-- 分隔线 -->
+          <div class="user-panel-divider" />
+
+          <!-- 系统设置区：带图标的导航项 -->
+          <div class="user-panel-section">
+            <div
+              v-for="item in systemSettingItems"
+              :key="item.key"
+              class="user-panel-item"
+              @click="navigateTo(item.path)"
+            >
+              <n-icon size="16" class="user-panel-item-icon">
+                <component :is="item.icon" />
+              </n-icon>
+              <span class="user-panel-item-label">{{ item.label }}</span>
+            </div>
+          </div>
+
+          <!-- 分隔线 -->
+          <div class="user-panel-divider" />
+
+          <!-- 操作区 -->
+          <div class="user-panel-section">
+            <div class="user-panel-item" @click="showPwdModal = true">
+              <n-icon size="16" class="user-panel-item-icon"><LockOutlined /></n-icon>
+              <span class="user-panel-item-label">修改密码</span>
+            </div>
+            <div class="user-panel-item user-panel-item--danger" @click="handleLogout()">
+              <n-icon size="16" class="user-panel-item-icon"><ExportOutlined /></n-icon>
+              <span class="user-panel-item-label">退出登录</span>
+            </div>
+          </div>
         </div>
-      </n-dropdown>
+      </n-popover>
 
       <!-- 折叠 + 主题切换 -->
       <div class="sider-bottom-actions" :class="{ collapsed }">
@@ -131,6 +182,18 @@
       </n-layout-content>
       <n-back-top v-if="contentRef?.value" :right="100" :listen-to="() => contentRef?.value" />
     </n-layout>
+
+    <!-- 框架底部版权信息 -->
+    <div class="layout-footer">
+      <a
+        class="layout-footer-link"
+        href="https://ai.sparkshop.cn/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        本系版权归 SparkX v2.0 所有
+      </a>
+    </div>
   </n-layout>
 </template>
 
@@ -141,7 +204,7 @@
   import { Logo } from './components/Logo';
   import { MainView } from './components/Main';
   import { AsideMenu } from './components/Menu';
-  import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined } from '@vicons/antd';
+  import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined, RobotOutlined, ApartmentOutlined, ToolOutlined, ApiOutlined, SearchOutlined, ShareAltOutlined, LockOutlined, ExportOutlined } from '@vicons/antd';
   import { Moon, Sunny } from '@vicons/ionicons5';
   import { useProjectSetting } from '@/hooks/setting/useProjectSetting';
   import { useDesignSettingStore } from '@/store/modules/designSetting';
@@ -191,19 +254,20 @@
     return name ? name.charAt(0).toUpperCase() : 'U';
   });
 
-  // 用户下拉菜单
-  const userMenuOptions = computed(() => [
-    { label: '修改密码', key: 'password' },
-    { type: 'divider', key: 'd1' },
-    { label: '退出登录', key: 'logout' },
-  ]);
+  // 系统设置子项（原侧边栏「系统设置」一级菜单，已迁移到此处）
+  // key 唯一；path 为 generateRoutes 生成的真实路由（父 name 'system' → /system）
+  const systemSettingItems = [
+    { label: '大模型', key: 'sys:model', path: '/system/model', icon: RobotOutlined },
+    { label: '意图路由', key: 'sys:intent', path: '/system/intent', icon: ApartmentOutlined },
+    { label: '解析引擎', key: 'sys:service', path: '/system/service', icon: ToolOutlined },
+    { label: 'MCP服务', key: 'sys:mcp', path: '/system/mcp', icon: ApiOutlined },
+    { label: '样例查询', key: 'sys:sample-query', path: '/system/sample-query', icon: SearchOutlined },
+    { label: '知识图谱', key: 'sys:knowledge-graph', path: '/system/knowledge-graph', icon: ShareAltOutlined },
+  ];
 
-  function handleUserMenuSelect(key: string) {
-    if (key === 'password') {
-      showPwdModal.value = true;
-    } else if (key === 'logout') {
-      handleLogout();
-    }
+  // 导航到指定路径（同时关闭 popover）
+  function navigateTo(path: string) {
+    router.push(path);
   }
 
   // 退出登录
@@ -442,6 +506,19 @@
       border-top: 1px solid v-bind('themeVars.dividerColor');
       // 左侧避开侧边栏，给底部操作按钮留出空间
       left: v-bind('siderWidthPx');
+
+      .layout-footer-link {
+        font-size: 13px;
+        color: v-bind('themeVars.textColor2');
+        text-decoration: none;
+        letter-spacing: 0.3px;
+        transition: color 0.2s;
+
+        &:hover {
+          color: v-bind('themeVars.primaryColor');
+          text-decoration: underline;
+        }
+      }
     }
   }
 
@@ -472,6 +549,90 @@
     background-color: v-bind('siderActionBg');
     border-top: 1px solid v-bind('themeVars.dividerColor');
     transition: width 0.2s ease-in-out, background-color 0.2s;
+  }
+
+  // ====== 用户下拉面板（替代 naive-ui 原生 n-dropdown） ======
+  .user-panel {
+    padding: 4px 0;
+    border-radius: 12px;
+    // 跟随主题：亮色白底 / 暗色深底
+    background: v-bind('themeVars.cardColor');
+    border: 1px solid v-bind('themeVars.borderColor');
+    box-shadow: v-bind('themeVars.boxShadow2');
+  }
+
+  // 头部：头像 + 名字 + 角色
+  .user-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px 10px;
+  }
+
+  .user-panel-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .user-panel-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: v-bind('themeVars.textColorBase');
+    line-height: 1.3;
+  }
+
+  .user-panel-role {
+    font-size: 12px;
+    color: v-bind('themeVars.textColor3');
+  }
+
+  // 分隔线
+  .user-panel-divider {
+    height: 1px;
+    margin: 4px 12px;
+    background: v-bind('themeVars.dividerColor');
+  }
+
+  // 分区容器
+  .user-panel-section {
+    padding: 4px 8px;
+  }
+
+  // 菜单项
+  .user-panel-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    color: v-bind('themeVars.textColor1');
+
+    &:hover {
+      background: v-bind('themeVars.hoverColor');
+    }
+
+    &--danger {
+      color: #d03050;
+
+      &:hover {
+        background: rgba(208, 48, 80, 0.08);
+      }
+    }
+  }
+
+  .user-panel-item-icon {
+    flex-shrink: 0;
+    opacity: 0.75;
+  }
+
+  .user-panel-item-label {
+    font-size: 13.5px;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   // 当前登录用户

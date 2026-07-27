@@ -34,6 +34,16 @@ const chatMenu = {
         title: '新对话',
       },
     },
+    {
+      // 会话详情页（动态路由），隐藏于侧边栏，继承 LAYOUT 外壳
+      path: ':id',
+      name: 'chat_session',
+      component: '/chat/session',
+      meta: {
+        title: '会话',
+        hidden: true,
+      },
+    },
   ],
 };
 
@@ -144,7 +154,8 @@ const workflowMenu = {
   ],
 };
 
-// 系统设置：有多个二级菜单，正常展开
+// 系统设置：已迁移至左下角用户下拉菜单（与「修改密码/退出登录」合并），
+// 故在这里设为 hidden —— 路由仍注册（/system/xxx 可跳转），但侧边栏不再展示。
 const systemMenu = {
   path: '#',
   name: 'system',
@@ -152,6 +163,7 @@ const systemMenu = {
   meta: {
     title: '系统设置',
     icon: 'SettingOutlined',
+    hidden: true,
     // 多子项默认展开，不设 alwaysShow:false
   },
   children: [

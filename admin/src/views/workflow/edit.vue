@@ -437,7 +437,7 @@
     runtimeVisible.value = true;
   }
 
-  async function getWorkflowInfo() {
+  async function loadWorkflowInfo() {
     if (!workflowId) return;
     const res = await getWorkflowInfo(workflowId);
     if (res && res.code === 0 && res.data && res.data.flowData) {
@@ -490,7 +490,7 @@
 
   onMounted(async () => {
     initGraph();
-    await getWorkflowInfo();
+    await loadWorkflowInfo();
     // 进入即调试：保存后打开聊天
     if (startDebug) {
       // 已经 chatVisible=true，无需额外处理
