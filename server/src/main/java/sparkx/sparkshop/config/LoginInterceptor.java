@@ -10,47 +10,35 @@
 package sparkx.sparkshop.config;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import sparkx.sparkshop.common.constant.SparkxConstant;
 import sparkx.sparkshop.common.core.AjaxResult;
 import sparkx.sparkshop.common.utils.JwtUtils;
-import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
-
-import java.util.Map;
 
 /**
  * 登录鉴权拦截器：
  * <ul>
  *   <li>读取请求头 token（或 Authorization: Bearer xxx）</li>
  *   <li>校验 JWT 签名 / 过期，失败返回 code=912（前端约定）</li>
- *   <li>超管（roleId=1）直接放行；普通角色校验 URI 是否在权限白名单，否则 403</li>
+ *   <li>校验通过即放行（角色体系已移除，所有登录用户权限一致）</li>
  * </ul>
  */
 @Slf4j
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
 
-    @Resource
-    private RedisTemplate<String, Object> redisTemplate;
-
     @Value("${sparkx.jwt-secret}")
     private String jwtSecret;
-
-    @Value("${sparkx.super-role-id}")
-    private Integer superRoleId;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**
-     * 请求前置处理：校验登录态与接口权限
+     * 请求前置处理：校验登录态
      *
      * @param request  请求
      * @param response 响应
@@ -73,31 +61,10 @@ public class LoginInterceptor implements HandlerInterceptor {
             return write(response, AjaxResult.unauthorized());
         }
 
-        Integer roleId = JwtUtils.getRoleId(token);
+        // 2. 校验通过，记录 adminId（roleId 已无角色体系，置 null 兼容旧读取处）
         Integer adminId = JwtUtils.getAdminId(token);
-
-        // 2. 超管放行
-        if (superRoleId.equals(roleId)) {
-            request.setAttribute("adminId", adminId);
-            request.setAttribute("roleId", roleId);
-            return true;
-        }
-
-        // 3. 普通角色：URI 白名单校验
-        Object cached = redisTemplate.opsForValue().get(
-                SparkxConstant.AUTH_USER_PREFIX + adminId);
-        if (cached == null) {
-            // 权限数据过期，要求重新登录
-            return write(response, AjaxResult.unauthorized());
-        }
-        Map<String, Object> authMap = JSONUtil.parseObj(String.valueOf(cached));
-        String uri = request.getRequestURI();
-        if (!authMap.containsKey(uri)) {
-            return write(response, AjaxResult.forbidden());
-        }
-
         request.setAttribute("adminId", adminId);
-        request.setAttribute("roleId", roleId);
+        request.setAttribute("roleId", null);
         return true;
     }
 

@@ -276,7 +276,7 @@
       message.destroyAll();
       if (res.code == ResultEnum.SUCCESS) {
         const toPath = decodeURIComponent(
-          (route.query?.redirect || '/dashboard/console') as string
+          (route.query?.redirect || '/chat/index') as string
         );
         message.success('登录成功，即将进入系统');
 

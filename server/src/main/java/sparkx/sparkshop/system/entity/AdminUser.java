@@ -69,18 +69,6 @@ public class AdminUser implements Serializable {
     private String avatar;
 
     /**
-     * 角色 id
-     */
-    @TableField(value = "role_id")
-    private Integer roleId;
-
-    /**
-     * 部门 id
-     */
-    @TableField(value = "dept_id")
-    private Integer deptId;
-
-    /**
      * 状态 1:正常 2:禁用
      */
     @TableField(value = "status")

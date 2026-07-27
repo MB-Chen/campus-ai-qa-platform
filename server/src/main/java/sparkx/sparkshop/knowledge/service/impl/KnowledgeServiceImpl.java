@@ -15,7 +15,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import sparkx.sparkshop.clouddrive.service.MinioService;
+import sparkx.sparkshop.knowledge.service.MinioService;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.knowledge.entity.AiModel;
 import sparkx.sparkshop.knowledge.entity.ChunkEntity;

@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
@@ -40,7 +39,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -208,8 +206,7 @@ public class AiModelServiceImpl implements IAiModelService {
 
     /**
      * 模型列表（按类型，可选状态过滤，按 priority ASC）。
-     * 时间字段手动格式化为字符串，避免 Jackson 直接序列化 LocalDateTime 报错
-     * （与 AdminRoleServiceImpl.getList 处理一致）。
+     * 时间字段手动格式化为字符串，避免 Jackson 直接序列化 LocalDateTime 报错。
      */
     @Override
     public List<Map<String, Object>> list(Integer type, Integer status) {

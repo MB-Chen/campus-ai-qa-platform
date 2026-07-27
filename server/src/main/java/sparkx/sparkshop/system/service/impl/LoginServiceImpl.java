@@ -13,24 +13,17 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import sparkx.sparkshop.common.constant.SparkxConstant;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.common.utils.ClickCaptchaResult;
 import sparkx.sparkshop.common.utils.JwtUtils;
-import sparkx.sparkshop.system.util.MenuTreeUtils;
 import sparkx.sparkshop.common.utils.ToolUtils;
-import sparkx.sparkshop.system.entity.AdminMenu;
-import sparkx.sparkshop.system.entity.AdminRole;
 import sparkx.sparkshop.system.entity.AdminUser;
-import sparkx.sparkshop.system.mapper.AdminMenuMapper;
-import sparkx.sparkshop.system.mapper.AdminRoleMapper;
 import sparkx.sparkshop.system.mapper.AdminUserMapper;
 import sparkx.sparkshop.system.service.ILoginService;
 import sparkx.sparkshop.system.validate.LoginValidate;
 import sparkx.sparkshop.system.vo.CaptchaVo;
 import sparkx.sparkshop.system.vo.LoginReturnVo;
-import sparkx.sparkshop.system.vo.MenuNodeVo;
 import sparkx.sparkshop.system.vo.SystemUserVo;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,10 +35,12 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
- * 登录服务：验证码、账号密码校验、签发 token、生成动态菜单
+ * 登录服务：验证码、账号密码校验、签发 token。
+ * <p>
+ * 菜单已改为前端静态写死（{@code admin/src/router/staticMenus.ts}），不再下发动态菜单；
+ * 角色体系已移除，所有登录用户权限一致。
  */
 @Slf4j
 @Service
@@ -53,12 +48,6 @@ public class LoginServiceImpl implements ILoginService {
 
     @Resource
     private AdminUserMapper adminUserMapper;
-
-    @Resource
-    private AdminRoleMapper adminRoleMapper;
-
-    @Resource
-    private AdminMenuMapper adminMenuMapper;
 
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
@@ -71,9 +60,6 @@ public class LoginServiceImpl implements ILoginService {
 
     @Value("${sparkx.jwt-expire}")
     private Long jwtExpireHours;
-
-    @Value("${sparkx.super-role-id}")
-    private Integer superRoleId;
 
     /**
      * 生成汉字点选验证码，存入 Redis（10 分钟有效），返回 base64 图片、key 和提示文字
@@ -100,8 +86,8 @@ public class LoginServiceImpl implements ILoginService {
     }
 
     /**
-     * 执行登录：校验验证码 → 查用户 → 校验密码与状态 → 生成 token →
-     * 按角色计算动态菜单 → 缓存权限白名单 → 返回 token、用户信息、菜单树
+     * 执行登录：校验验证码 → 查用户 → 校验密码与状态 → 更新登录信息 → 签发 token。
+     * 菜单前端静态写死，这里不再下发。
      *
      * @param validate 登录参数（账号、密码、验证码、key）
      * @return 登录返回结构
@@ -122,8 +108,6 @@ public class LoginServiceImpl implements ILoginService {
         try {
             String json = String.valueOf(cached);
             // Redis 的 JSON 序列化可能带类型信息或双重 JSON，统一提取 JSON 数组字符串
-            // 情况1: 直接是 JSON 数组 [{...},{...}]
-            // 情况2: 被 Jackson 序列化成了带引号的字符串 "[{...}]"
             if (json.startsWith("\"")) {
                 json = JSONUtil.parse(json).toString();
             }
@@ -159,82 +143,21 @@ public class LoginServiceImpl implements ILoginService {
         update.setLastLoginTime(LocalDateTime.now());
         adminUserMapper.updateById(update);
 
-        // 6. 查角色
-        AdminRole role = adminRoleMapper.selectById(user.getRoleId());
-        String roleName = role != null ? role.getName() : "";
-
-        // 7. 计算菜单（仅 type=1），超管取全部，普通角色按 role.menu 过滤
-        List<AdminMenu> menuList = loadMenus(user.getRoleId(), role);
-
-        // 8. 构建权限 URI 集合并缓存（超管免校验）
-        cacheAuth(user.getRoleId(), user.getId(), menuList);
-
-        // 9. 组装返回
+        // 6. 组装返回（roleId/roleName 已无角色体系，置 null/空）
         SystemUserVo userInfo = new SystemUserVo(
                 user.getNickname(), user.getAccount(), user.getId(),
-                user.getRoleId(), roleName, user.getAvatar());
+                null, "", user.getAvatar());
 
         long expireAt = System.currentTimeMillis() / 1000 + jwtExpireHours * 3600;
-        String token = JwtUtils.create(jwtSecret, user.getId(), user.getRoleId(),
+        String token = JwtUtils.create(jwtSecret, user.getId(), null,
                 user.getNickname(), expireAt);
-
-        // 登录返回的动态路由树：仅菜单(type=1)，按钮节点不参与前端路由渲染
-        List<MenuNodeVo> menuTree = MenuTreeUtils.build(menuList, true);
 
         LoginReturnVo vo = new LoginReturnVo();
         vo.setToken(token);
         vo.setUserInfo(userInfo);
-        vo.setMenu(menuTree);
+        // 菜单前端静态写死，这里返回空列表（前端判空后走静态菜单分支）
+        vo.setMenu(Collections.emptyList());
         return vo;
-    }
-
-    /**
-     * 按角色加载菜单（sort DESC）。
-     * 超管：仅 type=1 菜单（前端只需要菜单做路由，超管接口直接放行）；
-     * 普通角色：role.menu 中的 id，菜单(type=1) 用于渲染，按钮(type=2) 用于接口鉴权白名单。
-     */
-    private List<AdminMenu> loadMenus(Integer roleId, AdminRole role) {
-        boolean isSuper = superRoleId.equals(roleId);
-        QueryWrapper<AdminMenu> qw = new QueryWrapper<AdminMenu>()
-                .orderByDesc("sort");
-        if (isSuper) {
-            qw.eq("type", 1);
-        } else {
-            if (role == null || StrUtil.isBlank(role.getMenu())) {
-                return List.of();
-            }
-            List<Integer> ids = Arrays.stream(role.getMenu().split(","))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(Integer::parseInt)
-                    .collect(Collectors.toList());
-            if (ids.isEmpty()) {
-                return List.of();
-            }
-            // 菜单和按钮都拉：菜单用于渲染路由，按钮 auth 用于鉴权白名单
-            qw.in("id", ids);
-        }
-        return adminMenuMapper.selectList(qw);
-    }
-
-    /**
-     * 缓存权限：超管不缓存（拦截器直接放行）；普通角色缓存其可见菜单的 auth。
-     * 这里从全部 type=1 菜单里取 auth 作为接口白名单。
-     */
-    private void cacheAuth(Integer roleId, Integer adminId, List<AdminMenu> menuList) {
-        if (superRoleId.equals(roleId)) {
-            return;
-        }
-        Map<String, Integer> authMap = new HashMap<>();
-        for (AdminMenu m : menuList) {
-            if (StrUtil.isNotBlank(m.getAuth())) {
-                authMap.put("/" + m.getAuth(), 1);
-            }
-        }
-        redisTemplate.opsForValue().set(
-                SparkxConstant.AUTH_USER_PREFIX + adminId,
-                cn.hutool.json.JSONUtil.toJsonStr(authMap),
-                30, TimeUnit.DAYS);
     }
 
     /**

@@ -33,10 +33,4 @@ public class AdminUserSearchValidate extends PageValidate implements Serializabl
      */
     @Schema(description = "账号（模糊搜索）")
     private String account;
-
-    /**
-     * 部门 id（精确过滤）
-     */
-    @Schema(description = "部门 id（精确过滤）")
-    private Integer deptId;
 }

@@ -7,6 +7,7 @@ import { useProjectSetting } from '@/hooks/setting/useProjectSetting';
 import { useUser } from '@/store/modules/user';
 import { generateRoutes, asyncImportRoute } from '@/router/generator';
 import { preloadIcons } from '@/utils/iconLoader';
+import { STATIC_MENUS } from '@/router/staticMenus';
 
 interface TreeHelperConfig {
   id: string;
@@ -115,57 +116,31 @@ export const useAsyncRouteStore = defineStore({
       const { permissionMode } = useProjectSetting();
 
       if (unref(permissionMode) === 'BACK') {
-        // 使用后端返回的菜单数据
-        const userStore = useUser();
-        const userMenus = userStore.getMenus;
+        // 菜单写死在前端（STATIC_MENUS），不再依赖后端 /login/doLogin 下发的 menu 字段。
+        // 后续若恢复动态菜单，把这里的 STATIC_MENUS 换回 userStore.getMenus 即可。
+        const userMenus = STATIC_MENUS;
 
-        if (userMenus && userMenus.length > 0) {
-          // 预加载菜单中的所有图标
-          const iconNames = extractIconNames(userMenus);
-          if (iconNames.length > 0) {
-            preloadIcons(iconNames).catch((error) => {
-              console.warn('图标预加载失败:', error);
-            });
+        // 预加载菜单中的所有图标
+        const iconNames = extractIconNames(userMenus);
+        if (iconNames.length > 0) {
+          preloadIcons(iconNames).catch((error) => {
+            console.warn('图标预加载失败:', error);
+          });
+        }
+
+        // 使用路由生成器处理菜单数据
+        accessedRouters = generateRoutes(userMenus);
+        asyncImportRoute(accessedRouters);
+
+        // 为 Dashboard 父菜单添加重定向到第一个子路由（覆盖 constantRouter 中同名记录）
+        const dashboardRoute = accessedRouters.find(
+          (route: any) =>
+            route.name === 'Dashboard' && route.children && route.children.length > 0
+        );
+        if (dashboardRoute && !dashboardRoute.redirect) {
+          if (dashboardRoute.children) {
+            dashboardRoute.redirect = dashboardRoute.children[0].path;
           }
-
-          // 使用路由生成器处理后端菜单数据
-          accessedRouters = generateRoutes(userMenus);
-          asyncImportRoute(accessedRouters);
-
-          // 为Dashboard父菜单添加重定向到第一个子路由
-          const dashboardRoute = accessedRouters.find(
-            (route: any) =>
-              route.name === 'Dashboard' && route.children && route.children.length > 0
-          );
-          if (dashboardRoute && !dashboardRoute.redirect) {
-            if (dashboardRoute.children) {
-              dashboardRoute.redirect = dashboardRoute.children[0].path;
-            }
-          }
-        } else {
-          // 如果没有菜单数据，使用默认路由
-          accessedRouters = [
-            {
-              path: '/dashboard',
-              name: 'Dashboard',
-              component: 'LAYOUT',
-              redirect: '/dashboard/console',
-              meta: {
-                title: 'Dashboard',
-                icon: 'DashboardOutlined',
-              },
-              children: [
-                {
-                  path: 'console',
-                  name: 'dashboard_console',
-                  component: '/dashboard/console/console',
-                  meta: {
-                    title: '主控台',
-                  },
-                },
-              ],
-            },
-          ];
         }
       } else {
         try {

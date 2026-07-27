@@ -1,7 +1,6 @@
 import { App } from 'vue';
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import { RedirectRoute } from '@/router/base';
-import { Layout } from '@/router/constant';
 import { PageEnum } from '@/enums/pageEnum';
 import { createRouterGuards } from './guards';
 import type { IModuleType } from './types';
@@ -58,30 +57,6 @@ export const DashboardRoute: RouteRecordRaw = {
   ],
 };
 
-// ★ 知识图谱可视化子页面（无独立菜单，从「知识图谱」主页按钮带 query.kbId 跳入）
-// 不走动态路由（后端菜单 type=2 是按钮权限，不生成页面路由），这里注册为普通路由。
-// 用 Layout 包裹保证侧栏/头部一致；path 用独立前缀 /kgviz 避免与动态路由 /knowledge/* 冲突。
-export const KgVisualizationRoute: RouteRecordRaw = {
-  path: '/kgviz',
-  name: 'KgVisualizationLayout',
-  component: Layout,
-  meta: {
-    title: '图谱可视化',
-    hideInMenu: true,
-  },
-  children: [
-    {
-      path: 'visualization',
-      name: 'KgVisualization',
-      component: () => import('@/views/knowledge/graph/visualization.vue'),
-      meta: {
-        title: '图谱可视化',
-        hideInMenu: true,
-      },
-    },
-  ],
-};
-
 //需要验证权限
 export const asyncRoutes = [...routeModuleList];
 
@@ -89,7 +64,6 @@ export const asyncRoutes = [...routeModuleList];
 export const constantRouter: RouteRecordRaw[] = [
   LoginRoute,
   DashboardRoute,
-  KgVisualizationRoute,
   RootRoute,
   RedirectRoute,
 ];

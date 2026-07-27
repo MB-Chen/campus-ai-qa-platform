@@ -32,18 +32,6 @@ public class AdminUserVo implements Serializable {
     @Schema(description = "头像")
     private String avatar;
 
-    @Schema(description = "角色 id")
-    private Integer roleId;
-
-    @Schema(description = "角色名")
-    private String roleName;
-
-    @Schema(description = "部门 id")
-    private Integer deptId;
-
-    @Schema(description = "部门名")
-    private String deptName;
-
     @Schema(description = "状态 1:正常 2:禁用")
     private Integer status;
 

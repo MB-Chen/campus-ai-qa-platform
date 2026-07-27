@@ -11,7 +11,6 @@ package sparkx.sparkshop.system.validate;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -44,19 +43,6 @@ public class AdminUserValidate implements Serializable {
     @NotEmpty(message = "账号不能为空")
     @Size(min = 2, max = 30, message = "账号长度 2-30")
     private String account;
-
-    /**
-     * 角色 id
-     */
-    @Schema(description = "角色 id")
-    @NotNull(message = "请选择角色")
-    private Integer roleId;
-
-    /**
-     * 部门 id
-     */
-    @Schema(description = "部门 id")
-    private Integer deptId;
 
     /**
      * 密码（新增时必填；编辑时为空表示不改密码）

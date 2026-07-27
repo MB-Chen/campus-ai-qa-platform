@@ -7,10 +7,9 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.ingest.mineru;
 
-import sparkx.sparkshop.clouddrive.service.MinioService;
+import sparkx.sparkshop.knowledge.service.MinioService;
 import sparkx.sparkshop.knowledge.config.RagProperties;
 import dev.langchain4j.data.document.Document;
 import dev.langchain4j.data.document.DocumentParser;

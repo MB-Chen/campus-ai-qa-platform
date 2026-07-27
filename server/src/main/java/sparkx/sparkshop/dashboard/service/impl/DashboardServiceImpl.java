@@ -9,7 +9,6 @@
 // +----------------------------------------------------------------------
 package sparkx.sparkshop.dashboard.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import sparkx.sparkshop.dashboard.mapper.DashboardMapper;
@@ -17,10 +16,6 @@ import sparkx.sparkshop.dashboard.service.DashboardService;
 import sparkx.sparkshop.dashboard.vo.DashboardOverviewVo;
 import sparkx.sparkshop.dashboard.vo.DashboardPerformanceVo;
 import sparkx.sparkshop.dashboard.vo.DashboardTrendsVo;
-import sparkx.sparkshop.im.entity.ImConversation;
-import sparkx.sparkshop.im.entity.ImMessage;
-import sparkx.sparkshop.im.mapper.ImConversationMapper;
-import sparkx.sparkshop.im.mapper.ImMessageMapper;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -36,10 +31,6 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Resource
     private DashboardMapper dashboardMapper;
-    @Resource
-    private ImConversationMapper imConversationMapper;
-    @Resource
-    private ImMessageMapper imMessageMapper;
 
     @Override
     public DashboardOverviewVo overview(String window) {
@@ -52,20 +43,7 @@ public class DashboardServiceImpl implements DashboardService {
         vo.setCompareWindow(window);
         vo.setUpdatedAt(now.toInstant(ZoneOffset.ofHours(8)).toEpochMilli());
 
-        // 窗口内会话数 + 环比
-        long curSessions = countConversations(cur[0], cur[1]);
-        long prevSessions = countConversations(prev[0], prev[1]);
-        long curMessages = countMessages(cur[0], cur[1]);
-        long prevMessages = countMessages(prev[0], prev[1]);
-        long curActive = countActiveUsers(cur[0], cur[1]);
-        long prevActive = countActiveUsers(prev[0], prev[1]);
-
         DashboardOverviewVo.Kpis kpis = new DashboardOverviewVo.Kpis();
-        kpis.setActiveUsers(buildKpi(curActive, prevActive));
-        kpis.setSessions(buildKpi(curSessions, prevSessions));
-        kpis.setMessages(buildKpi(curMessages, prevMessages));
-        kpis.setTotalSessions(buildKpi(countConversations(null, null), 0L));
-        kpis.setTotalMessages(buildKpi(countMessages(null, null), 0L));
         vo.setKpis(kpis);
         return vo;
     }
@@ -186,35 +164,6 @@ public class DashboardServiceImpl implements DashboardService {
         }
         s.setData(data);
         return s;
-    }
-
-    private long countConversations(LocalDateTime start, LocalDateTime end) {
-        LambdaQueryWrapper<ImConversation> qw = new LambdaQueryWrapper<>();
-        if (start != null) {
-            qw.ge(ImConversation::getCreateTime, start).lt(ImConversation::getCreateTime, end);
-        }
-        Long c = imConversationMapper.selectCount(qw);
-        return c == null ? 0L : c;
-    }
-
-    private long countMessages(LocalDateTime start, LocalDateTime end) {
-        LambdaQueryWrapper<ImMessage> qw = new LambdaQueryWrapper<>();
-        if (start != null) {
-            qw.ge(ImMessage::getCreateTime, start).lt(ImMessage::getCreateTime, end);
-        }
-        Long c = imMessageMapper.selectCount(qw);
-        return c == null ? 0L : c;
-    }
-
-    private long countActiveUsers(LocalDateTime start, LocalDateTime end) {
-        // 窗口内发过消息的去重访客数
-        LambdaQueryWrapper<ImMessage> qw = new LambdaQueryWrapper<>();
-        qw.eq(ImMessage::getSenderType, 1);
-        if (start != null) {
-            qw.ge(ImMessage::getCreateTime, start).lt(ImMessage::getCreateTime, end);
-        }
-        List<ImMessage> msgs = imMessageMapper.selectList(qw);
-        return msgs.stream().map(ImMessage::getSenderId).filter(java.util.Objects::nonNull).distinct().count();
     }
 
     private DashboardOverviewVo.KpiVo buildKpi(long cur, long prev) {

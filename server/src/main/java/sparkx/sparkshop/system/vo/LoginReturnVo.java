@@ -20,6 +20,7 @@ import java.util.List;
  * <pre>
  * { token, userInfo, menu }
  * </pre>
+ * menu 已改为前端静态写死，这里恒返回空列表（保留字段兼容前端读取）。
  */
 @Data
 public class LoginReturnVo implements Serializable {
@@ -37,8 +38,8 @@ public class LoginReturnVo implements Serializable {
     private SystemUserVo userInfo;
 
     /**
-     * 动态菜单树
+     * 菜单（已前端静态写死，恒为空列表，保留字段兼容前端读取）
      */
-    @Schema(description = "动态菜单树")
-    private List<MenuNodeVo> menu;
+    @Schema(description = "菜单（前端静态写死，恒空）")
+    private List<Object> menu;
 }

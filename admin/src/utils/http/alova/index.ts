@@ -107,7 +107,7 @@ export const Alova = createAlova({
           // 动态获取 router 实例，避免在模块顶层调用 useRouter()
           const router = (window as any).$router;
           const route = (window as any).$route;
-          const redirectPath = route?.fullPath && route.fullPath !== '/' ? route.fullPath : '/dashboard/console';
+          const redirectPath = route?.fullPath && route.fullPath !== '/' ? route.fullPath : '/chat/index';
           storage.clear();
           if (router) {
             router.replace({

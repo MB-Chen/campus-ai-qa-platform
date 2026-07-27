@@ -18,12 +18,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import sparkx.sparkshop.common.constant.SparkxConstant;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.common.utils.ToolUtils;
-import sparkx.sparkshop.system.entity.AdminRole;
 import sparkx.sparkshop.system.entity.AdminUser;
-import sparkx.sparkshop.system.entity.AdminDepartment;
-import sparkx.sparkshop.system.mapper.AdminRoleMapper;
 import sparkx.sparkshop.system.mapper.AdminUserMapper;
-import sparkx.sparkshop.system.mapper.AdminDepartmentMapper;
 import sparkx.sparkshop.system.service.IAdminUserService;
 import sparkx.sparkshop.system.validate.AdminUserSearchValidate;
 import sparkx.sparkshop.system.validate.AdminUserValidate;
@@ -37,11 +33,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -50,16 +42,10 @@ public class AdminUserServiceImpl implements IAdminUserService {
     @Resource
     private AdminUserMapper adminUserMapper;
 
-    @Resource
-    private AdminRoleMapper adminRoleMapper;
-
-    @Resource
-    private AdminDepartmentMapper adminDepartmentMapper;
-
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
-     * 分页查询管理员列表，并关联角色名
+     * 分页查询管理员列表（角色/部门体系已移除，仅返回账号基础信息）
      *
      * @param search 查询参数（页码、每页条数、昵称、账号）
      * @return 分页结果
@@ -73,41 +59,12 @@ public class AdminUserServiceImpl implements IAdminUserService {
         if (StrUtil.isNotBlank(search.getAccount())) {
             qw.like("account", search.getAccount());
         }
-        if (search.getDeptId() != null) {
-            qw.eq("dept_id", search.getDeptId());
-        }
         qw.orderByDesc("id");
 
         int page = search.getPage() == null ? 1 : search.getPage();
         int limit = search.getLimit() == null ? 10 : search.getLimit();
         IPage<AdminUser> p = new Page<>(page, limit);
         IPage<AdminUser> result = adminUserMapper.selectPage(p, qw);
-
-        // 批量取角色名
-        Set<Integer> roleIds = result.getRecords().stream()
-                .map(AdminUser::getRoleId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<Integer, String> roleNameMap = new HashMap<>();
-        if (!roleIds.isEmpty()) {
-            List<AdminRole> roles = adminRoleMapper.selectBatchIds(roleIds);
-            for (AdminRole r : roles) {
-                roleNameMap.put(r.getId(), r.getName());
-            }
-        }
-
-        // 批量取部门名
-        Set<Integer> deptIds = result.getRecords().stream()
-                .map(AdminUser::getDeptId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<Integer, String> deptNameMap = new HashMap<>();
-        if (!deptIds.isEmpty()) {
-            List<AdminDepartment> depts = adminDepartmentMapper.selectBatchIds(deptIds);
-            for (AdminDepartment d : depts) {
-                deptNameMap.put(d.getId(), d.getName());
-            }
-        }
 
         List<AdminUserVo> data = new ArrayList<>();
         for (AdminUser u : result.getRecords()) {
@@ -116,10 +73,6 @@ public class AdminUserServiceImpl implements IAdminUserService {
             vo.setAccount(u.getAccount());
             vo.setNickname(u.getNickname());
             vo.setAvatar(u.getAvatar());
-            vo.setRoleId(u.getRoleId());
-            vo.setRoleName(roleNameMap.getOrDefault(u.getRoleId(), ""));
-            vo.setDeptId(u.getDeptId());
-            vo.setDeptName(deptNameMap.getOrDefault(u.getDeptId(), ""));
             vo.setStatus(u.getStatus());
             vo.setLastLoginIp(u.getLastLoginIp());
             vo.setLastLoginTime(u.getLastLoginTime() == null ? null : u.getLastLoginTime().format(FMT));

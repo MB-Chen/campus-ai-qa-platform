@@ -63,7 +63,8 @@ export function generatorMenu(routerMap: Array<any>) {
       ...info.meta,
       label: info.meta?.title,
       key: info.name,
-      icon: info.meta?.icon, // 使用当前项的图标，而不是根据是否为根路由来决定
+      // 扁平化的根菜单（LAYOUT+单子项）用父项图标，否则用当前项图标
+      icon: isRoot ? item.meta?.icon : info.meta?.icon,
     };
     // 是否有子菜单，并递归处理
     if (info.children && info.children.length > 0) {
