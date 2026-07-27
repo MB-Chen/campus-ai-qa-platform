@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.graph;
 
 import dev.langchain4j.data.embedding.Embedding;

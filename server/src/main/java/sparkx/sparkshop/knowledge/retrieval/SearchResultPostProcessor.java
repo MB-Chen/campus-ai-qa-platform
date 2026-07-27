@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.retrieval;
 
 import dev.langchain4j.rag.content.Content;

@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.infra.chat;
 
 import sparkx.sparkshop.knowledge.config.AiModelProperties;

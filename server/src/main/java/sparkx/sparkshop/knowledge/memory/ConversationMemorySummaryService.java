@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.memory;
 
 import org.redisson.api.RLock;
@@ -25,8 +24,6 @@ import sparkx.sparkshop.knowledge.mapper.ConversationMessageMapper;
 import sparkx.sparkshop.knowledge.mapper.ConversationSummaryMapper;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 /**
  * 话题导向摘要压缩服务（文档 5.11.2）。
  *

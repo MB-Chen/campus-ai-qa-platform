@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.graph;
 
 import sparkx.sparkshop.knowledge.retrieval.ConditionalRetrievalChannel;

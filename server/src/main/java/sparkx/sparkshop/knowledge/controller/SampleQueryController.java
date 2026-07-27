@@ -34,8 +34,6 @@ import sparkx.sparkshop.knowledge.vo.SampleQueryVectorizeProgressVo;
 import sparkx.sparkshop.knowledge.vo.TaskIdVo;
 import sparkx.sparkshop.system.vo.PageResult;
 
-import java.util.List;
-
 /**
  * 样例查询管理。
  *

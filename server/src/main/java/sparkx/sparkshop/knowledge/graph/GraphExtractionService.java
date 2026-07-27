@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.graph;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,14 +20,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import sparkx.sparkshop.knowledge.common.trace.RagTraceNode;
 import sparkx.sparkshop.knowledge.entity.KgConfig;
 import sparkx.sparkshop.knowledge.entity.KgEntity;
 import sparkx.sparkshop.knowledge.entity.KgExtractionRecord;
 import sparkx.sparkshop.knowledge.entity.ParentChunkEntity;
 import sparkx.sparkshop.knowledge.ingest.KgEntityIndexer;
 import sparkx.sparkshop.knowledge.infra.LLMService;
-import sparkx.sparkshop.knowledge.infra.TsVectorGenerator;
 import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
 import sparkx.sparkshop.knowledge.mapper.ChunkMapper;
 import sparkx.sparkshop.knowledge.mapper.KgConfigMapper;
@@ -40,7 +37,6 @@ import sparkx.sparkshop.knowledge.vo.KgExtractionProgressVo;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;

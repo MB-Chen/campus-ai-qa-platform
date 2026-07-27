@@ -7,7 +7,6 @@
 // +----------------------------------------------------------------------
 // | Author: NickBai  <1902822973@qq.com>
 // +----------------------------------------------------------------------
-
 package sparkx.sparkshop.knowledge.graph;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,8 +35,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
 /**
  * 知识图谱检索通道（实现 {@link GraphChannel}，被 {@code RetrieveStage} 自动收集）。
  *
