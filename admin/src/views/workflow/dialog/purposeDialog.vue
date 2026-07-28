@@ -59,23 +59,24 @@
     <div class="set-content-box">
       <div class="section-title">意图分类</div>
       <div class="param-data">
-        <div
-          class="cate-row"
-          v-for="(item, index) in form.cateList"
-          :key="index"
-        >
-          <n-input v-model:value="item.name" placeholder="请输入分类名" @update:value="emitChange" />
-          <n-button
-            v-if="index > 0"
-            quaternary
-            type="error"
-            @click="delCate(index)"
-          >
+        <div class="cate-row" v-for="(item, index) in form.cateList" :key="index">
+          <span class="cate-port">分支{{ index + 1 }}</span>
+          <n-input
+            v-model:value="item.name"
+            placeholder="请输入分类名"
+            @update:value="emitChange"
+          />
+          <n-button v-if="index > 0" quaternary type="error" @click="delCate(index)">
             删除
           </n-button>
           <div v-else style="width: 72px"></div>
         </div>
         <div class="add-btn" @click="addCate">+ 添加分类</div>
+        <n-alert type="warning" :show-icon="true" style="margin-top: 10px; font-size: 12px">
+          每个分类只触发一条下游分支（按上方「分支N」顺序对应节点右侧第 N
+          个端口）。若一条分支是「固定回复」、另一条是「检索 +
+          LLM」，调试时请用执行详情核对「命中分类」，避免误判检索失效。
+        </n-alert>
       </div>
     </div>
   </div>
@@ -121,9 +122,7 @@
     try {
       const res = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = res.data
-          .filter((m) => m && m.id != null)
-          .map(toModelOption);
+        modelOptions.value = res.data.filter((m) => m && m.id != null).map(toModelOption);
       }
     } catch (e) {}
   });
@@ -239,6 +238,14 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 10px;
+  }
+  .cate-port {
+    width: 56px;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6172f3;
+    text-align: center;
   }
   .add-btn {
     width: 100%;

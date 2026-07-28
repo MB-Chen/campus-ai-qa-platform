@@ -2764,7 +2764,7 @@ INSERT INTO "public"."sample_query_config" VALUES (1, NULL, NULL, 0.850, '2026-0
 DROP TABLE IF EXISTS "public"."t_conversation_message";
 CREATE TABLE "public"."t_conversation_message" (
   "id" int8 NOT NULL DEFAULT nextval('t_conversation_message_id_seq'::regclass),
-  "conversation_id" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "conversation_id" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
   "user_id" varchar(64) COLLATE "pg_catalog"."default",
   "role" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "content" text COLLATE "pg_catalog"."default",
@@ -2797,7 +2797,7 @@ INSERT INTO "public"."t_conversation_message" VALUES (11, 'agent:9c2dd9400ef347d
 -- ----------------------------
 DROP TABLE IF EXISTS "public"."t_conversation_summary";
 CREATE TABLE "public"."t_conversation_summary" (
-  "conversation_id" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "conversation_id" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
   "user_id" varchar(64) COLLATE "pg_catalog"."default",
   "summary" text COLLATE "pg_catalog"."default",
   "last_message_id" int8,

@@ -9,7 +9,9 @@
 // +----------------------------------------------------------------------
 package sparkx.sparkshop.knowledge.infra.chat;
 
+import sparkx.sparkshop.knowledge.agent.AgentRerankClient;
 import sparkx.sparkshop.knowledge.config.AiModelProperties;
+import sparkx.sparkshop.knowledge.config.CohereScoringModelConfig;
 import sparkx.sparkshop.knowledge.infra.EmbeddingModelProvider;
 import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.infra.model.ModelHealthStore;
@@ -62,7 +64,9 @@ public class RoutingLLMService implements LLMService {
     private final ModelRoutingExecutor executor;
     private final LlmFirstPacketProbe firstPacketProbe;
     private final EmbeddingModelProvider embeddingModelProvider;
-    private final ScoringModel scoringModel;
+    private final AgentRerankClient agentRerankClient;
+    /** rerank 回退用的 embedding 余弦打分模型（懒构建，基于 ai_model 默认 embedding，非 yml OpenAI 默认） */
+    private volatile ScoringModel defaultScoringModel;
     private final ChatModelBridge chatModelBridge;
     private final VlmModelBridge vlmModelBridge;
     private final IAiModelService aiModelService;
@@ -74,7 +78,7 @@ public class RoutingLLMService implements LLMService {
                              ModelRoutingExecutor executor,
                              LlmFirstPacketProbe firstPacketProbe,
                              EmbeddingModelProvider embeddingModelProvider,
-                             ScoringModel scoringModel,
+                             AgentRerankClient agentRerankClient,
                              List<ChatClient> clients,
                              ChatModelBridge chatModelBridge,
                              VlmModelBridge vlmModelBridge,
@@ -85,7 +89,7 @@ public class RoutingLLMService implements LLMService {
         this.executor = executor;
         this.firstPacketProbe = firstPacketProbe;
         this.embeddingModelProvider = embeddingModelProvider;
-        this.scoringModel = scoringModel;
+        this.agentRerankClient = agentRerankClient;
         this.chatModelBridge = chatModelBridge;
         this.vlmModelBridge = vlmModelBridge;
         this.aiModelService = aiModelService;
@@ -122,7 +126,7 @@ public class RoutingLLMService implements LLMService {
         }
         return executor.executeWithFallback(
                 "chat", targets,
-                clientsByProvider::get,
+                this::resolveClientByProvider,
                 (client, target) -> client.chat(request, target));
     }
 
@@ -146,14 +150,14 @@ public class RoutingLLMService implements LLMService {
             log.warn("[Routing] 指定 modelId={} 解析失败，回退默认候选链", modelId);
             return chat(request);
         }
-        if (clientsByProvider.get(target.provider()) == null) {
-            log.warn("[Routing] 指定 modelId={} 的 provider={} 未注册 ChatClient，回退默认候选链",
+        if (resolveClientByProvider(target.provider()) == null) {
+            log.warn("[Routing] 指定 modelId={} 的 provider={} 无可用 ChatClient，回退默认候选链",
                     modelId, target.provider());
             return chat(request);
         }
         return executor.executeWithFallback(
                 "chat", List.of(target),
-                clientsByProvider::get,
+                this::resolveClientByProvider,
                 (client, t) -> client.chat(request, t));
     }
 
@@ -181,8 +185,8 @@ public class RoutingLLMService implements LLMService {
         ModelTarget pinned = (modelId != null) ? aiModelService.getChatTarget(modelId) : null;
         if (modelId != null && pinned == null) {
             log.warn("[Routing] 指定 modelId={} 解析失败，回退默认候选链", modelId);
-        } else if (pinned != null && clientsByProvider.get(pinned.provider()) == null) {
-            log.warn("[Routing] 指定 modelId={} 的 provider={} 未注册 ChatClient，回退默认候选链",
+        } else if (pinned != null && resolveClientByProvider(pinned.provider()) == null) {
+            log.warn("[Routing] 指定 modelId={} 的 provider={} 无可用 ChatClient，回退默认候选链",
                     modelId, pinned.provider());
             pinned = null;
         }
@@ -208,7 +212,7 @@ public class RoutingLLMService implements LLMService {
         int total = targets.size();
         for (ModelTarget target : targets) {
             idx++;
-            ChatClient client = clientsByProvider.get(target.provider());
+            ChatClient client = resolveClientByProvider(target.provider());
             if (client == null) continue;
             // ★ 二次熔断准入（应对选择后状态变化）
             if (!healthStore.allowCall(target.id())) {
@@ -275,9 +279,76 @@ public class RoutingLLMService implements LLMService {
 
     @Override
     public List<Float> rerank(String query, List<String> passages) {
+        return rerank(query, passages, null);
+    }
+
+    /**
+     * 重排打分（指定 rerank 模型 id）。
+     *
+     * <p>★ 修复（对齐智能体 RerankStage，解决「langchain4j 默认 OpenAI 地址」问题）：
+     * 原实现直接用 yml {@code @Primary OpenAiEmbeddingModel}（base-url 默认 {@code https://api.openai.com/v1}）
+     * 做 embedding 余弦打分，导致 workflow 的 rerank 误打到 OpenAI 默认地址 → ConnectException →
+     * 重试阻塞数十秒 → SSE emitter 提前 completed → 前端卡「生成中」。
+     *
+     * <p>新逻辑：指定了 rerank 模型 → 优先走 {@link AgentRerankClient} 真实 rerank API（URL 取自 ai_model 表）；
+     * 否则（或未指定/调用失败）回退用 {@link EmbeddingModelProvider#resolveDefault()} 解析的
+     * ai_model 表默认 embedding 模型做余弦相似度（同样不再用 yml OpenAI 默认地址）。
+     */
+    @Override
+    public List<Float> rerank(String query, List<String> passages, Integer rerankModelId) {
+        // 1) 指定 rerank 模型 → 真实 rerank API（与智能体 RerankStage 一致）
+        if (rerankModelId != null) {
+            try {
+                List<Double> scores = agentRerankClient.rerank(rerankModelId, null, query, passages);
+                if (scores != null) {
+                    return scores.stream().map(Double::floatValue).toList();
+                }
+            } catch (Exception e) {
+                log.warn("[Routing] 指定 rerank 模型 id={} 调用失败，回退 embedding 余弦: {}",
+                        rerankModelId, e.getMessage());
+            }
+        }
+        // 2) 回退：ai_model 表默认 embedding 模型余弦相似度（非 yml OpenAI 默认地址）
+        ScoringModel sm = resolveDefaultScoring();
         List<TextSegment> passageSegments = passages.stream().map(TextSegment::from).toList();
-        return scoringModel.scoreAll(passageSegments, query).content()
+        return sm.scoreAll(passageSegments, query).content()
                 .stream().map(Double::floatValue).toList();
+    }
+
+    /** 懒构建 embedding 余弦打分模型：基于 ai_model 表默认 embedding 模型（缓存，避免每次重建 HTTP 客户端） */
+    private ScoringModel resolveDefaultScoring() {
+        ScoringModel sm = defaultScoringModel;
+        if (sm == null) {
+            synchronized (this) {
+                sm = defaultScoringModel;
+                if (sm == null) {
+                    EmbeddingModel emb = embeddingModelProvider.resolveDefault();
+                    defaultScoringModel = new CohereScoringModelConfig(null, emb).scoringModel();
+                    sm = defaultScoringModel;
+                }
+            }
+        }
+        return sm;
+    }
+
+    /**
+     * 按 provider 取 ChatClient；未注册时，对 OpenAI 兼容协议（非 ollama）兜底复用通用 "openai" ChatClient。
+     *
+     * <p>★ 修复（对齐 rerank 的 langchain4j 默认地址问题）：若 ai_model 里某模型的 provider 字段
+     * 填成了 "xiaomi"/"mimo"/"deepseek" 等与 OpenAI 协议兼容、但不是字面值 "openai" 的值，
+     * 原逻辑会因找不到对应 ChatClient 直接跳过该候选，最终降级到 langchain4j 的 yml OpenAI 默认地址。
+     * 这里对 OpenAI 兼容协议统一兜底到已注册的 "openai" ChatClient（它会用 target 自带的 url，
+     * 不会落到 OpenAI 默认地址）；仅 ollama（非 OpenAI 协议）不做此兜底。
+     */
+    private ChatClient resolveClientByProvider(String provider) {
+        ChatClient client = clientsByProvider.get(provider);
+        if (client != null) {
+            return client;
+        }
+        if (!"ollama".equals(provider) && clientsByProvider.containsKey("openai")) {
+            return clientsByProvider.get("openai");
+        }
+        return null;
     }
 
     @Override

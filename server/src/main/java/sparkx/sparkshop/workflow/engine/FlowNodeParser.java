@@ -75,6 +75,9 @@ public class FlowNodeParser {
         scope.runtimeId = runtimeId;
         scope.timer = new TimeInterval();
 
+        // ★ 每次新执行重置 SSE 诊断标记
+        sseHelper.resetDiagnostic();
+
         try {
             buildData(flowData, scope);
 
@@ -113,6 +116,18 @@ public class FlowNodeParser {
             if (nodeInfo == null) {
                 continue;
             }
+
+            // ★ Bug F 修复（多上游汇聚同一下游时的去重）：
+            //   当 dataset + graph 同时连到 llm 时，上层 forEach 会递归调用 execute() 两次，
+            //   两次都会尝试处理同一个 llm→answer 链路。第一次正常完成并关闭 emitter 后，
+            //   第二次的 sendNodeStart 必然失败（ResponseBodyEmitter has already completed）。
+            //   在此处拦截已处理过的 cell，直接 countDown 跳过，避免重复执行 + SSE 报错。
+            if (!scope.executedCells.add(targetId)) {
+                log.info("[FlowNodeParser] 节点 {} 已在本流程中执行过，跳过重复执行", targetId);
+                latch.countDown();
+                continue;
+            }
+
             IWorkflowNode flowNode = nodeProvider.handle(nodeInfo.getShape());
 
             // 推节点开始事件（前端执行详情用）
@@ -137,6 +152,14 @@ public class FlowNodeParser {
 
             List<EdgeVo> nextEdgeList = flowNode.handle(runtimeVo);
             sseHelper.sendNodeEnd(scope.emitter, scope.runtimeId, nodeInfo.getId());
+
+            // ★ Bug E 诊断：LLM 流式节点结束后、进入下一层前检测 emitter 状态
+            //   若 emitter 已在此处意外终止，下一层的 sendNodeStart 会失败，
+            //   前端收不到 answer/complete 事件导致聊天空白。
+            if ("llm-node".equals(nodeInfo.getShape())) {
+                log.info("[FlowNodeParser] LLM 节点 {} 执行完毕，准备进入下一层（通常为 Answer）",
+                        nodeInfo.getId());
+            }
 
             if (!CollectionUtils.isEmpty(nextEdgeList)) {
                 nextNeedVoMap.put(nodeInfo.getId(), nextEdgeList.get(0));
@@ -170,8 +193,22 @@ public class FlowNodeParser {
                         }
                     }
                 }
-                sseHelper.sendComplete(scope.emitter, inputTokens, outputTokens, totalTokens, seconds);
-                scope.emitter.complete();
+
+                // ★ Bug E 防御：complete 事件分两次尝试
+                //   第一次正常发送；若 emitter 已死，记录警告但不抛异常（流程已成功完成）
+                try {
+                    sseHelper.sendComplete(scope.emitter, inputTokens, outputTokens, totalTokens, seconds);
+                    scope.emitter.complete();
+                    log.info("[FlowNodeParser] 流程正常结束 runtimeId={}, 耗时={}s, " +
+                            "complete 事件已发送，emitter 已关闭", scope.runtimeId, seconds);
+                } catch (Exception e) {
+                    log.warn("[FlowNodeParser] ⚠️ complete 事件发送失败（emitter 可能已提前关闭）" +
+                            " runtimeId={}, 耗时={}s, 原因={}. " +
+                            "流程数据已完整落库，前端可通过 API 轮询获取结果。",
+                            scope.runtimeId, seconds, e.getMessage());
+                    // 尝试安全关闭（忽略异常）
+                    try { scope.emitter.complete(); } catch (Exception ignored) {}
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -303,6 +340,13 @@ public class FlowNodeParser {
         String startId = "";
         /** Answer 汇合点合并态：runtimeId+cell → state（懒创建；同一汇合点多次调用共享） */
         final Map<String, AnswerMergeState> mergeStates = new ConcurrentHashMap<>();
+        /**
+         * 已执行的节点 cell 集合（Bug F 修复：多上游汇聚同一下游时防止重复执行）。
+         * 当 dataset + graph 同时连到 llm 时，forEach 会递归调用 execute() 两次，
+         * 第一次正常完成并关闭 emitter，第二次 sendNodeStart 必然失败。
+         * 在 execute() 入口处检查，已处理的 cell 直接跳过（仅 countDown）。
+         */
+        final java.util.Set<String> executedCells = ConcurrentHashMap.newKeySet();
 
         /** 取某节点的入边度数（无入边返回 0；正常节点至少 1） */
         int inDegreeOf(String cell) {

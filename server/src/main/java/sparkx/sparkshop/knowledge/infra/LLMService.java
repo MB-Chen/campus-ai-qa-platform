@@ -110,6 +110,20 @@ public interface LLMService {
     List<Float> rerank(String query, List<String> passages);
 
     /**
+     * 重排打分（指定 rerank 模型 id）。
+     *
+     * <p>★ 与智能体 RerankStage 对齐：优先用 {@code rerankModelId} 调真实 rerank API
+     * （URL 取自 ai_model 表，而非 yml 默认 OpenAI 地址），失败再回退 embedding 余弦相似度
+     * （embedding 模型同样取自 ai_model 表默认配置）。
+     *
+     * @param query         查询
+     * @param passages      候选段落
+     * @param rerankModelId ai_model.id（type=3）；为 null 时等同 {@link #rerank(String, List)}
+     * @return 每个段落的相关性分数
+     */
+    List<Float> rerank(String query, List<String> passages, Integer rerankModelId);
+
+    /**
      * 视觉模型图生文（VLM）。
      *
      * @param content   图片字节数据

@@ -1,78 +1,69 @@
-<!-- 调试聊天面板：浮窗式，调 streamWorkflowChat 走 SSE。
-     每条 assistant 回答完成后，会在气泡下方挂「查看执行详情 / 耗时 / tokens」按钮，
+<!-- 调试聊天面板：抽屉式内容（由父组件 workflow/edit.vue 用 n-drawer 包裹）。
+     每条 assistant 回答以 markdown 渲染，完成后在气泡下方挂「查看执行详情 / 耗时 / tokens」按钮，
      点详情按该轮 runtimeId 打开执行详情弹窗（对标智能体的 msg-actions）。 -->
 <template>
-  <div class="customer-chat-box">
-    <div class="header">
-      <div class="title-box">
-        <div class="title-label">编</div>
-        <div class="title">编排调试</div>
+  <div class="debug-panel">
+    <div ref="msgBoxRef" class="msg-list">
+      <div v-for="(m, i) in messages" :key="i" :class="['msg-row', m.role]">
+        <div class="msg-col">
+          <div v-if="m.role === 'user'" class="msg-bubble">{{ m.content }}</div>
+          <div v-else class="msg-bubble md markdown-content" v-html="renderMd(m.content)"></div>
+          <!-- assistant 完成后：该轮专属的执行详情入口 + 耗时/tokens -->
+          <div
+            v-if="m.role === 'assistant' && !loading && m.runtimeId && (m.content || m.costSec)"
+            class="msg-actions"
+          >
+            <n-button text type="primary" size="tiny" @click="$emit('showDetail', m.runtimeId)">
+              <template #icon
+                ><n-icon><ApartmentOutlined /></n-icon
+              ></template>
+              查看执行详情
+            </n-button>
+            <span v-if="m.costSec" class="meta-chip">
+              <n-icon :size="12"><ClockCircleOutlined /></n-icon>
+              {{ m.costSec }}s
+            </span>
+            <span v-if="m.totalTokens" class="meta-chip">
+              <n-icon :size="12"><ThunderboltOutlined /></n-icon>
+              {{ m.totalTokens }} tokens
+            </span>
+          </div>
+        </div>
       </div>
-      <n-icon :size="18" style="cursor: pointer" @click="$emit('closeDebug')">
-        <CloseOutlined />
-      </n-icon>
+      <div v-if="loading" class="msg-row assistant">
+        <div class="msg-col">
+          <div class="msg-bubble typing">生成中…</div>
+        </div>
+      </div>
     </div>
-    <div class="content">
-      <div ref="msgBoxRef" class="msg-list">
-        <div v-for="(m, i) in messages" :key="i" :class="['msg-row', m.role]">
-          <div class="msg-col">
-            <div class="msg-bubble">{{ m.content }}</div>
-            <!-- assistant 完成后：该轮专属的执行详情入口 + 耗时/tokens -->
-            <div
-              v-if="m.role === 'assistant' && !loading && m.runtimeId && (m.content || m.costSec)"
-              class="msg-actions"
-            >
-              <n-button text type="primary" size="tiny" @click="$emit('showDetail', m.runtimeId)">
-                <template #icon><n-icon><ApartmentOutlined /></n-icon></template>
-                查看执行详情
-              </n-button>
-              <span v-if="m.costSec" class="meta-chip">
-                <n-icon :size="12"><ClockCircleOutlined /></n-icon>
-                {{ m.costSec }}s
-              </span>
-              <span v-if="m.totalTokens" class="meta-chip">
-                <n-icon :size="12"><ThunderboltOutlined /></n-icon>
-                {{ m.totalTokens }} tokens
-              </span>
-            </div>
-          </div>
-        </div>
-        <div v-if="loading" class="msg-row assistant">
-          <div class="msg-col">
-            <div class="msg-bubble typing">生成中…</div>
-          </div>
-        </div>
-      </div>
-      <div class="input-area">
-        <n-input
-          v-model:value="input"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 4 }"
-          placeholder="输入问题，回车发送（Shift+回车换行）"
-          @keydown.enter="onEnter"
-          :disabled="loading"
-        />
-        <n-button type="primary" secondary :loading="loading" @click="send">发送</n-button>
-      </div>
+    <div class="input-area">
+      <n-input
+        v-model:value="input"
+        type="textarea"
+        :autosize="{ minRows: 1, maxRows: 4 }"
+        placeholder="输入问题，回车发送（Shift+回车换行）"
+        @keydown.enter="onEnter"
+        :disabled="loading"
+      />
+      <n-button type="primary" secondary :loading="loading" @click="send">发送</n-button>
     </div>
   </div>
 </template>
 
 <script setup>
   import { ref, nextTick } from 'vue';
-  import {
-    CloseOutlined,
-    ApartmentOutlined,
-    ClockCircleOutlined,
-    ThunderboltOutlined,
-  } from '@vicons/antd';
+  import { ApartmentOutlined, ClockCircleOutlined, ThunderboltOutlined } from '@vicons/antd';
+  import { marked } from 'marked';
   import { useMessage } from 'naive-ui';
   import { streamWorkflowChat } from '@/api/system/workflow';
 
   const props = defineProps({
     workflowId: { type: String, required: true },
   });
-  const emit = defineEmits(['closeDebug', 'showDetail']);
+  const emit = defineEmits(['showDetail']);
+
+  // 与聊天页一致：单 \n 转 <br>，开启 gfm（表格/任务列表/删除线）
+  marked.use({ breaks: true, gfm: true });
 
   const nMessage = useMessage();
   const messages = ref([]);
@@ -81,6 +72,17 @@
   const msgBoxRef = ref(null);
   const conversationId = ref(''); // 维持多轮记忆
   let abortCtrl = null;
+
+  // markdown 渲染：与 chat/index.vue 同款（补 # 后缺空格的标题）
+  function renderMd(text) {
+    if (!text) return '';
+    try {
+      const normalized = text.replace(/^(#{1,6})(?=\S)/gm, '$1 ');
+      return marked.parse(normalized);
+    } catch {
+      return text;
+    }
+  }
 
   function onEnter(e) {
     if (e.shiftKey) return; // 换行
@@ -150,7 +152,7 @@
             messages.value[assistantIdx].content = '❌ ' + (msg || '执行失败');
           },
         },
-        abortCtrl.signal,
+        abortCtrl.signal
       );
     } catch (e) {
       messages.value[assistantIdx].content = '❌ 连接异常：' + (e?.message || e);
@@ -178,65 +180,22 @@
 </script>
 
 <style scoped>
-  .customer-chat-box {
-    z-index: 1999;
-    border-radius: 8px;
-    border: 1px solid #fff;
+  .debug-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     background: #f4f4f4;
-    box-shadow: 0 4px 8px rgba(31, 35, 41, 0.1);
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    overflow: hidden;
-    width: 450px;
-    height: 600px;
-    display: flex;
-    flex-direction: column;
-  }
-  .header {
-    width: 100%;
-    height: 56px;
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    flex-shrink: 0;
-  }
-  .title-box {
-    display: flex;
-    align-items: center;
-  }
-  .title {
-    font-size: 14px;
-    margin-left: 10px;
-  }
-  .title-label {
-    background: #18a058;
-    color: #fff;
-    border-radius: 8px;
-    height: 35px;
-    width: 35px;
-    line-height: 35px;
-    text-align: center;
-    font-weight: bold;
-  }
-  .content {
-    padding: 10px 16px;
-    width: 100%;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
   }
   .msg-list {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 6px 4px;
+    padding: 14px 16px;
   }
   .msg-row {
     display: flex;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
   .msg-row.user {
     justify-content: flex-end;
@@ -245,7 +204,7 @@
   .msg-col {
     display: flex;
     flex-direction: column;
-    max-width: 85%;
+    max-width: 88%;
     gap: 4px;
   }
   .msg-row.user .msg-col {
@@ -253,16 +212,17 @@
   }
   .msg-bubble {
     max-width: 100%;
-    padding: 8px 12px;
+    padding: 9px 13px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.6;
-    white-space: pre-wrap;
     word-break: break-word;
+    white-space: normal;
   }
   .msg-row.user .msg-bubble {
     background: #18a058;
     color: #fff;
+    white-space: pre-wrap;
   }
   .msg-row.assistant .msg-bubble {
     background: #fff;
@@ -291,6 +251,9 @@
     display: flex;
     gap: 8px;
     align-items: flex-end;
-    margin-top: 8px;
+    padding: 12px 16px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    flex-shrink: 0;
   }
 </style>

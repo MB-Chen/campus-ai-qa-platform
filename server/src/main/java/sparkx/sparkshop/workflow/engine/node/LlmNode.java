@@ -29,6 +29,7 @@ import sparkx.sparkshop.knowledge.memory.ConversationMemoryService;
 import sparkx.sparkshop.workflow.engine.IWorkflowNode;
 import sparkx.sparkshop.workflow.engine.WorkflowRuntimeHelper;
 import sparkx.sparkshop.workflow.engine.WorkflowSseHelper;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.workflow.entity.WorkflowRuntimeContext;
 import sparkx.sparkshop.workflow.enums.NodeTypeEnum;
 import sparkx.sparkshop.workflow.mapper.WorkflowRuntimeContextMapper;
@@ -262,6 +263,17 @@ public class LlmNode implements IWorkflowNode {
             // 上限 120s 防死等（流式 LLM 单次通常远低于此）
             if (!doneLatch.await(120, TimeUnit.SECONDS)) {
                 log.warn("[LlmNode] 流式生成等待超时（120s），已产出 {} 字符", full.length());
+            }
+
+            // ★ Bug E 诊断：流式结束后立即检测 emitter 状态
+            //   若此处 emitter 已死，说明它在 LLM 推送阶段被容器/客户端关闭，
+            //   后续 Answer 节点的 SSE 推送必然全部失败。
+            try {
+                runtimeVo.getEmitter().send(SseEmitter.event().name("_heartbeat").data("ok"));
+            } catch (Exception ex) {
+                log.warn("[LlmNode] ⚠️ LLM 流式结束后 emitter 已不可用（{}）。" +
+                        "后续 Answer 节点推送可能失败，前端聊天可能空白。" +
+                        "建议检查网络/代理/容器超时设置。", ex.getMessage());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

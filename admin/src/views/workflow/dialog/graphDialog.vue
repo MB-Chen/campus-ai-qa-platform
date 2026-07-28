@@ -60,6 +60,16 @@
           @update:value="emitChange"
           style="width: 100%; margin-top: 4px"
         />
+        <n-alert
+          v-if="invalidDocIds.length"
+          type="warning"
+          :show-icon="true"
+          style="margin-top: 8px; font-size: 12px"
+        >
+          已绑定的文档（{{
+            invalidDocIds.join('、')
+          }}）未开启知识图谱(kg_enabled≠1)，运行时会被跳过，不参与 LLM 的 RRF 融合。
+        </n-alert>
       </div>
       <div class="slider-row">
         <span class="slider-label">召回数量</span>
@@ -73,7 +83,8 @@
         <span class="slider-val">{{ form.topRank }}</span>
       </div>
       <n-alert type="info" :show-icon="false" style="margin-top: 10px; font-size: 12px">
-        多个检索节点（知识检索 / 知识图谱）同时连到同一 LLM 时，会自动做 RRF 多源融合后再喂给大模型。
+        多个检索节点（知识检索 / 知识图谱）同时连到同一 LLM 时，会自动做 RRF
+        多源融合后再喂给大模型。
       </n-alert>
     </div>
   </div>
@@ -97,6 +108,8 @@
   const docOptions = ref([]);
   const kbLoading = ref(false);
   const docLoading = ref(false);
+  // 已绑定但明确未开启知识图谱(kg_enabled!=1)的文档，编辑时标红提示
+  const invalidDocIds = ref([]);
 
   // 保证 docIds 是数组
   if (!Array.isArray(form.value.docIds)) {
@@ -112,7 +125,8 @@
           .filter((kb) => kb && kb.id)
           .map((kb) => ({ label: kb.name || '未命名', value: kb.id }));
       }
-    } catch (e) {} finally {
+    } catch (e) {
+    } finally {
       kbLoading.value = false;
     }
     if (form.value.kbId) {
@@ -138,6 +152,11 @@
       docOptions.value = usable
         .filter((d) => d && d.id)
         .map((d) => ({ label: d.fileName || d.id, value: d.id }));
+      // 已绑定文档中，明确未开启知识图谱(kg_enabled!=1)的，运行时会被静默跳过
+      invalidDocIds.value = (form.value.docIds || []).filter((id) => {
+        const doc = list.find((d) => d.id === id);
+        return doc && doc.kgEnabled !== undefined && doc.kgEnabled !== 1;
+      });
     } catch (e) {
       docOptions.value = [];
     } finally {

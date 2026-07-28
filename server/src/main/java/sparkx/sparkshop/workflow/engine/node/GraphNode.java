@@ -121,12 +121,10 @@ public class GraphNode implements IWorkflowNode {
         KgConfig globalConfig = kgConfigMapper.selectById(1);
         boolean globalEnabled = globalConfig != null && globalConfig.getEnabled() != null
                 && globalConfig.getEnabled() == 1;
-        if (!globalEnabled) {
-            log.warn("[GraphNode] 知识图谱全局开关未开启，跳过检索 runtimeId={}", runtimeVo.getRuntimeId());
-        }
 
-        // 检索：逐文档调用图谱通道（文档级隔离）
+        // 检索：逐文档调用图谱通道（文档级隔离），同时收集被开关跳过的文档
         List<Content> hits = new ArrayList<>();
+        List<String> skippedDocs = new ArrayList<>();
         if (globalEnabled && kbId != null && !kbId.isBlank() && !docIds.isEmpty()) {
             Query query = Query.from(question);
             for (String docId : docIds) {
@@ -134,6 +132,7 @@ public class GraphNode implements IWorkflowNode {
                 KnowledgeDocument doc = knowledgeDocumentMapper.selectById(docId);
                 if (doc == null || doc.getKgEnabled() == null || doc.getKgEnabled() != 1) {
                     log.debug("[GraphNode] 文档 {} 未开启知识图谱，跳过", docId);
+                    skippedDocs.add(docId);
                     continue;
                 }
                 try {
@@ -145,6 +144,8 @@ public class GraphNode implements IWorkflowNode {
                     log.warn("[GraphNode] 文档 {} 图谱检索失败: {}", docId, e.getMessage());
                 }
             }
+        } else if (!globalEnabled) {
+            log.warn("[GraphNode] 知识图谱全局开关未开启(kg_config.enabled!=1)，跳过检索 runtimeId={}", runtimeVo.getRuntimeId());
         }
 
         // 按图通道返回顺序（已在通道内按 score 排序）截断 topRank
@@ -155,6 +156,17 @@ public class GraphNode implements IWorkflowNode {
         }
 
         String result = String.join("\n", finalPassages);
+
+        // 记录双闸校验结果，避免「图谱静默返回空」让调试误判检索失效
+        String skipReason = "";
+        if (!globalEnabled) {
+            skipReason = "知识图谱全局开关未开启(kg_config.enabled!=1)，本节点未做检索，不参与 LLM 融合";
+        } else if (!skippedDocs.isEmpty()) {
+            skipReason = "以下文档未开启知识图谱(kg_enabled!=1)，已跳过检索：" + String.join(", ", skippedDocs);
+            if (hits.isEmpty()) {
+                skipReason += "；当前无有效召回，不参与 LLM 融合";
+            }
+        }
 
         // 更新上下文：召回信息写入本节点分区 node.<cell>
         String cell = runtimeVo.getNodeInfo().getId();
@@ -170,6 +182,14 @@ public class GraphNode implements IWorkflowNode {
         updated = runtimeHelper.writeVar(updated, cell, "graph.count", finalPassages.size());
         updated = runtimeHelper.writeVar(updated, cell, "graph.kbId", kbId == null ? "" : kbId);
         updated = runtimeHelper.writeVar(updated, cell, "graph.question", question);
+        // 双闸校验诊断字段：执行详情可直接看到图谱为何返回空
+        updated = runtimeHelper.writeVar(updated, cell, "graph.gateGlobalEnabled", globalEnabled);
+        JSONArray skippedArr = JSONUtil.createArray();
+        for (String d : skippedDocs) {
+            skippedArr.add(d);
+        }
+        updated = runtimeHelper.writeVar(updated, cell, "graph.gateSkippedDocs", skippedArr);
+        updated = runtimeHelper.writeVar(updated, cell, "graph.skipReason", skipReason);
         contextEntity.setOutputData(updated);
 
         long costMs = System.currentTimeMillis() - startTime;

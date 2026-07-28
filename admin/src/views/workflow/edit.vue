@@ -21,13 +21,16 @@
       <runtime-box :key="runtimeKey" :runtime-id="runtimeId" />
     </n-modal>
 
-    <debug-chat
-      v-if="chatVisible"
-      :key="debugKey"
-      :workflow-id="workflowId"
-      @close-debug="chatVisible = false"
-      @show-detail="showDetailHandle"
-    />
+    <!-- 编排调试：原来固定在右下角的浮窗，改为右侧抽屉，空间更大 -->
+    <n-drawer v-model:show="chatVisible" :width="760" placement="right" :auto-focus="false">
+      <n-drawer-content
+        title="编排调试"
+        closable
+        :body-content-style="{ padding: 0, height: '100%', overflow: 'hidden' }"
+      >
+        <debug-chat :key="debugKey" :workflow-id="workflowId" @show-detail="showDetailHandle" />
+      </n-drawer-content>
+    </n-drawer>
 
     <bottom-menu
       :key="bottomKey"

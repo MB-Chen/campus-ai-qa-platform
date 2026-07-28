@@ -150,7 +150,7 @@ public class DatasetNode implements IWorkflowNode {
         boolean reranked = false;
         if (rerankModelIdInt != null && passageList.size() > 1) {
             try {
-                List<Float> scores = llmService.rerank(question, passageList);
+                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt);
                 if (scores != null && scores.size() == passageList.size()) {
                     // 按分数降序取 topRank
                     finalPassages = IntStream.range(0, passageList.size())

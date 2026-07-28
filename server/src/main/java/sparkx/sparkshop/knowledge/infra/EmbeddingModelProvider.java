@@ -9,6 +9,7 @@
 // +----------------------------------------------------------------------
 package sparkx.sparkshop.knowledge.infra;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.embedding.Embedding;
@@ -212,6 +213,33 @@ public class EmbeddingModelProvider {
 
     /** 默认兜底模型（yml app.rag.embedding 配置的单例），供非活跃链路或解析失败使用 */
     public EmbeddingModel defaultModel() {
+        return defaultModel;
+    }
+
+    /**
+     * 解析 ai_model 表默认 embedding 模型（type=2,status=1 中 priority 最小者）。
+     *
+     * <p>★ 关键：返回用户在 ai_model 表配置的 embedding 模型（如 qwen3-embedding 等），
+     * 而非注入的 yml {@code @Primary OpenAiEmbeddingModel}（其 base-url 默认指向
+     * {@code https://api.openai.com/v1}）。供 rerank 等调用点做余弦相似度时使用，
+     * 避免误打到 OpenAI 默认地址（历史「langchain4j 默认 OpenAI 地址」问题的根因）。
+     *
+     * <p>无任何启用 embedding 模型配置时，回退 yml 默认模型（兜底可用性）。
+     */
+    public EmbeddingModel resolveDefault() {
+        try {
+            AiModel row = aiModelMapper.selectOne(new LambdaQueryWrapper<AiModel>()
+                    .eq(AiModel::getType, 2)
+                    .eq(AiModel::getStatus, 1)
+                    .orderByAsc(AiModel::getPriority)
+                    .last("limit 1"));
+            if (row != null && row.getId() != null) {
+                String cacheKey = "default:" + row.getId();
+                return cache.computeIfAbsent(cacheKey, k -> resolveByModelId(row.getId(), null));
+            }
+        } catch (Exception e) {
+            log.warn("[EmbeddingProvider] 解析默认 embedding 模型失败，回退 yml 默认: {}", e.getMessage());
+        }
         return defaultModel;
     }
 

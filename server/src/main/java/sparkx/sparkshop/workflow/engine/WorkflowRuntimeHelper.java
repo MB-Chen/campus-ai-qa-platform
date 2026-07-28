@@ -93,10 +93,15 @@ public class WorkflowRuntimeHelper {
                     continue;
                 }
                 if ("answer-node".equals(target.getShape())) {
-                    // 检测下个节点的输入是否是当前节点
+                    // 检测下个节点的输入是否是当前节点（answerType=1 表示引用变量）
                     var inputArr = target.getData().getJSONArray("inputData");
                     if (inputArr != null && !inputArr.isEmpty()) {
-                        String inputNodeId = inputArr.get(0).toString();
+                        // ★ Bug G 修复：原 inputArr.get(0).toString() 取到的是整个 JSONObject 字符串
+                        //   如 "{nodeId=xxx, field=sys.content}"，与 nowNode.getId()（纯 cell id）永不等，
+                        //   导致 answerType 永远为 2，LLM 节点 needStream 始终为 false，
+                        //   前端收不到任何 answer 事件 → 聊天空白。
+                        cn.hutool.json.JSONObject inputObj = inputArr.getJSONObject(0);
+                        String inputNodeId = inputObj != null ? inputObj.getStr("nodeId") : "";
                         if (nowNode.getId().equals(inputNodeId)) {
                             answerType = 1;
                         }
