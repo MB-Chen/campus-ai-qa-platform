@@ -34,4 +34,7 @@ public class RuntimeContextVo implements Serializable {
 
     /** 模型信息 JSON */
     private String modelData;
+
+    /** X6 节点 id（调试详情关联节点用） */
+    private String cell;
 }

@@ -16,11 +16,9 @@ import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.input.PromptTemplate;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
@@ -73,16 +71,11 @@ public class LlmNode implements IWorkflowNode {
     @Autowired
     private WorkflowSseHelper sseHelper;
 
-    @Setter
-    public SseEmitter emitter;
-
-    @Setter
-    public CountDownLatch latch;
-
     @Override
     public List<EdgeVo> handle(NodeRuntimeVo runtimeVo) {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
         JSONObject modelObject = nodeObject;
+        long startTime = System.currentTimeMillis();
 
         // 取首个输入变量 {nodeId, field}（多输入取第 0 个作为主问题来源）
         List<Map<String, String>> inputs = runtimeHelper.readInputList(nodeObject);
@@ -111,28 +104,31 @@ public class LlmNode implements IWorkflowNode {
         contextEntity.setOutputData(preOutput.toString());
         contextEntity.setCell(runtimeVo.getNodeInfo().getId());
         contextEntity.setCreatedAt(LocalDateTime.now());
-        runtimeContextMapper.insert(contextEntity);
+        runtimeHelper.upsertContext(contextEntity);
 
         // 检测下游是否 Answer 且引用本节点输出（决定是否流推前端）
         NextAnswerNodeVo next = runtimeHelper.checkNextIsAnswerNode(runtimeVo);
         boolean needStream = next.isNodeIsAnswer() && next.getAnswerType() == 1;
 
         try {
-            streamAnswer(contextEntity, runtimeVo, preOutput, modelObject, needStream);
+            streamAnswer(contextEntity, runtimeVo, preOutput, modelObject, needStream, startTime);
         } catch (Exception e) {
             log.error("[LlmNode] LLM 节点异常: {}", e.getMessage(), e);
             throw new BusinessException("LLM 节点异常：" + e.getMessage());
         }
 
-        latch.countDown();
+        runtimeVo.getLatch().countDown();
         return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
     }
 
     /**
      * 流式生成。组装 prompt + 历史 → LLMService.streamChat → onContent 推 SSE/累计 → onComplete 落库 + 记忆。
+     * <p>调试增强：把变量替换后的 renderedSystemMsg/renderedUserPrompt 存进 modelData，
+     * onComplete 时基于已有 modelData 合并 token + costMs（而非整体覆盖，避免丢节点配置）。
      */
     private void streamAnswer(WorkflowRuntimeContext contextEntity, NodeRuntimeVo runtimeVo,
-                              JSONObject preOutput, JSONObject modelObject, boolean needStream) {
+                              JSONObject preOutput, JSONObject modelObject, boolean needStream,
+                              long startTime) {
         JSONObject modelInfo = modelObject.getJSONObject("modelInfo");
         Integer modelId = parseModelId(modelInfo == null ? null : modelInfo.getStr("modelId"));
         double temperature = modelInfo != null && modelInfo.getDouble("temperature") != null
@@ -146,8 +142,19 @@ public class LlmNode implements IWorkflowNode {
 
         String systemMsg = modelObject.getStr("systemMsg");
 
-        // 加载历史记忆（按 cell+sessionId+userId 隔离）
-        String memoryKey = "wf:" + runtimeVo.getRuntimeId() + ":" + runtimeVo.getNodeInfo().getId();
+        // 先把渲染后的 prompt 落进 modelData（保留节点原配置，新增 renderedSystemMsg/renderedUserPrompt）
+        java.util.Map<String, Object> renderExtra = new HashMap<>();
+        renderExtra.put("renderedUserPrompt", finalUserPrompt);
+        if (systemMsg != null && !systemMsg.isBlank()) {
+            renderExtra.put("renderedSystemMsg", systemMsg);
+        }
+        contextEntity.setModelData(runtimeHelper.mergeModelData(contextEntity.getModelData(), renderExtra));
+        runtimeContextMapper.updateById(contextEntity);
+
+        // 加载历史记忆：按 sessionId+cell 隔离。
+        // ★ Bug A 修复：原用 runtimeId（每次对话都变，导致记忆永远读不到），改用 sessionId（前端固定传
+        //   conversationId，跨轮稳定），多轮记忆才能累积。
+        String memoryKey = "wf:" + runtimeVo.getSessionId() + ":" + runtimeVo.getNodeInfo().getId();
         List<ChatMessage> messages = new ArrayList<>();
         if (systemMsg != null && !systemMsg.isBlank()) {
             messages.add(SystemMessage.from(systemMsg));
@@ -176,7 +183,7 @@ public class LlmNode implements IWorkflowNode {
                 }
                 full.append(token);
                 if (needStream) {
-                    sseHelper.sendAnswer(emitter, runtimeVo.getRuntimeId(),
+                    sseHelper.sendAnswer(runtimeVo.getEmitter(), runtimeVo.getRuntimeId(),
                             runtimeVo.getNodeInfo().getId(), token);
                 }
             }
@@ -188,11 +195,19 @@ public class LlmNode implements IWorkflowNode {
                         runtimeVo.getNodeInfo().getId(), "sys.content", full.toString());
                 contextEntity.setOutputData(updated);
 
-                JSONObject md = JSONUtil.createObj();
-                md.set("inputTokenCount", 0);
-                md.set("outputTokenCount", 0);
-                md.set("totalTokenCount", 0);
-                contextEntity.setModelData(md.toString());
+                // ★ 修复：基于已有 modelData（含节点配置 + 渲染后 prompt）合并 token + costMs + note，
+                //   不再整体替换（原实现会丢节点配置）。
+                // 流式 SSE 未解析 usage（见 AbstractOpenAIChatClient.doStream），token 计数不可得，
+                // 标注 note 避免展示误导性的 0。
+                long costMs = System.currentTimeMillis() - startTime;
+                java.util.Map<String, Object> doneExtra = new HashMap<>();
+                doneExtra.put("inputTokenCount", 0);
+                doneExtra.put("outputTokenCount", 0);
+                doneExtra.put("totalTokenCount", 0);
+                doneExtra.put("costMs", costMs);
+                doneExtra.put("tokenNote", "流式模式未返回 token 计数");
+                contextEntity.setModelData(
+                        runtimeHelper.mergeModelData(contextEntity.getModelData(), doneExtra));
                 runtimeContextMapper.updateById(contextEntity);
 
                 // 写记忆（user + ai 一轮）
@@ -212,7 +227,12 @@ public class LlmNode implements IWorkflowNode {
             @Override
             public void onError(Throwable error) {
                 log.error("[LlmNode] 流式生成异常: {}", error.getMessage());
-                sseHelper.sendError(emitter, "LLM 生成失败：" + error.getMessage());
+                // 异常也补 costMs，便于排查卡住的节点
+                long costMs = System.currentTimeMillis() - startTime;
+                contextEntity.setModelData(
+                        runtimeHelper.withCostMs(contextEntity.getModelData(), costMs));
+                runtimeContextMapper.updateById(contextEntity);
+                sseHelper.sendError(runtimeVo.getEmitter(), "LLM 生成失败：" + error.getMessage());
                 doneLatch.countDown();
             }
         };
@@ -229,7 +249,7 @@ public class LlmNode implements IWorkflowNode {
             log.error("[LlmNode] 等待流式生成被中断");
         } catch (Exception e) {
             log.error("[LlmNode] streamChat 调用失败: {}", e.getMessage());
-            sseHelper.sendError(emitter, "LLM 调用失败：" + e.getMessage());
+            sseHelper.sendError(runtimeVo.getEmitter(), "LLM 调用失败：" + e.getMessage());
         }
     }
 

@@ -14,11 +14,9 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.query.Query;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.retrieval.HybridContentRetriever;
 import sparkx.sparkshop.workflow.engine.IWorkflowNode;
@@ -35,7 +33,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -63,15 +60,10 @@ public class DatasetNode implements IWorkflowNode {
     @Autowired
     private WorkflowSseHelper sseHelper;
 
-    @Setter
-    public SseEmitter emitter;
-
-    @Setter
-    public CountDownLatch latch;
-
     @Override
     public List<EdgeVo> handle(NodeRuntimeVo runtimeVo) {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
+        long startTime = System.currentTimeMillis();
 
         // 取首个输入变量 {nodeId, field}
         List<Map<String, String>> inputs = runtimeHelper.readInputList(nodeObject);
@@ -133,7 +125,7 @@ public class DatasetNode implements IWorkflowNode {
         contextEntity.setModelData(nodeObject.toString());
         contextEntity.setCell(runtimeVo.getNodeInfo().getId());
         contextEntity.setCreatedAt(LocalDateTime.now());
-        runtimeContextMapper.insert(contextEntity);
+        runtimeHelper.upsertContext(contextEntity);
 
         // 检索：按库各自用自己的向量模型 + 文档范围（避免跨库向量模型不一致）
         List<Content> hits = new ArrayList<>();
@@ -155,6 +147,7 @@ public class DatasetNode implements IWorkflowNode {
         // 可选 rerank
         List<String> passageList = hits.stream().map(c -> c.textSegment().text()).collect(Collectors.toList());
         List<String> finalPassages = passageList;
+        boolean reranked = false;
         if (rerankModelIdInt != null && passageList.size() > 1) {
             try {
                 List<Float> scores = llmService.rerank(question, passageList);
@@ -166,6 +159,7 @@ public class DatasetNode implements IWorkflowNode {
                             .limit(topRank)
                             .map(java.util.AbstractMap.SimpleEntry::getKey)
                             .collect(Collectors.toList());
+                    reranked = true;
                 }
             } catch (Exception e) {
                 log.warn("[DatasetNode] rerank 失败，回退原序: {}", e.getMessage());
@@ -180,22 +174,34 @@ public class DatasetNode implements IWorkflowNode {
         String cell = runtimeVo.getNodeInfo().getId();
         String updated = runtimeHelper.writeVar(contextEntity.getOutputData(), cell,
                 "sys.result", result);
-        updated = runtimeHelper.writeVar(updated, cell, "datasets.search",
-                JSONUtil.toJsonStr(finalPassages));
+        // ★ 修复：结构化召回片段 + count + rerank 标记，替代原冗余/类型不一致的 search/originalResult
+        JSONArray fragmentsArr = JSONUtil.createArray();
+        for (String p : finalPassages) {
+            JSONObject frag = JSONUtil.createObj();
+            frag.set("text", p);
+            fragmentsArr.add(frag);
+        }
+        updated = runtimeHelper.writeVar(updated, cell, "datasets.fragments", fragmentsArr);
+        updated = runtimeHelper.writeVar(updated, cell, "datasets.count", finalPassages.size());
+        updated = runtimeHelper.writeVar(updated, cell, "datasets.reranked", reranked);
         updated = runtimeHelper.writeVar(updated, cell, "datasets.rerankModelId",
                 rerankModelId == null ? "" : rerankModelId);
-        updated = runtimeHelper.writeVar(updated, cell, "datasets.originalResult", finalPassages);
+        updated = runtimeHelper.writeVar(updated, cell, "datasets.question", question);
         contextEntity.setOutputData(updated);
+
+        // 调试：节点耗时 + 检索问题写进 modelData
+        long costMs = System.currentTimeMillis() - startTime;
+        contextEntity.setModelData(runtimeHelper.withCostMs(contextEntity.getModelData(), costMs));
         runtimeContextMapper.updateById(contextEntity);
 
         // 若下一节点是 Answer 且引用本节点输出，则把检索结果推给前端
         NextAnswerNodeVo next = runtimeHelper.checkNextIsAnswerNode(runtimeVo);
         if (next.isNodeIsAnswer() && next.getAnswerType() == 1) {
-            sseHelper.sendAnswerChunk(emitter, runtimeVo.getRuntimeId(),
+            sseHelper.sendAnswerChunk(runtimeVo.getEmitter(), runtimeVo.getRuntimeId(),
                     runtimeVo.getNodeInfo().getId(), result);
         }
 
-        latch.countDown();
+        runtimeVo.getLatch().countDown();
         return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
     }
 

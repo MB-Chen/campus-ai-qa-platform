@@ -4072,3 +4072,7 @@ COMMENT ON TABLE "public"."workflow_runtime_context" IS '编排流程运行时�
 ALTER TABLE "public"."workflow" ADD CONSTRAINT "workflow_pkey" PRIMARY KEY ("id");
 ALTER TABLE "public"."workflow_runtime" ADD CONSTRAINT "workflow_runtime_pkey" PRIMARY KEY ("id");
 ALTER TABLE "public"."workflow_runtime_context" ADD CONSTRAINT "workflow_runtime_context_pkey" PRIMARY KEY ("id");
+
+-- ★ Bug C 修复：唯一约束，保证 (runtime_id, cell) 仅一行，防止汇合点/重复入边落多行。
+ALTER TABLE "public"."workflow_runtime_context"
+  ADD CONSTRAINT "uniq_workflow_runtime_context_runtime_cell" UNIQUE ("runtime_id", "cell");

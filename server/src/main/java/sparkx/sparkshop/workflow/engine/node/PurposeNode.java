@@ -11,11 +11,9 @@ package sparkx.sparkshop.workflow.engine.node;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
@@ -30,7 +28,6 @@ import sparkx.sparkshop.workflow.vo.NodeRuntimeVo;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,12 +50,6 @@ public class PurposeNode implements IWorkflowNode {
     @Autowired
     private WorkflowRuntimeHelper runtimeHelper;
 
-    @Setter
-    public SseEmitter emitter;
-
-    @Setter
-    public CountDownLatch latch;
-
     @Override
     public List<EdgeVo> handle(NodeRuntimeVo runtimeVo) {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
@@ -66,6 +57,7 @@ public class PurposeNode implements IWorkflowNode {
         Integer modelId = parseModelId(modelInfo == null ? null : modelInfo.getStr("modelId"));
         double temperature = modelInfo != null && modelInfo.getDouble("temperature") != null
                 ? modelInfo.getDouble("temperature") : 0.0;
+        long startTime = System.currentTimeMillis();
 
         // 拼分类清单
         JSONArray cateList = nodeObject.getJSONArray("cateList");
@@ -105,6 +97,17 @@ public class PurposeNode implements IWorkflowNode {
         }
         int index = parseIndex(answer, cateList.size());
 
+        // 调试：把分类过程（prompt / 原始回复 / 命中索引+名称 / 耗时）写进 modelData，
+        // 让执行详情能展示「为什么分到这个类」
+        long costMs = System.currentTimeMillis() - startTime;
+        java.util.Map<String, Object> debugExtra = new java.util.HashMap<>();
+        debugExtra.put("prompt", prompt);
+        debugExtra.put("rawAnswer", answer);
+        debugExtra.put("hitIndex", index);
+        debugExtra.put("hitName", cateList.getJSONObject(index).getStr("name"));
+        debugExtra.put("costMs", costMs);
+        String modelDataWithDebug = runtimeHelper.mergeModelData(nodeObject.toString(), debugExtra);
+
         // 落库：sys.purposeName 写入本节点分区
         WorkflowRuntimeContext contextEntity = new WorkflowRuntimeContext();
         contextEntity.setStep(context.getStep() + 1);
@@ -113,9 +116,10 @@ public class PurposeNode implements IWorkflowNode {
         contextEntity.setOutputData(runtimeHelper.writeVar(context.getOutputData(),
                 runtimeVo.getNodeInfo().getId(), "sys.purposeName",
                 cateList.getJSONObject(index).getStr("name")));
+        contextEntity.setModelData(modelDataWithDebug);
         contextEntity.setCell(runtimeVo.getNodeInfo().getId());
         contextEntity.setCreatedAt(LocalDateTime.now());
-        runtimeContextMapper.insert(contextEntity);
+        runtimeHelper.upsertContext(contextEntity);
 
         // 按右侧桩顺序匹配分支
         List<EdgeVo> nextEdgeList = runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
@@ -128,7 +132,7 @@ public class PurposeNode implements IWorkflowNode {
 
         List<EdgeVo> ret = new LinkedList<>();
         ret.add(next);
-        latch.countDown();
+        runtimeVo.getLatch().countDown();
         return ret;
     }
 

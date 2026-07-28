@@ -199,6 +199,67 @@ public class WorkflowRuntimeHelper {
     }
 
     /**
+     * 把节点耗时（costMs）及任意额外调试字段合并进 modelData（保留原有内容）。
+     * <p>用于执行详情按节点展示耗时，不改表结构——costMs 寄生在 modelData 的 JSON 里。
+     *
+     * @param modelData 原 modelData（JSON 字符串，可为空）
+     * @param costMs    节点耗时（毫秒）
+     * @return 合并后的 modelData JSON 字符串
+     */
+    public String withCostMs(String modelData, long costMs) {
+        JSONObject obj = (modelData == null || modelData.isBlank())
+                ? JSONUtil.createObj() : JSONUtil.parseObj(modelData);
+        obj.set("costMs", costMs);
+        return obj.toString();
+    }
+
+    /**
+     * 按 (runtimeId, cell) 落库上下文：存在则更新，不存在则插入。
+     * <p>★ Bug C 修复：原各节点直接 {@code insert}，表无 (runtime_id, cell) 唯一约束时，
+     * 同一节点（尤其汇合点 / 重复入边）会落多行，导致 {@link #getRuntimeContext} 兜底取首行串数据。
+     * 配合迁移脚本加的唯一约束，这里用 upsert 保证「同一 runtime + cell 仅一行」。
+     * <p>注意：step 字段不参与更新匹配（同一节点不同次执行的 step 可能不同），update 时保留 entity 里的值。
+     *
+     * @param entity 待落库的上下文（需有 runtimeId + cell）
+     */
+    public void upsertContext(WorkflowRuntimeContext entity) {
+        if (entity == null || entity.getRuntimeId() == null || entity.getCell() == null) {
+            return;
+        }
+        Long count = runtimeContextMapper.selectCount(
+                new LambdaQueryWrapper<WorkflowRuntimeContext>()
+                        .eq(WorkflowRuntimeContext::getRuntimeId, entity.getRuntimeId())
+                        .eq(WorkflowRuntimeContext::getCell, entity.getCell()));
+        if (count != null && count > 0) {
+            runtimeContextMapper.update(entity,
+                    new LambdaQueryWrapper<WorkflowRuntimeContext>()
+                            .eq(WorkflowRuntimeContext::getRuntimeId, entity.getRuntimeId())
+                            .eq(WorkflowRuntimeContext::getCell, entity.getCell()));
+        } else {
+            runtimeContextMapper.insert(entity);
+        }
+    }
+
+    /**
+     * 把一组调试字段合并进 modelData（保留原有内容，已有 key 会被覆盖）。
+     *
+     * @param modelData 原 modelData（JSON 字符串，可为空）
+     * @param extra     待合并字段（key→value）
+     * @return 合并后的 modelData JSON 字符串
+     */
+    public String mergeModelData(String modelData, Map<String, Object> extra) {
+        if (extra == null || extra.isEmpty()) {
+            return modelData;
+        }
+        JSONObject obj = (modelData == null || modelData.isBlank())
+                ? JSONUtil.createObj() : JSONUtil.parseObj(modelData);
+        for (Map.Entry<String, Object> e : extra.entrySet()) {
+            obj.set(e.getKey(), e.getValue());
+        }
+        return obj.toString();
+    }
+
+    /**
      * 取所有上游产出（用于 Answer 节点多变量聚合渲染等）。
      *
      * @return cellId → 该节点产出的 JSONObject

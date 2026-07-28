@@ -11,12 +11,10 @@ package sparkx.sparkshop.workflow.engine.node;
 
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import sparkx.sparkshop.workflow.engine.AnswerMergeState;
 import sparkx.sparkshop.workflow.engine.IWorkflowNode;
 import sparkx.sparkshop.workflow.engine.WorkflowRuntimeHelper;
 import sparkx.sparkshop.workflow.engine.WorkflowSseHelper;
@@ -28,7 +26,6 @@ import sparkx.sparkshop.workflow.vo.NodeRuntimeVo;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
 
 /**
@@ -37,6 +34,11 @@ import java.util.regex.Pattern;
  *   <li>answerType=1：引用上游节点输出变量（支持多上游，模板 answerTemplate 用 {{var}} 聚合）</li>
  *   <li>answerType=2：静态文本</li>
  * </ul>
+ * <p>
+ * <b>汇合点延迟执行（Bug B 修复）</b>：Answer 作为多条入边的汇聚点时，{@code FlowNodeParser.execute}
+ * 会在不同递归层各调用一次 handle（每条入边一次）。本节点用 {@link AnswerMergeState} 累积上游到达，
+ * 只有当「已到达上游数 == 入边总数」时才真正生成回复；之前的调用只做合并累加。
+ * <p>
  * 若上游节点已经流推过（如 LLM 直连 Answer 且引用其输出），则不再重复推。
  */
 @Slf4j
@@ -54,44 +56,47 @@ public class AnswerNode implements IWorkflowNode {
     @Autowired
     private WorkflowRuntimeHelper runtimeHelper;
 
-    @Setter
-    public SseEmitter emitter;
-
-    @Setter
-    public CountDownLatch latch;
-
     @Override
     public List<EdgeVo> handle(NodeRuntimeVo runtimeVo) {
+        long startTime = System.currentTimeMillis();
         try {
             JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
             Integer answerType = nodeObject.getInt("answerType");
 
-            // 幂等保护：Answer 处于汇合点时会被多个入边各调一次，只让首次调用真正执行。
-            // 通过本节点 cell 是否已有落库行判断。
-            Long existed = runtimeContextMapper.selectCount(
-                    new LambdaQueryWrapper<WorkflowRuntimeContext>()
-                            .eq(WorkflowRuntimeContext::getRuntimeId, runtimeVo.getRuntimeId())
-                            .eq(WorkflowRuntimeContext::getCell, runtimeVo.getNodeInfo().getId()));
-            if (existed != null && existed > 0) {
-                latch.countDown();
+            // ====== Bug B 修复：入边计数 + 延迟执行 ======
+            // Answer 处于汇合点时会被多个上游入边各调一次。每次调用先把当前上游产出合并进 mergeState，
+            // 然后判断是否所有上游都已到达；未到齐则只累加后返回，不生成回复/不落库/不推 SSE。
+            int inDegree = runtimeVo.getInDegree();
+            AnswerMergeState mergeState = runtimeVo.getMergeState();
+
+            // 取本次上游（sourceId）的上下文 outputData，合并进 mergeState
+            WorkflowRuntimeContext sourceCtx = runtimeHelper.getRuntimeContext(
+                    runtimeVo.getRuntimeId(), runtimeVo.getSourceId(),
+                    runtimeVo.getSourceId());
+            String sourceOutput = sourceCtx != null ? sourceCtx.getOutputData() : null;
+            boolean newSource = mergeState.arrive(runtimeVo.getSourceId(), sourceOutput);
+
+            // 已到达不同上游数（去重后）。未达入边总数 → 仅累加，放行本层 latch 后返回。
+            int arrived = mergeState.arrivedCount();
+            if (inDegree > 0 && arrived < inDegree) {
+                runtimeVo.getLatch().countDown();
                 return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
             }
-            // 多输入变量列表（Q3/Q4：Answer 可引用多个上游输出）
+
+            // ====== 所有上游已到齐（或单入边），真正生成回复 ======
+            // 多输入变量列表（Answer 可引用多个上游输出）
             java.util.List<java.util.Map<String, String>> inputs = runtimeHelper.readInputList(nodeObject);
-            String firstSourceId = inputs.isEmpty() ? "" : inputs.get(0).get("nodeId");
+            // 合并后的 outputData（含所有上游分区 + 全局 sys.*）
+            String mergedOutput = mergeState.getMergedOutput();
 
-            // Answer 可能有多个上游（如 Switch 后 LLM1+LLM2），每个上游各调一次 handle。
-            // 为了聚合所有上游输出，合并各引用变量对应上游上下文的 outputData。
-            String mergedOutput = mergeUpstreamOutputs(runtimeVo, inputs);
-
-            WorkflowRuntimeContext context = runtimeHelper.getRuntimeContext(
-                    runtimeVo.getRuntimeId(), runtimeVo.getSourceId(), firstSourceId);
-            if (context == null) {
-                return null;
-            }
-
+            // 落库行（汇合点只 insert 一次——这里已经是最后一次调用）
             WorkflowRuntimeContext contextEntity = new WorkflowRuntimeContext();
-            contextEntity.setStep(context.getStep() + 1);
+            // step 取首个上游的 step +1（上游都已落库，取任一即可）
+            if (sourceCtx != null) {
+                contextEntity.setStep(sourceCtx.getStep() + 1);
+            } else {
+                contextEntity.setStep(1);
+            }
             contextEntity.setNodeType(NodeTypeEnum.ANSWER.getCode());
             contextEntity.setRuntimeId(runtimeVo.getRuntimeId());
 
@@ -100,11 +105,10 @@ public class AnswerNode implements IWorkflowNode {
                 // 引用变量
                 String template = nodeObject.getStr("answerTemplate");
                 if (template != null && !template.isBlank()) {
-                    // 模板模式：{{n}} 取第 n 个引用变量值（按 inputData 顺序，区分同字段不同节点）；
-                    //          {{field}} 跨分区解析（取首个命中）
+                    // 模板模式：{{n}} 取第 n 个引用变量值；{{field}} 跨分区解析（取首个命中）
                     answer = renderTemplate(template, mergedOutput, inputs);
                 } else if (inputs.size() > 1) {
-                    // 多变量无模板：按顺序拼接（每个变量值各占一段，便于追溯）
+                    // 多变量无模板：按顺序拼接
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < inputs.size(); i++) {
                         String v = runtimeHelper.readVar(mergedOutput,
@@ -124,14 +128,15 @@ public class AnswerNode implements IWorkflowNode {
 
                 // 仅当首个引用的上游不是「已经流推过的那个 cell」时才补推
                 // （LLM 节点 needStream 时已把内容流推给前端，避免重复）
-                if (!firstSourceId.equals(context.getCell())) {
-                    sseHelper.sendAnswerChunk(emitter, runtimeVo.getRuntimeId(),
+                String firstSourceId = inputs.isEmpty() ? "" : inputs.get(0).get("nodeId");
+                if (!firstSourceId.equals(sourceCtx != null ? sourceCtx.getCell() : null)) {
+                    sseHelper.sendAnswerChunk(runtimeVo.getEmitter(), runtimeVo.getRuntimeId(),
                             runtimeVo.getNodeInfo().getId(), answer);
                 }
             } else {
                 // 静态文本
                 answer = nodeObject.getStr("answer") == null ? "" : nodeObject.getStr("answer");
-                sseHelper.sendAnswerChunk(emitter, runtimeVo.getRuntimeId(),
+                sseHelper.sendAnswerChunk(runtimeVo.getEmitter(), runtimeVo.getRuntimeId(),
                         runtimeVo.getNodeInfo().getId(), answer);
             }
 
@@ -139,51 +144,25 @@ public class AnswerNode implements IWorkflowNode {
             contextEntity.setOutputData(runtimeHelper.writeVar(mergedOutput,
                     runtimeVo.getNodeInfo().getId(), "sys.answer", answer));
             contextEntity.setCell(runtimeVo.getNodeInfo().getId());
+            // 调试：回复类型 + 耗时写进 modelData
+            long costMs = System.currentTimeMillis() - startTime;
+            java.util.Map<String, Object> answerDebug = new java.util.HashMap<>();
+            answerDebug.put("answerType", answerType == null ? 0 : answerType);
+            answerDebug.put("answerTypeLabel", answerType != null && answerType == 1 ? "引用变量" : "静态文本");
+            answerDebug.put("costMs", costMs);
+            answerDebug.put("inDegree", inDegree);
+            contextEntity.setModelData(
+                    runtimeHelper.mergeModelData(nodeObject.toString(), answerDebug));
             contextEntity.setCreatedAt(LocalDateTime.now());
-            runtimeContextMapper.insert(contextEntity);
+            // ★ Bug C 配合：用 upsert 防止汇合点极端时序下重复落库
+            runtimeHelper.upsertContext(contextEntity);
         } catch (Exception e) {
             log.error("[AnswerNode] 回复节点异常: {}", e.getMessage(), e);
-            sseHelper.sendError(emitter, "回复节点异常：" + e.getMessage());
+            sseHelper.sendError(runtimeVo.getEmitter(), "回复节点异常：" + e.getMessage());
         }
 
-        latch.countDown();
+        runtimeVo.getLatch().countDown();
         return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
-    }
-
-    /**
-     * 合并所有引用变量对应上游上下文的 outputData。
-     * <p>Answer 处于汇合点时（如 Switch 后 LLM1+LLM2），每个上游 context 只含自己分支的分区输出，
-     * 必须把各上游 outputData 的 node.* 分区合并到一起，才能在模板/拼接时取到全部上游产出。
-     *
-     * @param runtimeVo 节点运行时
-     * @param inputs    本节点引用的输入变量列表
-     * @return 合并后的 outputData JSON 字符串
-     */
-    private String mergeUpstreamOutputs(NodeRuntimeVo runtimeVo,
-                                        java.util.List<java.util.Map<String, String>> inputs) {
-        JSONObject merged = JSONUtil.createObj();
-        // 先取当前 sourceId 上下文（含全局 sys.* + 该上游分区）
-        WorkflowRuntimeContext ctx = runtimeHelper.getRuntimeContext(
-                runtimeVo.getRuntimeId(), runtimeVo.getSourceId(), "");
-        if (ctx != null && ctx.getOutputData() != null) {
-            merged = JSONUtil.parseObj(ctx.getOutputData());
-        }
-        // 再把其它引用的上游（非当前 sourceId）分区补进来
-        for (java.util.Map<String, String> in : inputs) {
-            String nodeId = in.get("nodeId");
-            if (nodeId == null || nodeId.equals(runtimeVo.getSourceId())) {
-                continue;
-            }
-            WorkflowRuntimeContext up = runtimeHelper.getRuntimeContext(
-                    runtimeVo.getRuntimeId(), nodeId, nodeId);
-            if (up == null || up.getOutputData() == null) continue;
-            JSONObject upObj = JSONUtil.parseObj(up.getOutputData());
-            JSONObject upPartition = upObj.getJSONObject("node." + nodeId);
-            if (upPartition != null) {
-                merged.set("node." + nodeId, upPartition);
-            }
-        }
-        return merged.toString();
     }
 
     /**
@@ -193,7 +172,7 @@ public class AnswerNode implements IWorkflowNode {
      *   <li>{{field}}：跨上游分区解析（取首个命中）</li>
      * </ul>
      *
-     * @param outputData 上游 outputData JSON
+     * @param outputData 合并后的上游 outputData JSON
      * @param inputs     本节点引用的输入变量列表
      */
     private String renderTemplate(String template, String outputData,

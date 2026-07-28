@@ -18,14 +18,9 @@
         <span class="logic" v-if="item.switch === 1">AND</span>
         <span class="logic" v-if="item.switch === 2">OR</span>
       </div>
-      <div
-        class="flex-center tips-item"
-        v-for="(item2, index2) in item.data"
-        :key="index2"
-      >
+      <div class="flex-center tips-item" v-for="(item2, index2) in item.data" :key="index2">
         <span class="line1 cond-text"
-          >{{ condField(item2.input) }} {{ optionsMap.get(item2.tips) }}
-          {{ item2.value }}</span
+          >{{ condField(item2.input) }} {{ optionsMap.get(item2.tips) }} {{ item2.value }}</span
         >
       </div>
     </div>
@@ -120,6 +115,37 @@
     });
   }
 
+  /**
+   * 同步输出端口数量 == ifBranch.length + 1（末位为 ELSE）。
+   * 新建节点初始只有 2 个端口；用户增删分支后需要动态补齐/裁剪。
+   */
+  function syncOutputPorts(node) {
+    const data = node.getData();
+    const expected = (data.ifBranch || []).length + 1; // +1 = ELSE
+    if (expected <= 1) return;
+
+    const outputPorts = node.getPorts().filter((p) => p.type === 'output');
+    const current = outputPorts.length;
+
+    if (current < expected) {
+      // 端口不足 → 补齐
+      for (let i = current; i < expected; i++) {
+        node.addPort({
+          group: 'rightPorts',
+          args: { x: NODE_WIDTH, y: 80 + i * 50 }, // 临时位置，随后 doAlignPorts 精调
+          type: 'output',
+          id: `out-${i}`,
+        });
+      }
+    } else if (current > expected) {
+      // 端口过多 → 从末尾移除
+      for (let i = current - 1; i >= expected; i--) {
+        const port = outputPorts[i];
+        if (port) node.removePort(port.id);
+      }
+    }
+  }
+
   function doAlignPorts(node, el) {
     const branchBlocks = el.querySelectorAll('.branch-block');
     const elseBlock = el.querySelector('.else-block');
@@ -142,9 +168,7 @@
       let targetEl;
       if (outIdx < branchBlocks.length) {
         // IF / ELSEIF → 对齐到分支标题行
-        targetEl =
-          branchBlocks[outIdx].querySelector('.branch-head') ||
-          branchBlocks[outIdx];
+        targetEl = branchBlocks[outIdx].querySelector('.branch-head') || branchBlocks[outIdx];
       } else {
         targetEl = elseBlock; // ELSE
       }
@@ -153,8 +177,7 @@
       const targetRect = targetEl.getBoundingClientRect();
       // 视口坐标差值 / 缩放 + 微调偏移 = 端口逻辑 Y 坐标
       const y = Math.round(
-        (targetRect.top - nodeRect.top + targetRect.height / 2) / scale +
-          PORT_Y_OFFSET,
+        (targetRect.top - nodeRect.top + targetRect.height / 2) / scale + PORT_Y_OFFSET
       );
 
       node.portProp(port.id, 'args', { x: NODE_WIDTH, y });
@@ -172,6 +195,8 @@
     nodeInnerData.value = current;
     // 数据变化（如上游节点改了输出变量）后刷新中文名映射
     rebuildFieldMap();
+    // 先同步端口数量（增删分支后端口数必须 == ifBranch.length + 1），再对齐位置
+    syncOutputPorts(node);
     alignOutputPorts();
   });
 
@@ -179,6 +204,8 @@
   let ro = null;
   let alignTimer = null;
   onMounted(() => {
+    // 挂载时先保证端口数量正确（历史数据/初始 2 个端口的情况）
+    syncOutputPorts(node);
     alignOutputPorts();
     // 拖拽新建时画布缩放/位置可能还没稳定，延迟 300ms 再对齐一次
     alignTimer = setTimeout(() => alignOutputPorts(), 300);

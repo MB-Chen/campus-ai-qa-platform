@@ -117,10 +117,8 @@ public class WorkflowChatService {
         emitter.onTimeout(emitter::complete);
         emitter.onError(t -> log.warn("[WorkflowChat] SSE 异常: {}", t.getMessage()));
 
-        // 触发异步执行
-        flowNodeParser.setEmitter(emitter);
-        flowNodeParser.setRuntimeId(runtime.getId());
-        flowNodeParser.run(wf.getFlowData(), userId, sessionId);
+        // 触发异步执行（emitter/runtimeId 通过 run() 参数传递，不再 setter 注入单例）
+        flowNodeParser.run(emitter, runtime.getId(), wf.getFlowData(), userId, sessionId);
 
         return emitter;
     }

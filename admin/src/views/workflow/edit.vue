@@ -1,11 +1,6 @@
 <template>
   <div class="wf-editor">
-    <top-menu
-      class="top-menu"
-      @debug="debugHandle"
-      @save="saveHandle"
-      @back="backHandle"
-    />
+    <top-menu class="top-menu" @debug="debugHandle" @save="saveHandle" @back="backHandle" />
 
     <div
       ref="containerRef"
@@ -14,11 +9,7 @@
       @dragover="onCanvasDragOver"
     ></div>
 
-    <menu-box
-      v-if="menuVisible"
-      class="add-menu-box"
-      @add-node="addNodeHandle"
-    />
+    <menu-box v-if="menuVisible" class="add-menu-box" @add-node="addNodeHandle" />
 
     <n-modal
       v-model:show="runtimeVisible"
@@ -91,11 +82,7 @@
   import runtimeBox from './menu/runtime.vue';
   import inputDataUtil from './inputData.js';
   import nodeCheck from './nodeCheck.js';
-  import {
-    getWorkflowInfo,
-    saveWorkflow,
-    editWorkflowMeta,
-  } from '@/api/system/workflow';
+  import { getWorkflowInfo, saveWorkflow, editWorkflowMeta } from '@/api/system/workflow';
 
   const route = useRoute();
   const router = useRouter();
@@ -266,10 +253,20 @@
         cont.style.maxHeight = 'none';
       }
       const grid = cont?.querySelector('.x6-graph-grid');
-      console.log('[edit] syncGraphSize', tag, 'resize', w, 'x', h,
-        '| containerOffsetW', cont?.offsetWidth,
-        '| gridOffsetW', grid?.offsetWidth,
-        '| computedMaxW', cont ? getComputedStyle(cont).maxWidth : null);
+      console.log(
+        '[edit] syncGraphSize',
+        tag,
+        'resize',
+        w,
+        'x',
+        h,
+        '| containerOffsetW',
+        cont?.offsetWidth,
+        '| gridOffsetW',
+        grid?.offsetWidth,
+        '| computedMaxW',
+        cont ? getComputedStyle(cont).maxWidth : null
+      );
     }
   }
   function onWinResize() {
@@ -314,7 +311,12 @@
   function getNodeInputData() {
     if (nowNode.value && graphRef.value) {
       inputOptions.value = inputDataUtil.getNodeInputData(nowNode.value, graphRef.value);
-      console.log('[edit] inputOptions 已赋值, 长度:', inputOptions.value?.length, '内容:', JSON.stringify(inputOptions.value)?.slice(0, 300));
+      console.log(
+        '[edit] inputOptions 已赋值, 长度:',
+        inputOptions.value?.length,
+        '内容:',
+        JSON.stringify(inputOptions.value)?.slice(0, 300)
+      );
     }
   }
 
@@ -343,11 +345,7 @@
       y += (Math.random() - 0.5) * 60;
     }
     graphRef.value.addNode(
-      JSON.parse(
-        JSON.stringify(
-          defaultNodeConfig[type + 'Node'](x, y, nodeNoData.value[type]),
-        ),
-      ),
+      JSON.parse(JSON.stringify(defaultNodeConfig[type + 'Node'](x, y, nodeNoData.value[type])))
     );
   }
 
@@ -401,6 +399,10 @@
     if (res && res.code === 0 && res.data && res.data.flowData) {
       flowData.value = JSON.parse(res.data.flowData);
       graphRef.value.fromJSON(flowData.value);
+      // fromJSON 后节点位置可能偏离可视区，主动居中
+      requestAnimationFrame(() => {
+        graphRef.value?.centerContent();
+      });
       // 统计节点数
       nodeNoData.value = {};
       flowData.value.cells.forEach((node) => {
@@ -425,7 +427,8 @@
       flowData: JSON.stringify(graphRef.value.toJSON()),
     });
     if (res && res.code === 0) {
-      if (!silent) message.success(res.message || '保存成功');
+      // 后端 message 可能是英文（如 "success"），统一展示中文提示
+      if (!silent) message.success('保存成功');
       return true;
     } else {
       message.error(res?.message || '保存失败');

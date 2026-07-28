@@ -10,11 +10,9 @@
 package sparkx.sparkshop.workflow.engine.node;
 
 import cn.hutool.json.JSONObject;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.knowledge.agent.AgentChatService;
 import sparkx.sparkshop.knowledge.entity.KnowledgeAgent;
@@ -31,7 +29,6 @@ import sparkx.sparkshop.workflow.vo.NodeRuntimeVo;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * 智能体节点。委托给 spark-x 的 {@link AgentChatService#chatSync} 跑完整 RAG 链路，
@@ -56,15 +53,10 @@ public class AgentNode implements IWorkflowNode {
     @Autowired
     private WorkflowSseHelper sseHelper;
 
-    @Setter
-    public SseEmitter emitter;
-
-    @Setter
-    public CountDownLatch latch;
-
     @Override
     public List<EdgeVo> handle(NodeRuntimeVo runtimeVo) {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
+        long startTime = System.currentTimeMillis();
         // 取首个输入变量 {nodeId, field}
         java.util.List<java.util.Map<String, String>> inputs = runtimeHelper.readInputList(nodeObject);
         String inputSourceId = inputs.isEmpty() ? "" : inputs.get(0).get("nodeId");
@@ -95,7 +87,7 @@ public class AgentNode implements IWorkflowNode {
         contextEntity.setOutputData(context.getOutputData());
         contextEntity.setCell(runtimeVo.getNodeInfo().getId());
         contextEntity.setCreatedAt(LocalDateTime.now());
-        runtimeContextMapper.insert(contextEntity);
+        runtimeHelper.upsertContext(contextEntity);
 
         // 同步跑智能体（复用 RAG 全链路：检索/记忆/兜底）
         AgentChatService.ChatResult result;
@@ -114,16 +106,19 @@ public class AgentNode implements IWorkflowNode {
                 "agent.input", question);
         updated = runtimeHelper.writeVar(updated, cell, "sys.agentContent", answer);
         contextEntity.setOutputData(updated);
+        // 调试：节点耗时写进 modelData
+        long costMs = System.currentTimeMillis() - startTime;
+        contextEntity.setModelData(runtimeHelper.withCostMs(contextEntity.getModelData(), costMs));
         runtimeContextMapper.updateById(contextEntity);
 
         // 下游是 Answer 且引用本节点输出 → 推前端
         NextAnswerNodeVo next = runtimeHelper.checkNextIsAnswerNode(runtimeVo);
         if (next.isNodeIsAnswer() && next.getAnswerType() == 1) {
-            sseHelper.sendAnswerChunk(emitter, runtimeVo.getRuntimeId(),
+            sseHelper.sendAnswerChunk(runtimeVo.getEmitter(), runtimeVo.getRuntimeId(),
                     runtimeVo.getNodeInfo().getId(), answer);
         }
 
-        latch.countDown();
+        runtimeVo.getLatch().countDown();
         return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
     }
 }

@@ -75,6 +75,37 @@
     });
   }
 
+  /**
+   * 同步输出端口数量 == cateList.length。
+   * 新建节点初始只有 1 个端口；用户增删分类后需要动态补齐/裁剪。
+   */
+  function syncOutputPorts(node) {
+    const data = node.getData();
+    const expected = (data.cateList || []).length;
+    if (expected <= 0) return;
+
+    const outputPorts = node.getPorts().filter((p) => p.type === 'output');
+    const current = outputPorts.length;
+
+    if (current < expected) {
+      // 端口不足 → 补齐
+      for (let i = current; i < expected; i++) {
+        node.addPort({
+          group: 'rightPorts',
+          args: { x: NODE_WIDTH, y: 100 + i * 46 }, // 临时位置，随后 doAlignPorts 精调
+          type: 'output',
+          id: `out-${i}`,
+        });
+      }
+    } else if (current > expected) {
+      // 端口过多 → 从末尾移除
+      for (let i = current - 1; i >= expected; i--) {
+        const port = outputPorts[i];
+        if (port) node.removePort(port.id);
+      }
+    }
+  }
+
   function doAlignPorts(node, el) {
     const cateItems = el.querySelectorAll('.cate-item');
     if (!cateItems.length) return;
@@ -97,8 +128,7 @@
       const targetEl = cateItems[outIdx];
       const targetRect = targetEl.getBoundingClientRect();
       const y = Math.round(
-        (targetRect.top - nodeRect.top + targetRect.height / 2) / scale +
-          PORT_Y_OFFSET
+        (targetRect.top - nodeRect.top + targetRect.height / 2) / scale + PORT_Y_OFFSET
       );
       node.portProp(port.id, 'args', { x: NODE_WIDTH, y });
       outIdx++;
@@ -113,6 +143,8 @@
   node.on('change:data', ({ current }) => {
     active.value = current.checked;
     nodeInnerData.value = current;
+    // 先同步端口数量（增删分类后端口数必须 == cateList.length），再对齐位置
+    syncOutputPorts(node);
     alignOutputPorts();
   });
 
@@ -120,6 +152,8 @@
   let ro = null;
   let alignTimer = null;
   onMounted(() => {
+    // 挂载时先保证端口数量正确（历史数据/初始 1 个端口的情况）
+    syncOutputPorts(node);
     alignOutputPorts();
     // 拖拽新建时画布可能还没稳定，延迟 300ms 再对齐一次
     alignTimer = setTimeout(() => alignOutputPorts(), 300);
