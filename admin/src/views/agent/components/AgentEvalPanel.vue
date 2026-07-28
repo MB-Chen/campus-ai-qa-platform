@@ -1,122 +1,123 @@
 <template>
-  <n-modal
-    v-model:show="show"
-    preset="card"
-    :title="`评估报告 · ${agent?.name || ''}`"
-    style="width: 980px"
-    :mask-closable="false"
-    @after-leave="onClose"
-  >
-    <div class="eval-wrap">
-      <!-- 测试集编辑区 -->
-      <n-card size="small" title="测试问题集" :bordered="false" class="mb-3">
-        <template #header-extra>
-          <n-space size="small">
-            <n-button size="small" quaternary type="primary" :loading="seeding" @click="onGenSeed">
-              AI 生成测试集
-            </n-button>
-            <n-button
-              size="small"
-              type="primary"
-              secondary
-              strong
-              :loading="running"
-              :disabled="cases.length === 0"
-              @click="onRunEval"
-            >
-              开始评估
-            </n-button>
-          </n-space>
-        </template>
-        <n-data-table
-          :columns="caseColumns"
-          :data="cases"
-          :pagination="false"
-          size="small"
-          :max-height="200"
-        />
-      </n-card>
-
-      <!-- 报告区 -->
-      <template v-if="report">
-        <!-- 总评条 -->
-        <n-alert :type="gradeAlertType(report.grade)" :show-icon="true" class="mb-3 verdict-bar">
-          <div class="verdict-head">
-            <span class="verdict-badge" :class="'badge-' + report.grade">{{
-              report.gradeLabel || '-'
-            }}</span>
-            <span class="verdict-summary">{{ report.summary }}</span>
-          </div>
-          <ul v-if="report.tips && report.tips.length" class="verdict-tips">
-            <li v-for="(t, i) in report.tips" :key="i">{{ t }}</li>
-          </ul>
-        </n-alert>
-
-        <!-- 指标卡片 -->
-        <n-grid :cols="24" :x-gap="12" :y-gap="12" class="mb-3">
-          <n-gi :span="6">
-            <n-card size="small" class="metric-card">
-              <div class="metric-label">平均综合分</div>
-              <div class="metric-value" :class="scoreClass(report.avgScore)">
-                {{ report.avgScore.toFixed(1) }}<span class="metric-unit">/10</span>
-              </div>
-            </n-card>
-          </n-gi>
-          <n-gi :span="6">
-            <n-card size="small" class="metric-card">
-              <div class="metric-label">用例数</div>
-              <div class="metric-value">{{ report.total }}</div>
-            </n-card>
-          </n-gi>
-          <n-gi :span="6">
-            <n-card size="small" class="metric-card">
-              <div class="metric-label">异常率</div>
-              <div class="metric-value" :class="report.errorRate > 0.1 ? 'rate-low' : ''">
-                {{ (report.errorRate * 100).toFixed(0) }}%
-              </div>
-            </n-card>
-          </n-gi>
-          <n-gi :span="6">
-            <n-card size="small" class="metric-card">
-              <div class="metric-label">耗时</div>
-              <div class="metric-value-sm">{{ (report.costMs / 1000).toFixed(1) }}s</div>
-            </n-card>
-          </n-gi>
-        </n-grid>
-
-        <n-grid :cols="24" :x-gap="12" class="mb-3">
-          <!-- 能力雷达图 -->
-          <n-gi :span="12">
-            <n-card size="small" title="能力雷达（5 维评分）" :bordered="false">
-              <div ref="radarChartRef" style="width: 100%; height: 320px"></div>
-            </n-card>
-          </n-gi>
-          <!-- 分数分布 -->
-          <n-gi :span="12">
-            <n-card size="small" title="综合分分布" :bordered="false">
-              <div ref="barChartRef" style="width: 100%; height: 320px"></div>
-            </n-card>
-          </n-gi>
-        </n-grid>
-
-        <!-- 案例明细 -->
-        <n-card size="small" :bordered="false" title="评估明细">
+  <n-drawer v-model:show="show" :width="1180" :mask-closable="false" @after-leave="onClose">
+    <n-drawer-content :title="`评估报告 · ${agent?.name || ''}`" closable>
+      <div class="eval-wrap">
+        <!-- 测试集编辑区 -->
+        <n-card size="small" title="测试问题集" :bordered="false" class="mb-3">
+          <template #header-extra>
+            <n-space size="small">
+              <n-button
+                size="small"
+                quaternary
+                type="primary"
+                :loading="seeding"
+                @click="onGenSeed"
+              >
+                AI 生成测试集
+              </n-button>
+              <n-button
+                size="small"
+                type="primary"
+                secondary
+                strong
+                :loading="running"
+                :disabled="cases.length === 0"
+                @click="onRunEval"
+              >
+                开始评估
+              </n-button>
+            </n-space>
+          </template>
           <n-data-table
-            :columns="detailColumns"
-            :data="report.details"
-            :pagination="{ pageSize: 10 }"
+            :columns="caseColumns"
+            :data="cases"
+            :pagination="false"
             size="small"
-            :max-height="360"
+            :max-height="200"
           />
         </n-card>
-      </template>
-      <n-empty
-        v-else
-        description="配置测试问题后点击「开始评估」，将用 LLM 对回答多维打分"
-        style="padding: 40px 0"
-      />
-    </div>
-  </n-modal>
+
+        <!-- 报告区 -->
+        <template v-if="report">
+          <!-- 总评条 -->
+          <n-alert :type="gradeAlertType(report.grade)" :show-icon="true" class="mb-3 verdict-bar">
+            <div class="verdict-head">
+              <span class="verdict-badge" :class="'badge-' + report.grade">{{
+                report.gradeLabel || '-'
+              }}</span>
+              <span class="verdict-summary">{{ report.summary }}</span>
+            </div>
+            <ul v-if="report.tips && report.tips.length" class="verdict-tips">
+              <li v-for="(t, i) in report.tips" :key="i">{{ t }}</li>
+            </ul>
+          </n-alert>
+
+          <!-- 指标卡片 -->
+          <n-grid :cols="24" :x-gap="12" :y-gap="12" class="mb-3">
+            <n-gi :span="6">
+              <n-card size="small" class="metric-card">
+                <div class="metric-label">平均综合分</div>
+                <div class="metric-value" :class="scoreClass(report.avgScore)">
+                  {{ report.avgScore.toFixed(1) }}<span class="metric-unit">/10</span>
+                </div>
+              </n-card>
+            </n-gi>
+            <n-gi :span="6">
+              <n-card size="small" class="metric-card">
+                <div class="metric-label">用例数</div>
+                <div class="metric-value">{{ report.total }}</div>
+              </n-card>
+            </n-gi>
+            <n-gi :span="6">
+              <n-card size="small" class="metric-card">
+                <div class="metric-label">异常率</div>
+                <div class="metric-value" :class="report.errorRate > 0.1 ? 'rate-low' : ''">
+                  {{ (report.errorRate * 100).toFixed(0) }}%
+                </div>
+              </n-card>
+            </n-gi>
+            <n-gi :span="6">
+              <n-card size="small" class="metric-card">
+                <div class="metric-label">耗时</div>
+                <div class="metric-value-sm">{{ (report.costMs / 1000).toFixed(1) }}s</div>
+              </n-card>
+            </n-gi>
+          </n-grid>
+
+          <n-grid :cols="24" :x-gap="12" class="mb-3">
+            <!-- 能力雷达图 -->
+            <n-gi :span="12">
+              <n-card size="small" title="能力雷达（5 维评分）" :bordered="false">
+                <div ref="radarChartRef" style="width: 100%; height: 320px"></div>
+              </n-card>
+            </n-gi>
+            <!-- 分数分布 -->
+            <n-gi :span="12">
+              <n-card size="small" title="综合分分布" :bordered="false">
+                <div ref="barChartRef" style="width: 100%; height: 320px"></div>
+              </n-card>
+            </n-gi>
+          </n-grid>
+
+          <!-- 案例明细 -->
+          <n-card size="small" :bordered="false" title="评估明细">
+            <n-data-table
+              :columns="detailColumns"
+              :data="report.details"
+              :pagination="{ pageSize: 10 }"
+              size="small"
+              :max-height="360"
+            />
+          </n-card>
+        </template>
+        <n-empty
+          v-else
+          description="配置测试问题后点击「开始评估」，将用 LLM 对回答多维打分"
+          style="padding: 40px 0"
+        />
+      </div>
+    </n-drawer-content>
+  </n-drawer>
 </template>
 
 <script setup lang="ts">
@@ -300,6 +301,8 @@
         const newCases = res.data
           .filter((q: any) => typeof q === 'string' && q.trim())
           .map((q: string) => ({ query: q.trim(), expectedAnswer: '', note: '' }));
+        // 先清掉 open() 插入的空占位行，避免合并后多出空行
+        cases.value = cases.value.filter((c) => c.query && c.query.trim());
         // 合并到现有（去重）
         const exist = new Set(cases.value.map((c) => c.query));
         for (const c of newCases) {
@@ -444,8 +447,18 @@
 </script>
 
 <style lang="less" scoped>
+  :deep(.n-drawer-content) {
+    display: flex;
+    flex-direction: column;
+  }
+  :deep(.n-drawer-body-content-wrapper) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+  }
   .eval-wrap {
-    max-height: 70vh;
+    flex: 1;
     overflow-y: auto;
   }
   .verdict-head {
