@@ -54,6 +54,35 @@
       </div>
     </div>
 
+    <!-- ★ 重排配置：rerank 统一在 LLM 节点做。
+         检索节点只召回候选，本节点融合后按重排模型打分取 top，避免各检索节点各自重排的重复/不一致。 -->
+    <div class="set-content-box">
+      <div class="section-title">召回重排</div>
+      <div class="slider-row">
+        <span class="slider-label">重排模型</span>
+        <n-select
+          v-model:value="form.rerankModelId"
+          :options="rerankOptions"
+          placeholder="不使用重排"
+          clearable
+          :loading="rerankLoading"
+          @update:value="emitChange"
+          style="flex: 1; margin-left: 12px"
+        />
+      </div>
+      <div class="slider-row">
+        <span class="slider-label">重排数量</span>
+        <n-slider
+          v-model:value="form.topRank"
+          :min="1"
+          :max="10"
+          @update:value="emitChange"
+          style="flex: 1; margin: 0 12px"
+        />
+        <span class="slider-val">{{ form.topRank }}</span>
+      </div>
+    </div>
+
     <div class="set-content-box">
       <div class="section-title">角色设置（System）</div>
       <n-input
@@ -87,7 +116,7 @@
           </div>
         </n-popover>
       </div>
-      <div class="prompt-tip" v-pre>用 {{变量}} 引用上游节点输出，留空则用原始问题</div>
+      <div class="prompt-tip" v-pre>用 {{ 变量 }} 引用上游节点输出，留空则用原始问题</div>
       <n-input
         v-model:value="form.userPrompt"
         type="textarea"
@@ -102,7 +131,7 @@
 <script setup>
   import { ref, onMounted } from 'vue';
   import { iconComponent } from '@/views/workflow/icons/index.js';
-  import { getModelList, MODEL_TYPE } from '@/api/system/aiModel';
+  import { getModelList, getRerankModelList, MODEL_TYPE } from '@/api/system/aiModel';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
 
   const meta = iconComponent('llm-node');
@@ -115,12 +144,23 @@
 
   const form = ref(props.formData);
   const modelOptions = ref([]);
+  const rerankOptions = ref([]);
+  const rerankLoading = ref(false);
   const varPick = ref([]);
 
   // 初始化：把字符串 modelId 转成 number 给 n-select
   if (form.value.modelInfo && form.value.modelInfo.modelId) {
     const id = Number(form.value.modelInfo.modelId);
     form.value.modelInfo.modelId = isNaN(id) ? null : id;
+  }
+
+  // ★ rerank 配置兜底：旧节点 data 可能没有 rerankModelId/topRank 字段（迁移自 dataset 节点前），
+  //   补默认值；rerankModelId 空串归一化为 null，让 n-select 能显示 placeholder。
+  if (form.value.rerankModelId === undefined || form.value.rerankModelId === '') {
+    form.value.rerankModelId = null;
+  }
+  if (form.value.topRank == null) {
+    form.value.topRank = 3;
   }
 
   // 模型选项：与知识图谱页一致，label 显示「配置名 / 首个具体模型」，
@@ -138,16 +178,46 @@
     };
   }
 
+  // ★ 重排模型拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
+  //   与 datasetDialog/AgentSaveModal 的 toRerankModelOptions 一致，便于选择具体子模型。
+  function toRerankModelOptions(models) {
+    const opts = [];
+    for (const m of models) {
+      const names = String(m.models || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (names.length === 0) {
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: String(m.id) });
+        continue;
+      }
+      for (const n of names) {
+        opts.push({ label: `${m.name || ''} / ${n}`, value: String(m.id) });
+      }
+    }
+    return opts;
+  }
+
   onMounted(async () => {
     try {
       const res = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = res.data
-          .filter((m) => m && m.id != null)
-          .map(toModelOption);
+        modelOptions.value = res.data.filter((m) => m && m.id != null).map(toModelOption);
       }
     } catch (e) {
       // 忽略
+    }
+    // 重排模型列表（rerank 统一在 LLM 节点配置）
+    rerankLoading.value = true;
+    try {
+      const res = await getRerankModelList();
+      if (res && res.code === 0 && Array.isArray(res.data)) {
+        rerankOptions.value = toRerankModelOptions(res.data.filter((m) => m && m.id != null));
+      }
+    } catch (e) {
+      // 忽略
+    } finally {
+      rerankLoading.value = false;
     }
   });
 

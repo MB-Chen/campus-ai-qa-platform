@@ -63,6 +63,20 @@ public class LlmNode implements IWorkflowNode {
 
     private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{(.*?)\\}\\}");
 
+    /**
+     * ★ 默认知识库问答提示词（用户未配置 userPrompt/systemMsg 时的兜底）。
+     * 强约束 LLM 只依据召回片段回答、不得编造，避免被召回噪声带偏或凭训练常识自由发挥。
+     * 仅在「上游有召回上下文」时启用，纯生成（无召回）场景不套用。
+     */
+    private static final String DEFAULT_KB_SYSTEM_PROMPT =
+            "你是企业知识库助手。请严格根据下方提供的【知识库信息】回答用户问题，"
+            + "禁止使用训练数据中的常识或自行编造。若知识库信息不足以回答，请直接回复"
+            + "「知识库中未找到相关内容」，不要臆测或补充。回答应简洁、准确、紧扣知识库原文。";
+
+    private static final String DEFAULT_KB_USER_TEMPLATE =
+            "【知识库信息】\n{{kbContext}}\n\n【用户问题】\n{{question}}\n\n"
+            + "请仅依据上方【知识库信息】回答，不要编造。";
+
     @Autowired
     private LLMService llmService;
 
@@ -161,12 +175,19 @@ public class LlmNode implements IWorkflowNode {
         String finalUserPrompt = buildUserPrompt(userPrompt, question, preOutput, kbContext);
 
         String systemMsg = modelObject.getStr("systemMsg");
+        // ★ 默认系统提示兜底：用户未配 systemMsg，且本轮有召回上下文（走知识库问答路径）时，
+        //   注入 DEFAULT_KB_SYSTEM_PROMPT 强约束"只依据知识库、不得编造"，避免 LLM 自由发挥。
+        //   纯生成（无召回）场景不套用，保持原行为。
+        boolean hasKbContext = kbContext != null && !kbContext.isBlank();
+        String effectiveSystemMsg = (systemMsg != null && !systemMsg.isBlank())
+                ? systemMsg
+                : (hasKbContext ? DEFAULT_KB_SYSTEM_PROMPT : null);
 
         // 先把渲染后的 prompt 落进 modelData（保留节点原配置，新增 renderedSystemMsg/renderedUserPrompt）
         java.util.Map<String, Object> renderExtra = new HashMap<>();
         renderExtra.put("renderedUserPrompt", finalUserPrompt);
-        if (systemMsg != null && !systemMsg.isBlank()) {
-            renderExtra.put("renderedSystemMsg", systemMsg);
+        if (effectiveSystemMsg != null) {
+            renderExtra.put("renderedSystemMsg", effectiveSystemMsg);
         }
         contextEntity.setModelData(runtimeHelper.mergeModelData(contextEntity.getModelData(), renderExtra));
         runtimeContextMapper.updateById(contextEntity);
@@ -176,8 +197,8 @@ public class LlmNode implements IWorkflowNode {
         //   conversationId，跨轮稳定），多轮记忆才能累积。
         String memoryKey = "wf:" + runtimeVo.getSessionId() + ":" + runtimeVo.getNodeInfo().getId();
         List<ChatMessage> messages = new ArrayList<>();
-        if (systemMsg != null && !systemMsg.isBlank()) {
-            messages.add(SystemMessage.from(systemMsg));
+        if (effectiveSystemMsg != null) {
+            messages.add(SystemMessage.from(effectiveSystemMsg));
         }
         if (memory > 0) {
             try {
@@ -299,14 +320,22 @@ public class LlmNode implements IWorkflowNode {
             Matcher m = VAR_PATTERN.matcher(userPrompt);
             Map<String, Object> vars = new HashMap<>();
             while (m.find()) {
-                vars.put(m.group(1), resolveVar(preOutput, m.group(1)));
+                String varName = m.group(1);
+                // ★ 召回类变量（sys.result）走 kbContext：它已做多源融合 + rerank，
+                //   且能跨上游分区拿到全部召回（resolveVar 只看 preOutput 单分区，
+                //   多入边时另一路 dataset 的召回拿不到，会被空 sys.result 命中导致上下文丢失）。
+                if ("sys.result".equals(varName)) {
+                    vars.put(varName, kbContext == null ? "" : kbContext);
+                } else {
+                    vars.put(varName, resolveVar(preOutput, varName));
+                }
             }
             return tpl.apply(vars).text();
         }
 
         if (kbContext != null && !kbContext.isBlank()) {
-            PromptTemplate tpl = PromptTemplate.from(
-                    "{{question}}\n\n Answer using the following information:\n\n {{kbContext}}");
+            // ★ 默认知识库问答模板：结构化【知识库信息】+【用户问题】，并附"不要编造"约束
+            PromptTemplate tpl = PromptTemplate.from(DEFAULT_KB_USER_TEMPLATE);
             Map<String, Object> vars = new HashMap<>();
             vars.put("question", question == null ? "" : question);
             vars.put("kbContext", kbContext);
@@ -321,14 +350,37 @@ public class LlmNode implements IWorkflowNode {
      *   <li>存在 ≥2 个上游检索源（datasets.fragments / graph.fragments）→ RRF 多源融合</li>
      *   <li>否则沿用旧逻辑（取首个上游分区的 sys.result）</li>
      * </ul>
+     * <p>★ 融合后统一 rerank：当本节点配置了 rerankModelId 时，对融合（或单源）后的片段列表
+     * 再做一次重排，按分数降序取 topK。这能修正「上游各检索节点 rerank 粒度/阈值不一致、
+     * 或 graph 节点未 rerank」导致的噪声混入——在喂给 LLM 之前统一把关。
      */
     private String resolveKbContext(JSONObject preOutput, NodeRuntimeVo runtimeVo) {
         List<RetrieverSource> sources = collectRetrieverSources(preOutput, runtimeVo);
+        List<String> passages;
         if (sources.size() >= 2) {
             log.info("[LlmNode] 检测到 {} 个上游召回源，执行 RRF 多源融合", sources.size());
-            return rrfFuse(sources);
+            passages = rrfFuse(sources);
+        } else if (sources.size() == 1) {
+            // 单源：直接从该源的 fragments 取文本（collectRetrieverSources 已通过 edges
+            // 扫描拿到所有上游分区，含 preOutput 里没有的另一路检索节点产出）。
+            passages = new ArrayList<>();
+            JSONArray frags = sources.get(0).fragments;
+            for (int i = 0; i < frags.size(); i++) {
+                JSONObject f = frags.getJSONObject(i);
+                if (f != null) {
+                    String t = f.getStr("text");
+                    if (t != null && !t.isBlank()) passages.add(t);
+                }
+            }
+        } else {
+            // 兜底：没有结构化 fragments，尝试读 sys.result（兼容老数据/无 fragments 的节点）
+            String single = resolveVar(preOutput, "sys.result");
+            if (single == null || single.isBlank()) {
+                return "";
+            }
+            passages = splitPassages(single);
         }
-        return resolveVar(preOutput, "sys.result");
+        return joinWithRerank(passages, runtimeVo);
     }
 
     /**
@@ -391,8 +443,9 @@ public class LlmNode implements IWorkflowNode {
      *   <li>k = 20（对齐 RagProperties.Fusion.rrfK 默认，针对小候选池）</li>
      *   <li>同文本跨源累加；按总分降序截断候选池（≤40）</li>
      * </ul>
+     * 返回融合后的片段列表（未 join），供上层在喂给 LLM 前做统一 rerank。
      */
-    private String rrfFuse(List<RetrieverSource> sources) {
+    private List<String> rrfFuse(List<RetrieverSource> sources) {
         final double k = 20.0;
         Map<String, Double> scoreByText = new LinkedHashMap<>();
         for (RetrieverSource src : sources) {
@@ -411,7 +464,75 @@ public class LlmNode implements IWorkflowNode {
         if (sorted.size() > 40) {
             sorted = sorted.subList(0, 40);
         }
-        return String.join("\n", sorted);
+        return sorted;
+    }
+
+    /**
+     * 把片段列表喂给 LLM 前的最后把关：配置了 rerankModelId 时按相关度重排取 topK，
+     * 否则原序拼接。query 取真实问题（上游 sys.question）。
+     */
+    private String joinWithRerank(List<String> passages, NodeRuntimeVo runtimeVo) {
+        if (passages == null || passages.isEmpty()) {
+            return "";
+        }
+        JSONObject nodeData = runtimeVo.getNodeInfo().getData();
+        String rerankModelId = nodeData == null ? null : nodeData.getStr("rerankModelId");
+        Integer rerankModelIdInt = parseModelId(rerankModelId);
+        int topK = nodeData != null && nodeData.getInt("topRank") != null
+                ? nodeData.getInt("topRank") : 3;
+        List<String> finalPassages = passages;
+        if (rerankModelIdInt != null && passages.size() > 1) {
+            try {
+                String question = resolveQuestionForRerank(runtimeVo);
+                List<Float> scores = llmService.rerank(question, passages, rerankModelIdInt);
+                if (scores != null && scores.size() == passages.size()) {
+                    finalPassages = java.util.stream.IntStream.range(0, passages.size())
+                            .mapToObj(i -> new java.util.AbstractMap.SimpleEntry<>(passages.get(i), scores.get(i)))
+                            .sorted((a, b) -> Float.compare(b.getValue(), a.getValue()))
+                            .limit(topK)
+                            .map(java.util.AbstractMap.SimpleEntry::getKey)
+                            .collect(java.util.stream.Collectors.toList());
+                    log.info("[LlmNode] 融合后统一 rerank 完成，rerankModelId={} topK={} 命中={}",
+                            rerankModelIdInt, topK, finalPassages.size());
+                }
+            } catch (Exception e) {
+                log.warn("[LlmNode] 融合后统一 rerank 失败，回退融合原序: {}", e.getMessage());
+            }
+        }
+        return String.join("\n", finalPassages);
+    }
+
+    /** 取 rerank 用的 query：优先上游 sys.question */
+    private String resolveQuestionForRerank(NodeRuntimeVo runtimeVo) {
+        try {
+            JSONObject data = runtimeVo.getNodeInfo().getData();
+            List<Map<String, String>> inputs = runtimeHelper.readInputList(data);
+            if (!inputs.isEmpty()) {
+                String srcId = inputs.get(0).get("nodeId");
+                String field = inputs.get(0).get("field");
+                WorkflowRuntimeContext ctx = runtimeHelper.getRuntimeContext(
+                        runtimeVo.getRuntimeId(), srcId, srcId);
+                if (ctx != null) {
+                    String q = runtimeHelper.readVar(ctx.getOutputData(), srcId, field);
+                    if (q != null && !q.isBlank()) return q;
+                    q = runtimeHelper.readVar(ctx.getOutputData(), srcId, "sys.question");
+                    if (q != null && !q.isBlank()) return q;
+                }
+            }
+        } catch (Exception ignore) {
+            // ignore
+        }
+        return "";
+    }
+
+    /** 单源 sys.result 按换行拆成片段列表（供统一 rerank） */
+    private List<String> splitPassages(String text) {
+        List<String> out = new ArrayList<>();
+        if (text == null) return out;
+        for (String p : text.split("\n")) {
+            if (p != null && !p.isBlank()) out.add(p);
+        }
+        return out;
     }
 
     /** 判断本 LLM 节点是否已执行过（(runtimeId, cell) 上下文已写入 sys.content） */
@@ -439,19 +560,22 @@ public class LlmNode implements IWorkflowNode {
 
     /**
      * 跨分区解析变量：先取全局字段，再遍历 node.* 分区取首个命中。
+     * ★ 空串/纯空白不视为命中（继续找下一个分区）——避免某个上游分区写了空 sys.result
+     *   却抢先命中，导致有内容的分区被忽略（多入边召回丢失的根因之一）。
+     *   召回类变量 sys.result 的解析另走 kbContext（见 buildUserPrompt）。
      */
     private String resolveVar(JSONObject preOutput, String field) {
         if (preOutput == null) return "";
         // 全局扁平字段（sys.question 等）
         Object v = preOutput.get(field);
-        if (v != null) return v.toString();
+        if (v != null && !v.toString().isBlank()) return v.toString();
         // 遍历各上游分区
         for (String key : preOutput.keySet()) {
             if (key.startsWith("node.")) {
                 Object part = preOutput.get(key);
                 if (part instanceof JSONObject jo) {
                     Object pv = jo.get(field);
-                    if (pv != null) return pv.toString();
+                    if (pv != null && !pv.toString().isBlank()) return pv.toString();
                 }
             }
         }

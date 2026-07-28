@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import sparkx.sparkshop.knowledge.entity.KgConfig;
 import sparkx.sparkshop.knowledge.entity.KnowledgeDocument;
 import sparkx.sparkshop.knowledge.graph.KnowledgeGraphChannel;
+import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.mapper.KgConfigMapper;
 import sparkx.sparkshop.knowledge.mapper.KnowledgeDocumentMapper;
 import sparkx.sparkshop.workflow.engine.IWorkflowNode;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * 知识图谱检索节点。绑定某个知识库下的若干文档，对该文档的知识图谱做检索，
@@ -60,6 +62,9 @@ public class GraphNode implements IWorkflowNode {
 
     @Autowired
     private KnowledgeDocumentMapper knowledgeDocumentMapper;
+
+    @Autowired
+    private LLMService llmService;
 
     @Autowired
     private WorkflowRuntimeContextMapper runtimeContextMapper;
@@ -148,10 +153,30 @@ public class GraphNode implements IWorkflowNode {
             log.warn("[GraphNode] 知识图谱全局开关未开启(kg_config.enabled!=1)，跳过检索 runtimeId={}", runtimeVo.getRuntimeId());
         }
 
-        // 按图通道返回顺序（已在通道内按 score 排序）截断 topRank
+        // 按图通道返回顺序（已在通道内按 score 排序）截断 topRank。
+        // 可选 rerank（配置 rerankModelId 时调 LLMService.rerank），对齐 DatasetNode，
+        // 避免未重排的图谱噪声与 dataset 召回平等进入 LLM 的 RRF 融合。
         List<String> passageList = hits.stream().map(c -> c.textSegment().text()).collect(Collectors.toList());
+        String rerankModelId = nodeObject.getStr("rerankModelId");
+        Integer rerankModelIdInt = parseModelId(rerankModelId);
         List<String> finalPassages = passageList;
-        if (passageList.size() > topRank) {
+        boolean reranked = false;
+        if (rerankModelIdInt != null && passageList.size() > 1) {
+            try {
+                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt);
+                if (scores != null && scores.size() == passageList.size()) {
+                    finalPassages = IntStream.range(0, passageList.size())
+                            .mapToObj(i -> new java.util.AbstractMap.SimpleEntry<>(passageList.get(i), scores.get(i)))
+                            .sorted((a, b) -> Float.compare(b.getValue(), a.getValue()))
+                            .limit(topRank)
+                            .map(java.util.AbstractMap.SimpleEntry::getKey)
+                            .collect(Collectors.toList());
+                    reranked = true;
+                }
+            } catch (Exception e) {
+                log.warn("[GraphNode] rerank 失败，回退原序: {}", e.getMessage());
+            }
+        } else if (passageList.size() > topRank) {
             finalPassages = new ArrayList<>(passageList.subList(0, topRank));
         }
 
@@ -182,6 +207,9 @@ public class GraphNode implements IWorkflowNode {
         updated = runtimeHelper.writeVar(updated, cell, "graph.count", finalPassages.size());
         updated = runtimeHelper.writeVar(updated, cell, "graph.kbId", kbId == null ? "" : kbId);
         updated = runtimeHelper.writeVar(updated, cell, "graph.question", question);
+        updated = runtimeHelper.writeVar(updated, cell, "graph.reranked", reranked);
+        updated = runtimeHelper.writeVar(updated, cell, "graph.rerankModelId",
+                rerankModelId == null ? "" : rerankModelId);
         // 双闸校验诊断字段：执行详情可直接看到图谱为何返回空
         updated = runtimeHelper.writeVar(updated, cell, "graph.gateGlobalEnabled", globalEnabled);
         JSONArray skippedArr = JSONUtil.createArray();
@@ -205,5 +233,16 @@ public class GraphNode implements IWorkflowNode {
 
         runtimeVo.getLatch().countDown();
         return runtimeVo.getEdges().get(runtimeVo.getNodeInfo().getId());
+    }
+
+    private Integer parseModelId(String s) {
+        if (s == null || s.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

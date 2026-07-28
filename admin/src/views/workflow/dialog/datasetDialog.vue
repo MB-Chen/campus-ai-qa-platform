@@ -86,18 +86,6 @@
         />
         <span class="slider-val">{{ form.topRank }}</span>
       </div>
-      <div class="slider-row">
-        <span class="slider-label">重排模型</span>
-        <n-select
-          v-model:value="form.rerankModelId"
-          :options="rerankOptions"
-          placeholder="不使用重排"
-          clearable
-          :loading="rerankLoading"
-          @update:value="emitChange"
-          style="flex: 1; margin-left: 12px"
-        />
-      </div>
     </div>
   </div>
 </template>
@@ -105,7 +93,6 @@
 <script setup>
   import { ref, onMounted } from 'vue';
   import { iconComponent } from '@/views/workflow/icons/index.js';
-  import { getRerankModelList } from '@/api/system/aiModel';
   import { getKbList, getDocumentList } from '@/api/system/knowledge';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
 
@@ -118,9 +105,7 @@
 
   const form = ref(props.formData);
   const kbOptions = ref([]);
-  const rerankOptions = ref([]);
   const kbLoading = ref(false);
-  const rerankLoading = ref(false);
   // 每个知识库的文档选项 map：{ [kbId]: [{label, value}] }
   const docOptionsMap = ref({});
   // 每个知识库的文档加载态 map：{ [kbId]: boolean }
@@ -129,7 +114,7 @@
   const selectedKbIds = ref(
     Array.isArray(form.value.datasets)
       ? form.value.datasets.map((d) => d.datasetId).filter(Boolean)
-      : [],
+      : []
   );
 
   // 保证每个 dataset 项有 docIds 数组（旧数据没有时补默认值）
@@ -137,34 +122,6 @@
     form.value.datasets.forEach((d) => {
       if (!Array.isArray(d.docIds)) d.docIds = [];
     });
-  }
-
-  // ★ 修正空串占位：initConfig 中 rerankModelId 初始化为 ''，
-  //   而 n-select 仅在值为 null/undefined 时才显示 placeholder。
-  //   这里归一化为 null，保证未选时能看到「不使用重排」。
-  if (form.value.rerankModelId === '') {
-    form.value.rerankModelId = null;
-  }
-
-  // ★ 重排模型拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
-  //   与 AgentSaveModal 的 toRerankModelOptions 一致，便于选择具体子模型。
-  function toRerankModelOptions(models) {
-    const opts = [];
-    for (const m of models) {
-      const names = String(m.models || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (names.length === 0) {
-        // 没配模型名也展示一条，避免下拉为空
-        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: String(m.id) });
-        continue;
-      }
-      for (const n of names) {
-        opts.push({ label: `${m.name || ''} / ${n}`, value: String(m.id) });
-      }
-    }
-    return opts;
   }
 
   onMounted(async () => {
@@ -177,20 +134,9 @@
           .filter((kb) => kb && kb.id)
           .map((kb) => ({ label: kb.name || '未命名', value: kb.id }));
       }
-    } catch (e) {} finally {
+    } catch (e) {
+    } finally {
       kbLoading.value = false;
-    }
-    // 重排模型
-    rerankLoading.value = true;
-    try {
-      const res = await getRerankModelList();
-      if (res && res.code === 0 && Array.isArray(res.data)) {
-        rerankOptions.value = toRerankModelOptions(
-          res.data.filter((m) => m && m.id != null),
-        );
-      }
-    } catch (e) {} finally {
-      rerankLoading.value = false;
     }
     // 回显：已选知识库各自加载文档列表
     selectedKbIds.value.forEach((kbId) => loadDocOptions(kbId));
