@@ -10,12 +10,17 @@
 package sparkx.sparkshop.knowledge.agent;
 
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import sparkx.sparkshop.knowledge.entity.ChunkEntity;
 import sparkx.sparkshop.knowledge.entity.KnowledgeAgent;
+import sparkx.sparkshop.knowledge.entity.KnowledgeDocument;
 import sparkx.sparkshop.knowledge.infra.LLMService;
 import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
+import sparkx.sparkshop.knowledge.mapper.ChunkMapper;
+import sparkx.sparkshop.knowledge.mapper.KnowledgeDocumentMapper;
 import sparkx.sparkshop.knowledge.service.IKnowledgeAgentService;
 import sparkx.sparkshop.knowledge.validate.AgentEvalValidate;
 import sparkx.sparkshop.knowledge.vo.AgentEvalReportVo;
@@ -62,6 +67,9 @@ public class AgentEvalService {
     /** JSON 提取正则（容错：模型可能把 JSON 包在 markdown ``` 里或带前后文案） */
     private static final Pattern JSON_PATTERN = Pattern.compile("\\{[\\s\\S]*\\}");
 
+    /** 生成测试集时喂给 LLM 的文档原文 token 上限（粗估：中文按字、英文按词，截断防超长） */
+    private static final int SEED_CONTEXT_CHAR_LIMIT = 6000;
+
     @Resource
     private IKnowledgeAgentService agentService;
 
@@ -70,6 +78,12 @@ public class AgentEvalService {
 
     @Resource
     private LLMService llmService;
+
+    @Resource
+    private KnowledgeDocumentMapper documentMapper;
+
+    @Resource
+    private ChunkMapper chunkMapper;
 
     @Resource(name = "intentClassifyExecutor")
     private ExecutorService executor;
@@ -127,24 +141,125 @@ public class AgentEvalService {
     }
 
     /**
-     * AI 生成测试集：按智能体关联的知识库文档，用 LLM 生成问题。
+     * AI 生成测试集：直接读智能体关联知识库的文档原文，喂给 LLM 生成问题。
+     * <p>
+     * ★ 不走智能体 RAG 管线（chatSync）——生成测试集只需"基于文档内容生成问题"，
+     *   没必要也不应该触发检索/重排（rerank/scoring）那一整条链路。
+     *   那样既慢，又会在 rerank/embedding 模型没配好时报错（见历史 bug）。
      */
     public List<String> genSeedQuestions(AgentEvalValidate req) {
         int count = req.getSampleCount() == null || req.getSampleCount() <= 0 ? 3 : req.getSampleCount();
-        // 借助智能体自身能力：构造一个「请生成问题」的 prompt，跑智能体取答案
+
         KnowledgeAgent agent = agentService.getById(req.getAgentId());
         if (agent == null) {
             throw new sparkx.sparkshop.common.exception.BusinessException("智能体不存在");
         }
-        String prompt = String.format(
-                "请基于你关联的知识库内容，生成 %d 个用户可能会问的典型问题，每行一个，" +
-                        "只输出问题本身，不要编号、不要解释、不要前后缀。\n要求：问题具体、覆盖不同主题、口语化。", count);
-        AgentChatService.ChatResult result = agentChatService.chatSync(agent, prompt);
-        String text = result.answer == null ? "" : result.answer;
+
+        // 1. 取关联知识库的文档原文（按 kbMode 解析；selected 时用 knowledgeBaseIds）
+        String context = buildSeedContext(agent);
+        if (StrUtil.isBlank(context)) {
+            log.warn("[AgentEval] 生成测试集失败：智能体(id={})未关联可用知识库文档", req.getAgentId());
+            throw new sparkx.sparkshop.common.exception.BusinessException("智能体未关联知识库或知识库无可用文档，无法生成测试集");
+        }
+
+        // 2. 直接让 LLM 基于原文生成问题（用智能体配置的对话模型，空则走默认模型链）
+        String sys = "你是一个测试用例生成助手。请根据用户提供的知识库文档原文，" +
+                "生成用户可能会问的典型问题。问题要具体、口语化、覆盖文档中不同主题。";
+        String user = String.format(
+                "请基于下面的文档原文，生成 %d 个用户可能会问的典型问题，每行一个，" +
+                        "只输出问题本身，不要编号、不要解释、不要前后缀。\n\n" +
+                        "【文档原文】\n%s", count, context);
+        String resp = llmService.chat(
+                LlmChatRequest.of(sys, user, 0.6),
+                agent.getChatModelId());
+
+        return splitQuestions(resp, count);
+    }
+
+    /** 收集智能体关联知识库的文档原文，拼成喂给 LLM 的上下文（按 token 预算截断） */
+    private String buildSeedContext(KnowledgeAgent agent) {
+        List<String> docIds = resolveDocumentIds(agent);
+        if (docIds.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String docId : docIds) {
+            List<ChunkEntity> chunks = chunkMapper.selectContentByDocument(docId);
+            if (chunks == null || chunks.isEmpty()) {
+                continue;
+            }
+            for (ChunkEntity c : chunks) {
+                if (StrUtil.isBlank(c.getContent())) {
+                    continue;
+                }
+                if (sb.length() + c.getContent().length() > SEED_CONTEXT_CHAR_LIMIT) {
+                    break;
+                }
+                sb.append(c.getContent()).append('\n');
+            }
+            if (sb.length() >= SEED_CONTEXT_CHAR_LIMIT) {
+                break;
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    /**
+     * 解析智能体实际生效的文档 id 列表。
+     * <p>
+     * 规则与检索口径一致：
+     * <ul>
+     *   <li>kbMode=none → 空（不使用知识库）</li>
+     *   <li>documentIds 非空 → 只取这些文档（更窄范围优先）</li>
+     *   <li>否则按 knowledgeBaseIds 取每个库下 status=done 的文档</li>
+     *   <li>kbMode=all 且无指定 → 取全部库（这里以 agent.knowledgeBaseIds 为界，避免误扫全表）</li>
+     * </ul>
+     */
+    private List<String> resolveDocumentIds(KnowledgeAgent agent) {
+        if ("none".equalsIgnoreCase(agent.getKbMode())) {
+            return List.of();
+        }
+        // 优先用智能体限定的文档 id
+        if (StrUtil.isNotBlank(agent.getDocumentIds())) {
+            return parseIdList(agent.getDocumentIds());
+        }
+        // 否则按关联知识库取已完成的文档
+        List<String> kbIds = parseIdList(agent.getKnowledgeBaseIds());
+        if (kbIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> docIds = new ArrayList<>();
+        for (String kbId : kbIds) {
+            List<KnowledgeDocument> docs = documentMapper.selectList(
+                    new LambdaQueryWrapper<KnowledgeDocument>()
+                            .eq(KnowledgeDocument::getKbId, kbId)
+                            .eq(KnowledgeDocument::getStatus, "done"));
+            for (KnowledgeDocument d : docs) {
+                docIds.add(d.getId());
+            }
+        }
+        return docIds;
+    }
+
+    private static List<String> parseIdList(String csv) {
+        if (StrUtil.isBlank(csv)) {
+            return List.of();
+        }
+        return Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    /** 把 LLM 输出拆成干净的问题列表（去空行、去行首序号、按 count 的 2 倍封顶） */
+    private static List<String> splitQuestions(String text, int count) {
+        if (StrUtil.isBlank(text)) {
+            return List.of();
+        }
         return Arrays.stream(text.split("\n"))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
-                // 去掉可能的行首序号 "1." "1、" 等
+                // 去掉可能的行首序号 "1." "1、" "1)" 等
                 .map(s -> s.replaceFirst("^\\d+[.、)）]\\s*", ""))
                 .filter(s -> !s.isEmpty())
                 .limit(count * 2L)

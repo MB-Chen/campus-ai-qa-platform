@@ -1,72 +1,10 @@
 <template>
   <div>
     <div class="n-layout-page-header">
-      <n-card :bordered="false" title="智能体管理">
+      <n-card :bordered="false" title="智能体">
         管理知识库智能体，配置 RAG 参数，支持 SSE 流式测试对话与 LLM-as-judge 评估报告
       </n-card>
     </div>
-
-    <n-card
-      v-if="guideVisible"
-      :bordered="false"
-      class="mt-4 guide-card"
-      size="small"
-    >
-      <div class="guide-head">
-        <span class="guide-title">
-          <n-icon :component="BulbOutlined" class="guide-title-icon" />
-          新手指引：构建一个智能体需要哪些准备？
-        </span>
-        <n-button text class="guide-close" @click="dismissGuide">
-          <n-icon :component="CloseOutlined" />
-        </n-button>
-      </div>
-      <div class="guide-intro">
-        智能体 = <b>知识库</b>（回答素材）+ <b>AI 模型</b>（理解与生成）+ <b>意图路由</b>（按问题分流到对应资源）。
-        三者配合，用户提问 → 意图路由判断该查哪个知识库/工具 → 检索召回 → AI 模型基于素材生成回答。建议按下面顺序依次完成。
-      </div>
-      <div class="guide-steps">
-        <div class="step" @click="goto('/knowledge/index')">
-          <div class="step-no">1</div>
-          <div class="step-body">
-            <div class="step-name">
-              <n-icon :component="BookOutlined" /> 建知识库
-              <n-icon :component="ArrowRightOutlined" class="step-go" />
-            </div>
-            <div class="step-desc">上传文档并完成向量化，这是智能体回答的素材来源。</div>
-          </div>
-        </div>
-        <div class="step" @click="goto('/ai/model/index')">
-          <div class="step-no">2</div>
-          <div class="step-body">
-            <div class="step-name">
-              <n-icon :component="DeploymentUnitOutlined" /> 配 AI 模型
-              <n-icon :component="ArrowRightOutlined" class="step-go" />
-            </div>
-            <div class="step-desc">
-              至少配置一个对话模型（chat）；推荐再配向量/重排模型，召回更准。
-            </div>
-          </div>
-        </div>
-        <div class="step" @click="goto('/knowledge/intent/index')">
-          <div class="step-no">3</div>
-          <div class="step-body">
-            <div class="step-name">
-              <n-icon :component="ApartmentOutlined" /> 设意图路由
-              <n-icon :component="ArrowRightOutlined" class="step-go" />
-            </div>
-            <div class="step-desc">
-              把不同问题分流到对应知识库/系统/MCP，让回答更精准（可选，不配则全量检索）。
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="guide-footer">
-        准备就绪后，点击右上角
-        <n-button size="tiny" type="primary" secondary @click="openCreate">+ 新建智能体</n-button>
-        关联上面三步即可。
-      </div>
-    </n-card>
 
     <n-card :bordered="false" class="mt-4 proCard">
       <div class="toolbar">
@@ -162,17 +100,8 @@
 
 <script setup lang="ts">
   import { ref, onMounted } from 'vue';
-  import { useRouter } from 'vue-router';
   import { useMessage, useDialog } from 'naive-ui';
-  import {
-    SearchOutlined,
-    BookOutlined,
-    DeploymentUnitOutlined,
-    ApartmentOutlined,
-    BulbOutlined,
-    ArrowRightOutlined,
-    CloseOutlined,
-  } from '@vicons/antd';
+  import { SearchOutlined } from '@vicons/antd';
   import { getAgentList, delAgent, type Agent } from '@/api/system/agent';
   import AgentSaveModal from './components/AgentSaveModal.vue';
   import AgentTestChat from './components/AgentTestChat.vue';
@@ -180,18 +109,6 @@
 
   const message = useMessage();
   const dialog = useDialog();
-  const router = useRouter();
-
-  // 新手引导：可关闭，关闭状态记到 localStorage，下次进来不再展示
-  const GUIDE_KEY = 'agent_guide_dismissed';
-  const guideVisible = ref(localStorage.getItem(GUIDE_KEY) !== '1');
-  function dismissGuide() {
-    guideVisible.value = false;
-    localStorage.setItem(GUIDE_KEY, '1');
-  }
-  function goto(path: string) {
-    router.push(path).catch(() => {});
-  }
 
   const loading = ref(false);
   const list = ref<Agent[]>([]);
@@ -287,111 +204,6 @@
 </script>
 
 <style lang="less" scoped>
-  .guide-card {
-    border: 1px solid #e3f2e8;
-    background: linear-gradient(135deg, #f6ffed 0%, #ffffff 60%);
-    :deep(.n-card__content) {
-      padding: 14px 18px;
-    }
-  }
-  .guide-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .guide-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 15px;
-    font-weight: 600;
-    color: #07a94d;
-  }
-  .guide-title-icon {
-    font-size: 18px;
-  }
-  .guide-close {
-    color: #999;
-    &:hover {
-      color: #333;
-    }
-  }
-  .guide-intro {
-    font-size: 13px;
-    line-height: 1.7;
-    color: #555;
-    b {
-      color: #07a94d;
-      font-weight: 600;
-    }
-  }
-  .guide-steps {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin: 14px 0;
-  }
-  .step {
-    display: flex;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid #e8e8e8;
-    border-radius: 8px;
-    background: #fff;
-    cursor: pointer;
-    transition: all 0.18s;
-    &:hover {
-      border-color: #07c05f;
-      box-shadow: 0 4px 12px rgba(7, 192, 95, 0.12);
-      transform: translateY(-1px);
-    }
-  }
-  .step-no {
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #07c05f;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .step-body {
-    flex: 1;
-    min-width: 0;
-  }
-  .step-name {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 4px;
-  }
-  .step-go {
-    font-size: 12px;
-    color: #07c05f;
-    margin-left: auto;
-  }
-  .step-desc {
-    font-size: 12px;
-    line-height: 1.6;
-    color: #888;
-  }
-  .guide-footer {
-    font-size: 13px;
-    color: #666;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
   .toolbar {
     display: flex;
     align-items: center;

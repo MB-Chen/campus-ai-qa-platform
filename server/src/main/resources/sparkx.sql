@@ -2069,6 +2069,8 @@ CREATE TABLE "public"."knowledge_agent" (
   "updated_at" timestamp(6) DEFAULT now(),
   "rerank_model_id" int4,
   "rerank_model_name" varchar(128) COLLATE "pg_catalog"."default",
+  "rewrite_model_id" int4,
+  "rewrite_model_name" varchar(128) COLLATE "pg_catalog"."default",
   "kb_mode" varchar(20) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'selected'::character varying,
   "document_ids" varchar(2048) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying
 )
@@ -2099,6 +2101,8 @@ COMMENT ON COLUMN "public"."knowledge_agent"."created_at" IS '创建时间';
 COMMENT ON COLUMN "public"."knowledge_agent"."updated_at" IS '更新时间';
 COMMENT ON COLUMN "public"."knowledge_agent"."rerank_model_id" IS '重排模型 ai_model.id（type=3），空用全局默认';
 COMMENT ON COLUMN "public"."knowledge_agent"."rerank_model_name" IS '冗余：重排模型显示名';
+COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_id" IS '意图/改写专用模型 ai_model.id（type=1，对话模型），空用全局默认大模型';
+COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_name" IS '冗余：意图/改写专用模型显示名';
 COMMENT ON COLUMN "public"."knowledge_agent"."kb_mode" IS '知识库模式 all全部/selected指定/none不使用';
 COMMENT ON COLUMN "public"."knowledge_agent"."document_ids" IS '限定文档 id，逗号分隔（kb_mode=selected 时可选，空=整库）';
 COMMENT ON TABLE "public"."knowledge_agent" IS '知识库智能体表';
@@ -2106,7 +2110,7 @@ COMMENT ON TABLE "public"."knowledge_agent" IS '知识库智能体表';
 -- ----------------------------
 -- Records of knowledge_agent
 -- ----------------------------
-INSERT INTO "public"."knowledge_agent" VALUES ('9c2dd9400ef347d9b3937b181e40cb17', 'RAG知识库', 'RAG知识库', '🤖', '3c42a931577c4655a9eadfc506970e08', 2, 'mimo-v2.5', '', 0.3, 2048, 4, 10, 0.2, 0.3, 1, 5, 0.3, 'fixed', '暂时还不知道该内容，请换句话问问吧。', '', '[]', 1, '2026-07-25 14:47:16.0072', '2026-07-25 14:47:15.994437', 5, 'bge-reranker-v2-m3', 'selected', '');
+INSERT INTO "public"."knowledge_agent" VALUES ('9c2dd9400ef347d9b3937b181e40cb17', 'RAG知识库', 'RAG知识库', '🤖', '3c42a931577c4655a9eadfc506970e08', 2, 'mimo-v2.5', '', 0.3, 2048, 4, 10, 0.2, 0.3, 1, 5, 0.3, 'fixed', '暂时还不知道该内容，请换句话问问吧。', '', '[]', 1, '2026-07-25 14:47:16.0072', '2026-07-25 14:47:15.994437', 5, 'bge-reranker-v2-m3', NULL, NULL, 'selected', '');
 
 -- ----------------------------
 -- Table structure for knowledge_base
