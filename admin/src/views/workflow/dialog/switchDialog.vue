@@ -65,7 +65,7 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue';
+  import { ref, watch } from 'vue';
   import initConfig from '@/views/workflow/initConfig.js';
   import { iconComponent } from '@/views/workflow/icons/index.js';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
@@ -78,6 +78,22 @@
   const emit = defineEmits(['dataChange', 'portAdd', 'portDel', 'portUpdate']);
 
   const form = ref(props.formData);
+  // 外部 formData 变化时（如切换选中节点）同步更新 form，确保回填正确
+  watch(
+    () => props.formData,
+    (newVal) => {
+      if (newVal) form.value = newVal;
+    },
+    { deep: true },
+  );
+  // 调试：确认 inputOptions 是否正确传入
+  watch(
+    () => props.inputOptions,
+    (v) => {
+      console.log('[switchDialog] inputOptions 更新:', JSON.stringify(v)?.slice(0, 200), '长度:', v?.length);
+    },
+    { immediate: true },
+  );
   const options = JSON.parse(JSON.stringify(initConfig.switchOptions)).map((o) => ({
     label: o.label,
     value: o.type,
@@ -125,6 +141,9 @@
     background: #f4f4f4;
     border-radius: 5px;
     padding: 20px;
+  }
+  .set-content-box + .set-content-box {
+    margin-top: 16px;
   }
   .title-row {
     display: flex;

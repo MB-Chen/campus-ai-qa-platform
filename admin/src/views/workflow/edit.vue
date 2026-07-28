@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-  import { ref, shallowRef, onMounted, defineAsyncComponent } from 'vue';
+  import { ref, shallowRef, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useMessage } from 'naive-ui';
   import { Graph, Shape } from '@antv/x6';
@@ -150,6 +150,14 @@
   }
 
   function initGraph() {
+    console.log('[edit] initGraph 开始, container 尺寸:', {
+      offsetWidth: containerRef.value?.offsetWidth,
+      offsetHeight: containerRef.value?.offsetHeight,
+      parentOffsetWidth: containerRef.value?.parentElement?.offsetWidth,
+      parentOffsetHeight: containerRef.value?.parentElement?.offsetHeight,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+    });
     const graph = new Graph({
       container: containerRef.value,
       selecting: true,
@@ -158,6 +166,10 @@
       interacting: { nodeMovable: true, edgeMovable: false },
       background: { color: '#f4f4f4' },
       grid: { visible: true },
+      // autoResize: X6 用 SizeSensor 监听容器尺寸并自动 resize。
+      // 开启 scroller 后，可视窗口尺寸由 scroller 管理，必须靠 autoResize 才能跟随容器，
+      // 否则初始化后窗口大小写死，大屏下右侧大片画布不显示。
+      autoResize: true,
       scroller: { enabled: true, pageVisible: true, pageBreak: true, pannable: true },
       connecting: {
         connector: 'smooth',
@@ -201,7 +213,9 @@
       resetSel();
       nowNode.value = node;
       node.updateData({ checked: true });
-      formData.value = node.getData();
+      // 深拷贝：避免对话框直接 mutate 节点数据（配置抽屉持有同一引用会直接修改原对象），
+      // 导致 updateData 时 prev 和新值内容相同（lodash isEqual 判无变化，不触发 change:data）
+      formData.value = JSON.parse(JSON.stringify(node.getData()));
       const pages = formData.value.pages;
       pageComp.value = pageMap[pages] ? defineAsyncComponent(pageMap[pages]) : null;
       if (pages !== 'start') {
@@ -230,6 +244,38 @@
     });
   }
 
+  // 画布尺寸自适应：X6 初始化时把容器尺寸固化进 inline style，之后不会跟随容器变化。
+  // 配合 graph 配置里的 autoResize，这里再用一个显式的 ResizeObserver 监听真实可用空间
+  // （.wf-editor，absolute inset:0 撑满内容区），在窗口/侧边栏变化时主动 resize 兜底，
+  // 确保大屏下画布铺满、不再有右侧大片空白。
+  let resizeObserver = null;
+  function syncGraphSize(tag = '') {
+    const g = graphRef.value;
+    const cont = containerRef.value;
+    const host = cont?.parentElement; // .wf-editor
+    if (!g || !host) return;
+    const w = host.offsetWidth;
+    const h = host.offsetHeight;
+    if (w > 0 && h > 0) {
+      g.resize(w, h);
+      // 关键修复：container 上有一道 max-width（= 初始化时的 clientWidth，如 1536px），
+      // 把 graph.resize 写入的 width 死死卡住，导致大屏下画布右侧始终留白。
+      // inline max-width:none 能压过任何来源的 max-width 限制。
+      if (cont) {
+        cont.style.maxWidth = 'none';
+        cont.style.maxHeight = 'none';
+      }
+      const grid = cont?.querySelector('.x6-graph-grid');
+      console.log('[edit] syncGraphSize', tag, 'resize', w, 'x', h,
+        '| containerOffsetW', cont?.offsetWidth,
+        '| gridOffsetW', grid?.offsetWidth,
+        '| computedMaxW', cont ? getComputedStyle(cont).maxWidth : null);
+    }
+  }
+  function onWinResize() {
+    syncGraphSize();
+  }
+
   // 画布操作
   function centerHandle() {
     graphRef.value?.centerContent();
@@ -246,117 +292,29 @@
     menuVisible.value = v;
   }
 
-  // 动态端口（purpose/switch 多分支）。
-  // 端口用 absolute 定位，需要随条件增减/节点内容变化重新排布 Y 坐标。
-  // 统一做法：等节点 Vue 内容重渲染后，读节点实际高度，把右侧输出端口均匀分布到
-  // 各分支标题行，最后一个 else 端口钉在节点底部，保证连出点始终跟着条件。
-  const NODE_WIDTH = 230;
+  // 动态右侧输出端口的同步与定位，全部在 dataChangeHandle 里完成。
+  // purposeDialog/switchDialog 在增删分支时总是先 emit(portAdd/portDel/portUpdate)
+  // 再 emit(dataChange)，所以端口重排只需挂在 dataChange 上即可覆盖所有分支增减场景。
+  //
+  // 端口语义（与后端一致）：
+  //   - purpose：端口数 == cateList.length（无 else，FlowNodeParser 按端口 Y 排序成 targetList）
+  //   - switch ：端口数 == ifBranch.length + 1（末位为 else，SwitchNode 把最后一条边当 else）
+  function portAddHandle() {}
+  function portUpdate() {}
+  function portDelHandle() {}
 
-  function relayoutRightPorts(node, branchCount) {
-    if (!node) return;
-    // 等 Vue 重新渲染节点内容（DOM 高度变化）
-    setTimeout(() => {
-      // 节点内容高度：读实际 DOM（vue-shape 不自动撑高 node box，要手动 resize）
-      const view = graphRef.value?.findViewByCell(node);
-      const containerEl = view?.container;
-      let h = node.getSize().height;
-      if (containerEl) {
-        // x6-vue-shape 把组件渲染到容器内第一个子节点
-        const inner = containerEl.querySelector('.x6-node-shape, .node-base, [class*="node"]')
-          || containerEl.firstElementChild;
-        if (inner) {
-          h = inner.scrollHeight || inner.offsetHeight || h;
-        }
-      }
-      // 把节点 box 高度同步成内容高度，否则端口/边定位会偏
-      node.resize(NODE_WIDTH, Math.max(h, 40));
-
-      const n = branchCount + 1; // 含 else
-      const startY = 28;
-      const bottomPad = 16;
-      const usable = Math.max(h - startY - bottomPad, n * 20);
-      const step = n > 1 ? usable / (n - 1) : 0;
-
-      // 当前 output 端口数补齐/裁剪到 n
-      let outPorts = node.getPorts().filter((p) => p.type === 'output');
-      while (outPorts.length < n) {
-        node.addPort({ group: 'rightPorts', args: { x: NODE_WIDTH, y: startY }, type: 'output' });
-        outPorts = node.getPorts().filter((p) => p.type === 'output');
-      }
-      while (outPorts.length > n) {
-        node.removePortAt(node.getPorts().length - 1);
-        outPorts = node.getPorts().filter((p) => p.type === 'output');
-      }
-      // 重新分布 Y
-      outPorts.forEach((p, i) => {
-        const y = n === 1 ? h - bottomPad : startY + step * i;
-        node.port.ports.forEach((pp) => {
-          if (pp.id === p.id) {
-            pp.args = pp.args || {};
-            pp.args.x = NODE_WIDTH;
-            pp.args.y = y;
-          }
-        });
-      });
-      node.setPropByPath('ports/items', node.port.ports);
-    }, 60);
-  }
-
-  function portAddHandle(val) {
-    const node = nowNode.value;
-    if (!node) return;
-    if (val.type === 'purpose') {
-      relayoutRightPorts(node, val.cateList.length);
-    } else if (val.type === 'switch') {
-      relayoutRightPorts(node, val.ifBranch.length);
-    }
-  }
-  function portUpdate(val) {
-    const node = nowNode.value;
-    if (!node) return;
-    if (val.type === 'switch') {
-      relayoutRightPorts(node, val.ifBranch.length);
-    } else if (val.type === 'purpose') {
-      relayoutRightPorts(node, val.cateList.length);
-    }
-  }
-  function portDelHandle() {
-    const node = nowNode.value;
-    if (!node) return;
-    const outPorts = node.getPorts().filter((p) => p.type === 'output');
-    if (outPorts.length) {
-      // 删最后一个 output（else 或最后一个分支）
-      node.removePortAt(node.getPorts().length - 1);
-    }
-    // 删后重新排布
-    const data = node.store?.data?.data;
-    if (data) {
-      if (data.pages === 'switch' && data.ifBranch) {
-        relayoutRightPorts(node, data.ifBranch.length);
-      } else if (data.pages === 'purpose' && data.cateList) {
-        relayoutRightPorts(node, data.cateList.length);
-      }
-    }
-  }
-
-  function dataChangeHandle(val) {
-    nowNode.value?.updateData(val);
-    // switch/purpose 条件增减导致节点高度变化，重排右侧端口跟随
-    if (val && (val.type === 'switch' || val.pages === 'switch'
-        || val.type === 'purpose' || val.pages === 'purpose')) {
-      const node = nowNode.value;
-      const data = node?.store?.data?.data;
-      if (data?.pages === 'switch' && data.ifBranch) {
-        relayoutRightPorts(node, data.ifBranch.length);
-      } else if (data?.pages === 'purpose' && data.cateList) {
-        relayoutRightPorts(node, data.cateList.length);
-      }
-    }
+  async function dataChangeHandle(val) {
+    if (!nowNode.value) return;
+    // val 已经是在 node:click 时深拷贝后的副本（非实时引用），
+    // updateData 时 X6 store 会检测到与原数据的差异，触发 change:data → 节点重渲染。
+    // 端口对齐由节点组件（switch.vue / purpose.vue）内部的 change:data 处理，无需在此调用。
+    nowNode.value.updateData(val);
   }
 
   function getNodeInputData() {
     if (nowNode.value && graphRef.value) {
       inputOptions.value = inputDataUtil.getNodeInputData(nowNode.value, graphRef.value);
+      console.log('[edit] inputOptions 已赋值, 长度:', inputOptions.value?.length, '内容:', JSON.stringify(inputOptions.value)?.slice(0, 300));
     }
   }
 
@@ -451,17 +409,8 @@
           nodeNoData.value[type] = (nodeNoData.value[type] || 0) + 1;
         }
       });
-      // 加载后重排 switch/purpose 节点右侧端口（确保连出点跟随条件，Q2）
-      setTimeout(() => {
-        graphRef.value.getNodes().forEach((node) => {
-          const data = node.getData();
-          if (data && data.pages === 'switch' && data.ifBranch) {
-            relayoutRightPorts(node, data.ifBranch.length);
-          } else if (data && data.pages === 'purpose' && data.cateList) {
-            relayoutRightPorts(node, data.cateList.length);
-          }
-        });
-      }, 100);
+      // 端口对齐由各节点组件（switch.vue / purpose.vue）在挂载和 change:data 时自行处理，
+      // 此处无需额外调用 relayoutNodePorts。
     }
   }
 
@@ -490,27 +439,46 @@
 
   onMounted(async () => {
     initGraph();
+    // 先按当前容器尺寸铺满，再加载流程数据（fromJSON 后再校正一次，避免被重置）
+    syncGraphSize('onMounted-init');
     await loadWorkflowInfo();
+    syncGraphSize('onMounted-afterLoad');
+    // 监听容器尺寸变化：ResizeObserver 覆盖侧边栏折叠/容器 resize，
+    // window resize 兜底（部分嵌入 webview 不向 ResizeObserver 派发视口变化）
+    const host = containerRef.value?.parentElement;
+    if (host && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => syncGraphSize('ResizeObserver'));
+      resizeObserver.observe(host);
+    }
+    window.addEventListener('resize', onWinResize);
     // 进入即调试：保存后打开聊天
     if (startDebug) {
       // 已经 chatVisible=true，无需额外处理
     }
   });
+
+  onBeforeUnmount(() => {
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    window.removeEventListener('resize', onWinResize);
+  });
 </script>
 
 <style scoped>
+  /* 全屏编辑器：absolute + inset:0 撑满定位祖先（.n-layout-content 内容区）。
+     注意不要用 100vh——那会让画布脱离父级流、顶出滚动条；画布实际尺寸交给
+     ResizeObserver 驱动 graph.resize 跟随 container 的真实宽高。 */
   .wf-editor {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
+    inset: 0;
     background: #f4f4f4;
     z-index: 1;
   }
   .container {
     width: 100%;
-    height: 100vh;
+    height: 100%;
   }
   .top-menu {
     position: absolute;
@@ -530,6 +498,21 @@
     bottom: 70px;
     left: 100px;
     z-index: 998;
+  }
+
+  /* 抵消 MainView 路由切换动画（fade-scale）。
+     X6 在节点入场期间向 .container 写入 inline 宽高，配合全局 transition:all 会
+     干扰 transitionend，导致 .wf-editor 卡在 enter-from（opacity:0、scale(1.2)），
+     画布被放大 1.2 倍溢出视口 → 右侧大片空白。全屏编辑器无需该动画，直接强制还原。 */
+  .wf-editor.fade-scale-enter-active,
+  .wf-editor.fade-scale-enter-from,
+  .wf-editor.fade-scale-enter-to,
+  .wf-editor.fade-scale-leave-active,
+  .wf-editor.fade-scale-leave-from,
+  .wf-editor.fade-scale-leave-to {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 </style>
 

@@ -43,17 +43,27 @@ export default {
 		const inputParams = this.getPreviousNodes(nowNode, graph);
 
 		function formatData(data) {
-			return data.map((item) => ({ label: item.name, value: item.field }));
+			if (!Array.isArray(data)) return [];
+			return data.filter(Boolean).map((item) => ({
+				label: item.name || item.field || '',
+				value: item.field || '',
+			}));
 		}
 
 		inputParams.forEach((param) => {
 			const data = param.getData();
+			if (!data) return;
+
 			if (data.pages === 'start') {
+				const vars = formatData(data.sysData).concat(formatData(data.userData));
+				// 调试：确认开始节点变量数据
+				console.log('[inputData] 开始节点:', param.id, 'sysData:', data.sysData, 'userData:', data.userData, '→ vars:', vars);
+				if (vars.length === 0) return; // 开始节点无变量时不展示选项
 				nodeInputData.push({
 					value: param.id,
 					label: '开始',
 					color: '#18a058',
-					children: formatData(data.sysData.concat(data.userData || [])),
+					children: vars,
 				});
 			} else if (data.pages === 'purpose') {
 				let label = '意图分类';

@@ -25,8 +25,7 @@
         v-model:value="form.modelInfo.modelId"
         :options="modelOptions"
         placeholder="选择对话模型"
-        label-field="label"
-        value-field="value"
+        filterable
         @update:value="onModelChange"
         style="width: 100%"
       />
@@ -88,7 +87,7 @@
           </div>
         </n-popover>
       </div>
-      <div class="prompt-tip">用 {{ '{{变量}}' }} 引用上游节点输出，留空则用原始问题</div>
+      <div class="prompt-tip" v-pre>用 {{变量}} 引用上游节点输出，留空则用原始问题</div>
       <n-input
         v-model:value="form.userPrompt"
         type="textarea"
@@ -103,7 +102,7 @@
 <script setup>
   import { ref, onMounted } from 'vue';
   import { iconComponent } from '@/views/workflow/icons/index.js';
-  import { getModelList } from '@/api/system/aiModel';
+  import { getModelList, MODEL_TYPE } from '@/api/system/aiModel';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
 
   const meta = iconComponent('llm-node');
@@ -124,13 +123,28 @@
     form.value.modelInfo.modelId = isNaN(id) ? null : id;
   }
 
+  // 模型选项：与知识图谱页一致，label 显示「配置名 / 首个具体模型」，
+  // 并把完整记录挂在 raw 上，便于选择时取真实模型名
+  function toModelOption(m) {
+    const firstModel =
+      String(m.models || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)[0] || '';
+    return {
+      label: `${m.name || `模型${m.id}`}${firstModel ? ' / ' + firstModel : ''}`,
+      value: m.id,
+      raw: m,
+    };
+  }
+
   onMounted(async () => {
     try {
-      const res = await getModelList({ type: 1, status: 1 });
+      const res = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
         modelOptions.value = res.data
           .filter((m) => m && m.id != null)
-          .map((m) => ({ label: m.name || `模型${m.id}`, value: m.id }));
+          .map(toModelOption);
       }
     } catch (e) {
       // 忽略
@@ -139,8 +153,16 @@
 
   function onModelChange(val) {
     form.value.modelInfo.modelId = val;
-    const m = modelOptions.value.find((x) => x.value === val);
-    form.value.modelInfo.modelName = m ? m.label : '';
+    const opt = modelOptions.value.find((x) => x.value === val);
+    // modelName 取首个具体模型名（与知识图谱一致），而非配置显示名
+    const firstModel =
+      opt && opt.raw
+        ? String(opt.raw.models || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)[0] || ''
+        : '';
+    form.value.modelInfo.modelName = firstModel;
     emitChange();
   }
 
@@ -165,6 +187,9 @@
     background: #f4f4f4;
     border-radius: 5px;
     padding: 20px;
+  }
+  .set-content-box + .set-content-box {
+    margin-top: 16px;
   }
   .title-row {
     display: flex;
@@ -203,9 +228,14 @@
     border-radius: 5px;
   }
   .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
     background: #6172f3;
-    padding: 3px;
     border-radius: 5px;
+    flex-shrink: 0;
   }
   .var-field {
     margin-left: 10px;

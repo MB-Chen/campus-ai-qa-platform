@@ -90,15 +90,28 @@ public class DatasetNode implements IWorkflowNode {
             question = runtimeHelper.readVar(context.getOutputData(), inputSourceId, "sys.question");
         }
 
-        // 知识库 id 列表
+        // 知识库列表：每个库可单独限定文档（docIds 为空则检索整库）
         JSONArray datasetsArr = nodeObject.getJSONArray("datasets");
-        List<String> kbIds = new ArrayList<>();
+        List<KbScope> kbScopes = new ArrayList<>();
         if (datasetsArr != null) {
             for (int i = 0; i < datasetsArr.size(); i++) {
                 JSONObject ds = datasetsArr.getJSONObject(i);
-                if (ds.getStr("datasetId") != null) {
-                    kbIds.add(ds.getStr("datasetId"));
+                String kbId = ds.getStr("datasetId");
+                if (kbId == null || kbId.isBlank()) {
+                    continue;
                 }
+                List<String> docIds = null;
+                JSONArray docIdsArr = ds.getJSONArray("docIds");
+                if (docIdsArr != null) {
+                    docIds = docIdsArr.toList(String.class);
+                }
+                // 过滤空串
+                if (docIds != null) {
+                    docIds = docIds.stream()
+                            .filter(d -> d != null && !d.isBlank())
+                            .collect(Collectors.toList());
+                }
+                kbScopes.add(new KbScope(kbId, docIds));
             }
         }
 
@@ -122,19 +135,19 @@ public class DatasetNode implements IWorkflowNode {
         contextEntity.setCreatedAt(LocalDateTime.now());
         runtimeContextMapper.insert(contextEntity);
 
-        // 检索
+        // 检索：按库各自用自己的向量模型 + 文档范围（避免跨库向量模型不一致）
         List<Content> hits = new ArrayList<>();
-        if (!kbIds.isEmpty()) {
+        if (!kbScopes.isEmpty()) {
             Query query = Query.from(question);
-            for (String kbId : kbIds) {
+            for (KbScope scope : kbScopes) {
                 try {
-                    List<Content> part = retriever.retrieve(query, kbId, null,
+                    List<Content> part = retriever.retrieve(query, scope.kbId, scope.docIds,
                             topRank, similarity, null);
                     if (part != null) {
                         hits.addAll(part);
                     }
                 } catch (Exception e) {
-                    log.warn("[DatasetNode] 知识库 {} 检索失败: {}", kbId, e.getMessage());
+                    log.warn("[DatasetNode] 知识库 {} 检索失败: {}", scope.kbId, e.getMessage());
                 }
             }
         }
@@ -194,6 +207,17 @@ public class DatasetNode implements IWorkflowNode {
             return Integer.parseInt(s);
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    /** 单个知识库的检索范围：kbId + 限定文档列表（null/空=整库） */
+    private static class KbScope {
+        final String kbId;
+        final List<String> docIds;
+
+        KbScope(String kbId, List<String> docIds) {
+            this.kbId = kbId;
+            this.docIds = docIds;
         }
     }
 }

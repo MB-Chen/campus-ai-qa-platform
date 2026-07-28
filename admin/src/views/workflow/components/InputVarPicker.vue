@@ -1,30 +1,33 @@
 <!-- 输入变量选择器。
-     直接绑定 inputData 数组（新契约 Array<{nodeId, field}>）。
-     - multiple=false（单输入节点 LLM/Dataset/Agent/Purpose）：管理 inputData[0]
-     - multiple=true（Answer 等聚合节点）：管理整列表，可增删行
+     用 n-cascader 级联选择器复刻原版 el-cascader 的交互：
+     一个框展开「上游节点 > 变量」直接选（如：开始 > sys.question）。
 
-     options 为 inputData.js 产出的级联结构：
-     [{value: nodeId, label, color, children: [{value: field, label}]}]
+     数据契约（与后端一致）：
+       - modelValue: Array<{nodeId, field}>
+         （AnswerNode/DatasetNode/AgentNode/LlmNode/PurposeNode/SwitchNode 后端均按
+          inputs.get(0).get("nodeId"/"field") 解析）
+       - options: inputData.js 产出的级联结构
+           [{value: nodeId, label, color, children: [{value: field, label}]}]
 
-     向下兼容：若 inputData 是旧的扁平 [nodeId, field]，mounted 时迁移成 [{nodeId, field}]。 -->
+     实现要点：
+       n-cascader 单选时 value 是「被选中节点的 value（单个值）」——和 el-cascader
+       返回路径数组 [nodeId, field] 不同。为同时携带 nodeId 和 field（后端需要），
+       把叶子 value 编码成复合 key "nodeId||field"，再用 keyMap 反查回 {nodeId, field}。
+       这样「同名 field、不同节点」也不会冲突。
+       show-path=true 让输入框显示完整路径「开始 / 用户问题」。 -->
 <template>
   <div class="picker">
-    <!-- 单输入模式 -->
+    <!-- 单输入模式（LLM/Dataset/Agent/Purpose/条件分支） -->
     <template v-if="!multiple">
-      <n-select
-        :value="curNodeId"
-        :options="nodeOptions"
-        placeholder="选择上游节点"
-        @update:value="onSingleNodeChange"
+      <n-cascader
+        :value="singleKey"
+        :options="cascaderOptions"
+        :show-path="true"
+        clearable
+        filterable
+        placeholder="选择上游变量"
+        @update:value="onSingleChange"
         style="flex: 1"
-      />
-      <n-select
-        :value="curField"
-        :options="fieldOptions"
-        placeholder="选择变量"
-        @update:value="onSingleFieldChange"
-        :disabled="!curNodeId"
-        style="flex: 1; margin-left: 8px"
       />
     </template>
 
@@ -32,31 +35,26 @@
     <template v-else>
       <div class="multi-list">
         <div
-          v-for="(item, idx) in items"
+          v-for="(item, idx) in multiItems"
           :key="idx"
           class="multi-row"
         >
-          <n-select
-            :value="item.nodeId"
-            :options="nodeOptions"
-            placeholder="上游节点"
-            @update:value="(v) => onMultiNodeChange(idx, v)"
+          <n-cascader
+            :value="keyOf(item)"
+            :options="cascaderOptions"
+            :show-path="true"
+            clearable
+            filterable
+            placeholder="选择上游变量"
+            @update:value="(v) => onMultiChange(idx, v)"
             style="flex: 1"
-          />
-          <n-select
-            :value="item.field"
-            :options="fieldOptsFor(item.nodeId)"
-            placeholder="变量"
-            @update:value="(v) => onMultiFieldChange(idx, v)"
-            :disabled="!item.nodeId"
-            style="flex: 1; margin-left: 6px"
           />
           <n-button
             quaternary
             type="error"
             size="small"
             @click="removeRow(idx)"
-            :disabled="items.length === 1"
+            :disabled="multiItems.length === 1"
             >删</n-button
           >
         </div>
@@ -77,79 +75,107 @@
   });
   const emit = defineEmits(['update:modelValue']);
 
-  // 把模型规整成 [{nodeId, field}]（兼容旧扁平 [nodeId, field]）
-  const items = computed(() => {
-    const v = props.modelValue;
+  const SEP = '||';
+
+  // 把外部 modelValue 规整成 [{nodeId, field}]（兼容旧扁平 [nodeId, field]）
+  function normalize(v) {
     if (!Array.isArray(v) || v.length === 0) return [];
-    // 旧契约：元素是字符串 [nodeId, field]
     if (typeof v[0] === 'string') {
       return [{ nodeId: v[0] || null, field: v[1] || null }];
     }
-    return v.map((it) => ({
-      nodeId: it.nodeId ?? null,
-      field: it.field ?? null,
-    }));
-  });
+    return v
+      .filter((it) => it && (it.nodeId || it.field))
+      .map((it) => ({ nodeId: it.nodeId ?? null, field: it.field ?? null }));
+  }
 
-  const curNodeId = computed(() => items.value[0]?.nodeId ?? null);
-  const curField = computed(() => items.value[0]?.field ?? null);
-
-  const nodeOptions = computed(() =>
-    (props.options || []).map((o) => ({ label: o.label, value: o.value })),
+  // 给 n-cascader 的 options：叶子 value 编码成复合 key "nodeId||field"，
+  // 使单选 value 能同时携带 nodeId 与 field。
+  const cascaderOptions = computed(() =>
+    (props.options || []).map((node) => ({
+      value: node.value,
+      label: node.label,
+      children: (node.children || []).map((f) => ({
+        value: `${node.value}${SEP}${f.value}`,
+        label: f.label,
+      })),
+    })),
   );
 
-  function fieldOptsFor(nodeId) {
-    const node = (props.options || []).find((o) => o.value === nodeId);
-    return node && node.children ? node.children : [];
-  }
-  const fieldOptions = computed(() => fieldOptsFor(curNodeId.value));
+  // 复合 key → {nodeId, field} 反查表
+  const keyMap = computed(() => {
+    const m = {};
+    (props.options || []).forEach((node) => {
+      (node.children || []).forEach((f) => {
+        m[`${node.value}${SEP}${f.value}`] = { nodeId: node.value, field: f.value };
+      });
+    });
+    return m;
+  });
 
-  function emitList(list) {
-    // 过滤掉不完整的项
+  // {nodeId, field} → 复合 key（用于回填 cascader value）
+  function keyOf(item) {
+    if (!item || !item.nodeId || !item.field) return null;
+    return `${item.nodeId}${SEP}${item.field}`;
+  }
+
+  // —— 单输入 ——
+  const singleItems = computed(() => normalize(props.modelValue));
+  const singleKey = computed(() => keyOf(singleItems.value[0]));
+
+  function onSingleChange(val) {
+    if (val == null || val === '') {
+      emit('update:modelValue', []);
+      return;
+    }
+    const found = keyMap.value[val];
+    emit('update:modelValue', found ? [found] : []);
+  }
+
+  // —— 多输入（Answer） ——
+  const multiItems = computed(() => {
+    const norm = normalize(props.modelValue);
+    return norm.length ? norm : [{ nodeId: null, field: null }];
+  });
+
+  function onMultiChange(idx, val) {
+    const list = multiItems.value.map((it, i) => {
+      if (i !== idx) return { ...it };
+      if (val == null || val === '') return { nodeId: null, field: null };
+      return keyMap.value[val] || { nodeId: null, field: null };
+    });
+    emit('update:modelValue', list.filter((it) => it.nodeId && it.field));
+  }
+
+  function addRow() {
+    // 现有完整项 + 一个空行
     emit(
       'update:modelValue',
-      list.filter((it) => it.nodeId && it.field),
+      [
+        ...multiItems.value.map((it) => ({ ...it })),
+        { nodeId: null, field: null },
+      ].filter((it, i, arr) => (i === arr.length - 1 ? true : it.nodeId && it.field)),
     );
   }
 
-  // 单输入
-  function onSingleNodeChange(val) {
-    emitList([{ nodeId: val, field: null }]);
-  }
-  function onSingleFieldChange(val) {
-    emitList([{ nodeId: curNodeId.value, field: val }]);
-  }
-
-  // 多输入
-  function onMultiNodeChange(idx, val) {
-    const list = items.value.map((it, i) =>
-      i === idx ? { nodeId: val, field: null } : { ...it },
-    );
-    emitList(list);
-  }
-  function onMultiFieldChange(idx, val) {
-    const list = items.value.map((it, i) =>
-      i === idx ? { nodeId: it.nodeId, field: val } : { ...it },
-    );
-    emitList(list);
-  }
-  function addRow() {
-    emitList([...items.value, { nodeId: null, field: null }]);
-  }
   function removeRow(idx) {
-    const list = items.value.filter((_, i) => i !== idx);
-    emitList(list.length ? list : [{ nodeId: null, field: null }]);
+    const list = multiItems.value
+      .filter((_, i) => i !== idx)
+      .filter((it) => it.nodeId && it.field);
+    emit('update:modelValue', list.length ? list : []);
   }
 </script>
 
 <style scoped>
   .picker {
+    display: flex;
+    align-items: center;
     width: 100%;
   }
   .multi-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    width: 100%;
   }
   .multi-row {
     display: flex;

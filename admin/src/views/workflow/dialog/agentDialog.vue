@@ -91,6 +91,9 @@
     border-radius: 5px;
     padding: 20px;
   }
+  .set-content-box + .set-content-box {
+    margin-top: 16px;
+  }
   .title-row {
     display: flex;
     align-items: center;
@@ -124,9 +127,14 @@
     border-radius: 5px;
   }
   .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
     background: #6172f3;
-    padding: 3px;
     border-radius: 5px;
+    flex-shrink: 0;
   }
   .var-field {
     margin-left: 10px;

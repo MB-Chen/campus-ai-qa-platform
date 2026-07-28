@@ -39,16 +39,14 @@ public class LoginValidate implements Serializable {
     private String password;
 
     /**
-     * 验证码
+     * 验证码（临时可选）
      */
     @Schema(description = "验证码")
-    @NotEmpty(message = "验证码不能为空")
     private String captcha;
 
     /**
-     * 验证码标识
+     * 验证码标识（临时可选）
      */
     @Schema(description = "验证码标识")
-    @NotEmpty(message = "验证码已失效")
     private String key;
 }

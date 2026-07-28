@@ -23,7 +23,7 @@
     </n-tooltip>
     <n-tooltip placement="top">
       <template #trigger>
-        <n-icon :size="18" @click="$emit('center')">< AimOutlined /></n-icon>
+        <n-icon :size="18" @click="$emit('center')"><AimOutlined /></n-icon>
       </template>
       居中显示
     </n-tooltip>

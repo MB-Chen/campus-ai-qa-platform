@@ -20,7 +20,7 @@
     <!-- 侧边栏底部用户区 + 操作区，独立 fixed 在浏览器左下角 -->
     <div
       v-if="
-        !isMobile && isMixMenuNoneSub && (navMode === 'vertical' || navMode === 'horizontal-mix')
+        !isFullScreen && !isMobile && isMixMenuNoneSub && (navMode === 'vertical' || navMode === 'horizontal-mix')
       "
       class="sider-fixed-bottom"
       :class="{ collapsed }"
@@ -28,8 +28,9 @@
       <!-- 当前登录用户：点击弹出精致下拉面板 -->
       <n-popover
         trigger="click"
+        v-model:show="userPopoverShow"
         placement="right-start"
-        :width="240"
+        :width="200"
         raw
         :show-arrow="false"
         class="user-popover"
@@ -47,7 +48,7 @@
         </template>
 
         <!-- ===== 自定义下拉面板内容 ===== -->
-        <div class="user-panel">
+        <div class="user-panel" :style="panelVars">
           <!-- 用户信息头部 -->
           <div class="user-panel-header">
             <n-avatar round :size="36" :color="avatarBgColor">
@@ -68,6 +69,9 @@
               v-for="item in systemSettingItems"
               :key="item.key"
               class="user-panel-item"
+              :class="{
+                'user-panel-item--highlight': isModelHighlight && item.key === 'sys:model',
+              }"
               @click="navigateTo(item.path)"
             >
               <n-icon size="16" class="user-panel-item-icon">
@@ -82,6 +86,10 @@
 
           <!-- 操作区 -->
           <div class="user-panel-section">
+            <div class="user-panel-item" @click="restartGuide()">
+              <n-icon size="16" class="user-panel-item-icon"><QuestionCircleOutlined /></n-icon>
+              <span class="user-panel-item-label">新手引导</span>
+            </div>
             <div class="user-panel-item" @click="showPwdModal = true">
               <n-icon size="16" class="user-panel-item-icon"><LockOutlined /></n-icon>
               <span class="user-panel-item-label">修改密码</span>
@@ -184,7 +192,7 @@
     </n-layout>
 
     <!-- 框架底部版权信息 -->
-    <div class="layout-footer">
+    <div v-if="!isFullScreen" class="layout-footer">
       <a
         class="layout-footer-link"
         href="https://ai.sparkshop.cn/"
@@ -198,13 +206,13 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, unref, computed, onMounted, reactive } from 'vue';
+  import { ref, unref, computed, onMounted, reactive, nextTick } from 'vue';
   import { useRouter, useRoute } from 'vue-router';
   import { useDialog, useMessage, useThemeVars } from 'naive-ui';
   import { Logo } from './components/Logo';
   import { MainView } from './components/Main';
   import { AsideMenu } from './components/Menu';
-  import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined, RobotOutlined, ApartmentOutlined, ToolOutlined, ApiOutlined, SearchOutlined, ShareAltOutlined, LockOutlined, ExportOutlined } from '@vicons/antd';
+  import { MenuFoldOutlined, MenuUnfoldOutlined, RightOutlined, RobotOutlined, ApartmentOutlined, ToolOutlined, ApiOutlined, SearchOutlined, ShareAltOutlined, LockOutlined, ExportOutlined, QuestionCircleOutlined } from '@vicons/antd';
   import { Moon, Sunny } from '@vicons/ionicons5';
   import { useProjectSetting } from '@/hooks/setting/useProjectSetting';
   import { useDesignSettingStore } from '@/store/modules/designSetting';
@@ -213,12 +221,29 @@
   import { changePassword } from '@/api/user';
   import { storage } from '@/utils/Storage';
   import { PageEnum } from '@/enums/pageEnum';
+  import { driver } from 'driver.js';
+  import 'driver.js/dist/driver.css';
 
   const designStore = useDesignSettingStore();
   const { getDarkTheme } = { getDarkTheme: computed(() => designStore.darkTheme) };
   // naive-ui 当前主题变量（响应式）：暗色下 bodyColor 为真实黑色，亮色为白色；
   // primaryColor 跟随 appTheme，避免硬编码蓝色/绿色。
   const themeVars = useThemeVars();
+
+  // 面板主题变量：必须用内联 :style 直接绑在 .user-panel 元素上，
+  // 因为 n-popover 内容是 teleport 到 body 的，SFC 的 v-bind 主题变量（挂在根元素）
+  // 无法继承到 teleport 内容，会导致背景透明。内联 style 在 teleport 中仍然生效。
+  const panelVars = computed(() => ({
+    '--panel-bg': themeVars.value.cardColor,
+    '--panel-border': themeVars.value.borderColor,
+    '--panel-shadow': themeVars.value.boxShadow2,
+    '--panel-text': themeVars.value.textColorBase,
+    '--panel-text-1': themeVars.value.textColor1,
+    '--panel-text-3': themeVars.value.textColor3,
+    '--panel-divider': themeVars.value.dividerColor,
+    '--panel-hover': themeVars.value.hoverColor,
+    '--panel-primary': themeVars.value.primaryColor,
+  }));
   const { navMode, navTheme, headerSetting, menuSetting } = useProjectSetting();
 
   const settingStore = useProjectSettingStore();
@@ -240,8 +265,208 @@
   // 当前登录用户
   const userStore = useUserStore();
   const router = useRouter();
+  const route = useRoute();
   const dialog = useDialog();
   const message = useMessage();
+
+  // 全屏路由（如工作流编辑器）：隐藏框架底部版权 + 左下角用户/操作区，
+  // 否则会和编辑器自身的底部工具栏重叠遮挡
+  const isFullScreen = computed(() => !!route.meta?.fullScreen);
+
+  // ===================== 新手引导（首次进入系统） =====================
+  // 采用 driver.js 实现聚光灯式引导：整页遮罩 + 高亮目标元素 + 上一步/下一步/跳过。
+  // 仅第一次进入系统显示；完成后写入 localStorage，下次不再弹。
+  const GUIDE_DONE_KEY = 'SPARKX_ONBOARDED';
+  const GUIDE_STEP_KEY = 'SPARKX_GUIDE_STEP';
+  const showGuide = ref(false);
+  const guideStep = ref(0);
+
+  // 控制左下角用户下拉面板（第一步引导需要展开它，才能高亮「配置模型」项）
+  const userPopoverShow = ref(false);
+
+  // 按菜单文字精确定位左侧菜单项。
+  // 不能用 `.n-menu-item-content--selected`：路由跳转后选中类是异步更新的，
+  // 切步瞬间查到的是上一个页面的菜单项，会导致聚光框错位（高亮停在旧菜单上）。
+  function findMenuItemByLabel(label: string): Element | null {
+    const items = document.querySelectorAll('.n-menu-item-content');
+    for (const el of Array.from(items)) {
+      const header = el.querySelector('.n-menu-item-content-header');
+      const text = (header?.textContent || el.textContent || '').trim();
+      if (text === label) return el;
+    }
+    return null;
+  }
+
+  // 引导步骤定义：
+  //  - title/desc 为聚光弹层文案
+  //  - getEl 动态返回要高亮的元素（切页后实时查找，避免选中类异步更新导致错位）
+  //  - route 为进入该步时要跳转的路由（step0 为展开左下角菜单，无路由）
+  //  - menuLabel 为该步对应的左侧菜单文字（用于等待选中态同步）
+  //  - side 为弹层相对高亮元素的位置
+  const guideSteps = [
+    {
+      title: '① 配置模型',
+      desc: '先点击左下角头像菜单里的「配置模型」，添加并启用至少一个 AI 模型。模型未配置会导致后续对话无法使用。',
+      getEl: () => document.querySelector('.user-panel-item--highlight'),
+      side: 'right',
+      route: '',
+      menuLabel: '',
+    },
+    {
+      title: '② 设置知识库',
+      desc: '进入「知识库」，创建一个知识库并上传文档，让智能体具备你的专属知识。',
+      getEl: () => findMenuItemByLabel('知识库'),
+      side: 'right',
+      route: '/knowledge',
+      menuLabel: '知识库',
+    },
+    {
+      title: '③ 配置智能体',
+      desc: '进入「智能体」，创建一个智能体，并绑定刚刚配置的模型与知识库。',
+      getEl: () => findMenuItemByLabel('智能体'),
+      side: 'right',
+      route: '/agent',
+      menuLabel: '智能体',
+    },
+    {
+      title: '④ 开始对话',
+      desc: '进入「新对话」，选择你配置的智能体，即可开始智能问答。祝你使用愉快！',
+      getEl: () => findMenuItemByLabel('新对话'),
+      side: 'right',
+      route: '/chat',
+      menuLabel: '新对话',
+    },
+  ];
+
+  let driverObj: any = null;
+  // driver 是否已启动（首次用 drive() 启动，之后用 moveTo() 跳转）
+  let driverStarted = false;
+
+  // 等待条件满足（路由跳转 / 弹层展开后元素才渲染、菜单选中态异步更新）
+  function waitFor(check: () => Element | null | false, timeout = 2000): Promise<Element | null> {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        const el = check();
+        if (el) return resolve(el);
+        if (Date.now() - start > timeout) return resolve(null);
+        requestAnimationFrame(tick);
+      };
+      tick();
+    });
+  }
+
+  // 跳转到第 index 步：先执行该步副作用（展开菜单 / 路由跳转），
+  // 等目标元素就绪后再让 driver 聚光高亮它。
+  async function goToStep(index: number) {
+    if (!driverObj) return;
+    if (index < 0 || index >= guideSteps.length) {
+      finishGuide();
+      return;
+    }
+    const step = guideSteps[index];
+    if (index === 0) {
+      userPopoverShow.value = true; // 展开左下角面板
+    } else {
+      userPopoverShow.value = false;
+      router.push(step.route);
+    }
+    guideStep.value = index;
+    await nextTick();
+    // 等待目标元素出现；菜单步骤还要等选中态同步到目标菜单项上
+    // （否则聚光框会定位到上一个页面仍带选中类的旧菜单项）
+    await waitFor(() => {
+      const el = step.getEl();
+      if (!el) return false;
+      if (step.menuLabel && !el.classList.contains('n-menu-item-content--selected')) return false;
+      return el;
+    });
+    if (!driverObj) return;
+    if (!driverStarted) {
+      driverObj.drive(index);
+      driverStarted = true;
+    } else {
+      driverObj.moveTo(index);
+    }
+  }
+
+  function destroyDriver() {
+    if (driverObj) {
+      try {
+        driverObj.destroy();
+      } catch (e) {
+        /* noop */
+      }
+      driverObj = null;
+    }
+    driverStarted = false;
+  }
+
+  function finishGuide() {
+    showGuide.value = false;
+    // expire 传 null：永不过期（storage 默认 7 天过期，会导致引导 7 天后再次自动弹出）
+    storage.set(GUIDE_DONE_KEY, '1', null);
+    storage.remove(GUIDE_STEP_KEY);
+    destroyDriver();
+  }
+
+  // 手动重新打开新手引导（左下角菜单「新手引导」入口）：
+  // 清掉完成标记与步骤记录，销毁旧 driver 实例后从第一步重新开始
+  function restartGuide() {
+    storage.remove(GUIDE_DONE_KEY);
+    storage.remove(GUIDE_STEP_KEY);
+    destroyDriver();
+    showGuide.value = true;
+    guideStep.value = 0;
+    startGuide();
+  }
+
+  // 第一步引导中：左下角面板里的「配置模型」项高亮（配合 driver 聚光）
+  const isModelHighlight = computed(() => showGuide.value && guideStep.value === 0);
+
+  // 构建 driver 实例（只构建一次）
+  function buildDriver() {
+    if (driverObj) return;
+    driverObj = driver({
+      showProgress: true,
+      progressText: '{{current}} / {{total}}',
+      nextBtnText: '下一步',
+      prevBtnText: '上一步',
+      doneBtnText: '完成引导',
+      allowClose: true,
+      overlayOpacity: 0.35,
+      stagePadding: 6,
+      stageRadius: 8,
+      onCloseClick: () => finishGuide(),
+      onNextClick: () => {
+        const i = driverObj?.getActiveIndex?.() ?? 0;
+        goToStep(i + 1);
+      },
+      onPrevClick: () => {
+        const i = driverObj?.getActiveIndex?.() ?? 0;
+        if (i <= 0) return; // 第一步没有上一步
+        goToStep(i - 1);
+      },
+      steps: guideSteps.map((s) => ({
+        // 传函数：每次聚光时实时查找目标元素（切页后重新定位，避免拿到旧元素）
+        element: () => (s.getEl() as Element) || document.body,
+        popover: {
+          title: s.title,
+          description: s.desc,
+          side: s.side as any,
+          align: 'start',
+        },
+      })),
+    });
+  }
+
+  // 启动引导：构建 driver 并跳到上次进行中的步骤（默认第 0 步）
+  function startGuide() {
+    if (driverObj) return;
+    buildDriver();
+    const saved = parseInt(storage.get(GUIDE_STEP_KEY) || '0', 10);
+    goToStep(Number.isNaN(saved) ? 0 : saved);
+  }
 
   // 显示名优先昵称，其次账号
   const displayName = computed(() => {
@@ -257,7 +482,7 @@
   // 系统设置子项（原侧边栏「系统设置」一级菜单，已迁移到此处）
   // key 唯一；path 为 generateRoutes 生成的真实路由（父 name 'system' → /system）
   const systemSettingItems = [
-    { label: '大模型', key: 'sys:model', path: '/system/model', icon: RobotOutlined },
+    { label: '配置模型', key: 'sys:model', path: '/system/model', icon: RobotOutlined },
     { label: '意图路由', key: 'sys:intent', path: '/system/intent', icon: ApartmentOutlined },
     { label: '解析引擎', key: 'sys:service', path: '/system/service', icon: ToolOutlined },
     { label: 'MCP服务', key: 'sys:mcp', path: '/system/mcp', icon: ApiOutlined },
@@ -424,6 +649,11 @@
   onMounted(() => {
     checkMobileMode();
     window.addEventListener('resize', watchWidth);
+    // 首次进入系统展示引导（完成过则不再显示）；恢复上次进行中的步骤
+    if (!storage.get(GUIDE_DONE_KEY)) {
+      showGuide.value = true;
+      startGuide();
+    }
   });
 </script>
 
@@ -555,10 +785,10 @@
   .user-panel {
     padding: 4px 0;
     border-radius: 12px;
-    // 跟随主题：亮色白底 / 暗色深底
-    background: v-bind('themeVars.cardColor');
-    border: 1px solid v-bind('themeVars.borderColor');
-    box-shadow: v-bind('themeVars.boxShadow2');
+    // 跟随主题：亮色白底 / 暗色深底（颜色经 :style 内联绑定，兼容 teleport）
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--panel-shadow);
   }
 
   // 头部：头像 + 名字 + 角色
@@ -579,20 +809,23 @@
   .user-panel-name {
     font-size: 15px;
     font-weight: 600;
-    color: v-bind('themeVars.textColorBase');
+    color: var(--panel-text);
     line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .user-panel-role {
     font-size: 12px;
-    color: v-bind('themeVars.textColor3');
+    color: var(--panel-text-3);
   }
 
   // 分隔线
   .user-panel-divider {
     height: 1px;
     margin: 4px 12px;
-    background: v-bind('themeVars.dividerColor');
+    background: var(--panel-divider);
   }
 
   // 分区容器
@@ -609,10 +842,10 @@
     border-radius: 8px;
     cursor: pointer;
     transition: background-color 0.15s;
-    color: v-bind('themeVars.textColor1');
+    color: var(--panel-text-1);
 
     &:hover {
-      background: v-bind('themeVars.hoverColor');
+      background: var(--panel-hover);
     }
 
     &--danger {
@@ -627,6 +860,30 @@
   .user-panel-item-icon {
     flex-shrink: 0;
     opacity: 0.75;
+  }
+
+  // 新手引导第一步：高亮「配置模型」项，提示用户点击
+  .user-panel-item--highlight {
+    position: relative;
+    color: var(--panel-primary);
+    background: color-mix(in srgb, var(--panel-primary) 12%, transparent);
+    box-shadow: 0 0 0 2px var(--panel-primary);
+    animation: ob-pulse 1.4s ease-in-out infinite;
+
+    .user-panel-item-icon {
+      opacity: 1;
+      color: var(--panel-primary);
+    }
+  }
+
+  @keyframes ob-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 2px var(--panel-primary);
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--panel-primary) 45%, transparent);
+    }
   }
 
   .user-panel-item-label {

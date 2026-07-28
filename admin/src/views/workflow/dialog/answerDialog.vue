@@ -20,11 +20,11 @@
       </div>
 
       <div v-if="form.answerType === 1" class="ref-box">
-        <div class="sub-tip">
+        <div class="sub-tip" v-pre>
           可引用多个上游变量（如条件分支后的多个 LLM）。下方「回复模板」留空则按顺序拼接；
-          多变量时用 <code>{{ '{{1}}' }}</code> <code>{{ '{{2}}' }}</code> …
+          多变量时用 <code>{{1}}</code> <code>{{2}}</code> …
           指代上方第几个变量（推荐，能区分同字段不同节点），或用
-          <code>{{ '{{sys.content}}' }}</code> 按字段名取首个命中。
+          <code>{{sys.content}}</code> 按字段名取首个命中。
         </div>
         <input-var-picker
           v-model="form.inputData"
@@ -116,6 +116,9 @@
     border-radius: 5px;
     padding: 20px;
   }
+  .set-content-box + .set-content-box {
+    margin-top: 16px;
+  }
   .title-row {
     display: flex;
     align-items: center;
@@ -173,9 +176,14 @@
     border-radius: 5px;
   }
   .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
     background: #6172f3;
-    padding: 3px;
     border-radius: 5px;
+    flex-shrink: 0;
   }
   .var-field {
     margin-left: 10px;

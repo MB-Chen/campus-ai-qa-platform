@@ -47,14 +47,14 @@ const chatMenu = {
   ],
 };
 
-// 系统监控（原主控台）：LAYOUT + 单子项，扁平化显示为一级可点击项
+// 监控（原主控台）：LAYOUT + 单子项，扁平化显示为一级可点击项
 const dashboardMenu = {
   path: '#',
   name: 'Dashboard',
   component: 'LAYOUT',
   redirect: '/dashboard/console',
   meta: {
-    title: '系统监控',
+    title: '监控',
     icon: 'DashboardOutlined',
     alwaysShow: false,
   },
@@ -64,7 +64,7 @@ const dashboardMenu = {
       name: 'dashboard_console',
       component: '/dashboard/index',
       meta: {
-        title: '系统监控',
+        title: '监控',
       },
     },
   ],
@@ -149,6 +149,9 @@ const workflowMenu = {
       meta: {
         title: '编排设计',
         hidden: true,
+        // 全屏编辑器：隐藏框架底部版权 + 左下角用户/操作区，避免与编辑器自身的
+        // 底部工具栏（缩放/居中/添加）重叠遮挡
+        fullScreen: true,
       },
     },
   ],
@@ -172,7 +175,7 @@ const systemMenu = {
       name: 'aimodel_aimodel',
       component: '/ai/model/index',
       meta: {
-        title: '大模型',
+        title: '配置模型',
       },
     },
     {
