@@ -27,6 +27,17 @@ export interface RuntimeContextVo {
   modelData?: string;
 }
 
+/** 编排执行单步（聊天/调试通用，含状态） */
+export interface WorkflowStep {
+  cell?: string;
+  nodeType?: string;
+  step?: number;
+  /** running 执行中 / done 已完成 */
+  status?: 'running' | 'done';
+  outputData?: string;
+  modelData?: string;
+}
+
 // CRUD（走 Alova，返回 {code,message,data} 整包）
 export function getWorkflowList(params: {
   keyword?: string;

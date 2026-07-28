@@ -92,6 +92,10 @@ export interface AgentChatMessage {
   totalCost?: number;
   /** RAG 各阶段上下文（调用流程抽屉展示用），由后端 complete 事件回传 */
   stageData?: RagStageData;
+  /** 编排智能体专用：各节点执行步骤（含召回片段/耗时/prompt），由 workflow runDetail 回填 */
+  workflowSteps?: import('./workflow').WorkflowStep[];
+  /** 编排智能体专用：本轮 token 总量，由 workflow complete 事件回传 */
+  totalTokens?: number;
 }
 
 /** 引用来源 */

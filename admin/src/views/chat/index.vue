@@ -90,7 +90,10 @@
               >
                 <template #trigger>
                   <div class="cc-agent-trigger" :class="{ active: agentPopoverShow }">
-                    <n-icon size="14" class="cc-agent-trigger-icon"><RobotOutlined /></n-icon>
+                    <n-icon size="14" class="cc-agent-trigger-icon">
+                      <DeploymentUnitOutlined v-if="selectedKind === 'workflow'" />
+                      <RobotOutlined v-else />
+                    </n-icon>
                     <span class="cc-agent-trigger-text">{{
                       selectedAgentName || '选择智能体'
                     }}</span>
@@ -113,30 +116,34 @@
                       <n-icon size="12"><PlusOutlined /></n-icon> 管理
                     </a>
                   </div>
-                  <div class="cc-agent-group-label">内置智能体</div>
-                  <div v-if="agents.length" class="cc-agent-list">
+                  <!-- 智能体分组 -->
+                  <div class="cc-agent-group-label">智能体</div>
+                  <div v-if="agentItems.length" class="cc-agent-list">
                     <div
-                      v-for="agent in agents"
-                      :key="agent.id"
+                      v-for="item in agentItems"
+                      :key="'a_' + item.id"
                       class="cc-agent-item"
-                      :class="{ selected: selectedAgentId === agent.id }"
-                      @click="selectAgent(agent)"
+                      :class="{
+                        selected:
+                          selectedKind === 'agent' && selectedAgentId === item.id,
+                      }"
+                      @click="selectTarget(item)"
                     >
                       <div class="cc-agent-item-left">
                         <n-icon
                           :size="18"
-                          :component="getAgentIcon(agent)"
+                          :component="getAgentIcon(item)"
                           class="cc-agent-item-icon"
                         />
-                        <span class="cc-agent-item-name">{{ agent.name || '未命名' }}</span>
+                        <span class="cc-agent-item-name">{{ item.name || '未命名' }}</span>
                       </div>
-                      <n-tooltip v-if="agent.description" trigger="hover" :delay="500">
+                      <n-tooltip v-if="item.description" trigger="hover" :delay="500">
                         <template #trigger>
                           <n-icon :size="14" class="cc-agent-item-info"
                             ><InfoCircleOutlined
                           /></n-icon>
                         </template>
-                        {{ agent.description }}
+                        {{ item.description }}
                       </n-tooltip>
                     </div>
                   </div>
@@ -147,6 +154,45 @@
                         ><n-icon :size="12"><PlusOutlined /></n-icon
                       ></template>
                       去新增
+                    </n-button>
+                  </div>
+
+                  <!-- 编排智能体分组 -->
+                  <div class="cc-agent-group-label">编排智能体</div>
+                  <div v-if="workflowItems.length" class="cc-agent-list">
+                    <div
+                      v-for="item in workflowItems"
+                      :key="'w_' + item.id"
+                      class="cc-agent-item"
+                      :class="{
+                        selected:
+                          selectedKind === 'workflow' && selectedAgentId === item.id,
+                      }"
+                      @click="selectTarget(item)"
+                    >
+                      <div class="cc-agent-item-left">
+                        <n-icon :size="18" class="cc-agent-item-icon">
+                          <DeploymentUnitOutlined />
+                        </n-icon>
+                        <span class="cc-agent-item-name">{{ item.name || '未命名编排' }}</span>
+                      </div>
+                      <n-tooltip v-if="item.description" trigger="hover" :delay="500">
+                        <template #trigger>
+                          <n-icon :size="14" class="cc-agent-item-info"
+                            ><InfoCircleOutlined
+                          /></n-icon>
+                        </template>
+                        {{ item.description }}
+                      </n-tooltip>
+                    </div>
+                  </div>
+                  <div v-else class="cc-agent-empty">
+                    <p>暂无可用编排</p>
+                    <n-button size="tiny" type="primary" secondary @click="goWorkflowManage">
+                      <template #icon
+                        ><n-icon :size="12"><PlusOutlined /></n-icon
+                      ></template>
+                      去新建
                     </n-button>
                   </div>
                 </div>
@@ -208,8 +254,11 @@
             <n-popover trigger="click" placement="bottom-end" :width="240" :show-arrow="false" raw>
               <template #trigger>
                 <div class="chat-model-trigger">
-                  <n-icon size="14"><RobotOutlined /></n-icon>
-                  <span>{{ currentAgent?.name || '选择模型' }}</span>
+                  <n-icon size="14">
+                    <DeploymentUnitOutlined v-if="currentKind === 'workflow'" />
+                    <RobotOutlined v-else />
+                  </n-icon>
+                  <span>{{ currentTarget?.name || '选择模型' }}</span>
                   <n-icon size="12"><CaretDownOutlined /></n-icon>
                 </div>
               </template>
@@ -222,15 +271,34 @@
                   border: `1px solid ${themeVars.borderColor}`,
                 }"
               >
+                <!-- 智能体分组 -->
+                <div class="model-group-label">智能体</div>
                 <div
-                  v-for="agent in agents"
-                  :key="agent.id"
+                  v-for="item in agentItems"
+                  :key="'h_a_' + item.id"
                   class="model-item"
-                  :class="{ selected: currentAgentId === agent.id }"
-                  @click="switchAgent(agent.id as string)"
+                  :class="{
+                    selected: currentKind === 'agent' && currentAgentId === item.id,
+                  }"
+                  @click="switchAgent(item)"
                 >
-                  <n-icon :size="16" :component="getAgentIcon(agent)" />
-                  <span>{{ agent.name || '未命名' }}</span>
+                  <n-icon :size="16" :component="getAgentIcon(item)" />
+                  <span>{{ item.name || '未命名' }}</span>
+                </div>
+                <!-- 编排智能体分组 -->
+                <div class="model-group-label">编排智能体</div>
+                <div
+                  v-for="item in workflowItems"
+                  :key="'h_w_' + item.id"
+                  class="model-item"
+                  :class="{
+                    selected:
+                      currentKind === 'workflow' && currentAgentId === item.id,
+                  }"
+                  @click="switchAgent(item)"
+                >
+                  <n-icon :size="16"><DeploymentUnitOutlined /></n-icon>
+                  <span>{{ item.name || '未命名编排' }}</span>
                 </div>
               </div>
             </n-popover>
@@ -247,7 +315,7 @@
                   <n-icon :size="28" color="#fff"><RobotOutlined /></n-icon>
                 </div>
                 <div class="welcome-text"
-                  >你好！我是 {{ currentAgent?.name || 'SparkX' }}，有什么可以帮你的吗？</div
+                  >你好！我是 {{ currentTarget?.name || 'SparkX' }}，有什么可以帮你的吗？</div
                 >
               </div>
               <div v-if="currentSuggestedQuestions.length" class="chat-suggested-chips">
@@ -271,7 +339,7 @@
               />
               <div class="msg-content">
                 <div v-if="msg.role === 'assistant'" class="msg-sender">
-                  {{ currentAgent?.name || 'SparkX' }}
+                  {{ currentTarget?.name || 'SparkX' }}
                   <n-tag
                     v-if="msg.role === 'assistant'"
                     size="tiny"
@@ -307,9 +375,88 @@
                   >
                     <n-icon size="14"><ApartmentOutlined /></n-icon>
                   </button>
+                  <button
+                    v-if="msg.workflowSteps?.length"
+                    class="msg-action-btn"
+                    title="调用流程"
+                    @click="openWorkflowTrace(msg)"
+                  >
+                    <n-icon size="14"><ApartmentOutlined /></n-icon>
+                  </button>
                   <button v-if="msg.totalCost" class="msg-action-btn msg-cost" disabled>
                     总耗时 {{ (msg.totalCost / 1000).toFixed(2) }}s
                   </button>
+                  <button v-if="msg.totalTokens" class="msg-action-btn msg-cost" disabled>
+                    {{ msg.totalTokens }} tokens
+                  </button>
+                </div>
+                <!-- 调用流程步骤（编排智能体消息，可折叠） -->
+                <div
+                  v-if="msg.role === 'assistant' && msg.workflowSteps?.length"
+                  class="msg-step-timeline"
+                >
+                  <div class="step-summary-bar" @click="toggleMsgStepsExpand(i)">
+                    <n-icon size="13" class="step-summary-caret" :class="{ open: isMsgStepsExpanded(i) }">
+                      <CaretRightOutlined />
+                    </n-icon>
+                    <n-icon size="13"><ApartmentOutlined /></n-icon>
+                    <span class="step-summary-label">调用流程</span>
+                    <span class="step-summary-chain">
+                      <template v-for="(step, si) in msg.workflowSteps" :key="si">
+                        <span class="step-chain-node">{{ stepHeadMeta(step).name || step.nodeType || '节点' }}</span>
+                        <span v-if="si < msg.workflowSteps!.length - 1" class="step-chain-arrow">›</span>
+                      </template>
+                    </span>
+                    <span v-if="msg.totalCost" class="step-summary-cost">
+                      {{ (msg.totalCost / 1000).toFixed(2) }}s
+                    </span>
+                  </div>
+                  <n-collapse-transition :show="isMsgStepsExpanded(i)">
+                    <div class="step-timeline">
+                      <div
+                        v-for="(step, si) in msg.workflowSteps"
+                        :key="step.cell || si"
+                        class="step-card"
+                        :class="{
+                          'is-open': isStepExpanded(i, si),
+                          'is-running': step.status === 'running',
+                        }"
+                      >
+                        <div class="step-head" @click="toggleStepExpand(i, si)">
+                          <n-icon
+                            :component="CaretRightOutlined"
+                            :size="14"
+                            :style="{ transform: isStepExpanded(i, si) ? 'rotate(90deg)' : '' }"
+                            class="step-caret"
+                          />
+                          <span class="step-num">{{ step.step || si + 1 }}</span>
+                          <n-icon
+                            v-if="stepHeadIcon(step)"
+                            :component="stepHeadIcon(step)"
+                            :color="stepHeadMeta(step).color"
+                            :size="16"
+                          />
+                          <span class="step-name">{{
+                            stepHeadMeta(step).name || step.nodeType || '节点'
+                          }}</span>
+                          <span
+                            v-if="stepHeadMeta(step).costMs != null"
+                            class="cost-badge"
+                            :class="costClass(stepHeadMeta(step).costMs)"
+                          >
+                            {{ (stepHeadMeta(step).costMs / 1000).toFixed(2) }}s
+                          </span>
+                          <span v-if="step.status === 'running'" class="step-spin"></span>
+                          <span v-else class="step-check">✓</span>
+                        </div>
+                        <n-collapse-transition :show="isStepExpanded(i, si)">
+                          <div class="step-body">
+                            <node-body :item="step" />
+                          </div>
+                        </n-collapse-transition>
+                      </div>
+                    </div>
+                  </n-collapse-transition>
                 </div>
                 <!-- 推荐追问（仅最后一条 assistant 消息后） -->
                 <div
@@ -387,8 +534,15 @@
       </n-drawer-content>
     </n-drawer>
 
-    <!-- 调用流程抽屉（RAG 各阶段上下文） -->
+    <!-- 调用流程抽屉（智能体 RAG 各阶段上下文） -->
     <RagTraceDrawer v-model:show="traceDrawerVisible" :data="traceDrawerData" />
+
+    <!-- 调用流程抽屉（编排智能体各节点步骤） -->
+    <WorkflowTraceDrawer
+      v-model:show="workflowTraceVisible"
+      :steps="workflowTraceSteps"
+      :meta="workflowTraceMeta"
+    />
   </div>
 </template>
 
@@ -416,6 +570,8 @@
     ReloadOutlined,
     FileTextOutlined,
     ApartmentOutlined,
+    DeploymentUnitOutlined,
+    CaretRightOutlined,
   } from '@vicons/antd';
   import { createSessions } from '@/api/system/chat';
   import {
@@ -426,7 +582,16 @@
     type AgentReference,
     type RagStageData,
   } from '@/api/system/agent';
+  import {
+    getWorkflowList,
+    streamWorkflowChat,
+    getRunDetail,
+    type Workflow,
+    type WorkflowStep,
+  } from '@/api/system/workflow';
+  import { NodeBody, nodeMeta, costClass } from '@/views/workflow/menu/runtimeDetail.js';
   import RagTraceDrawer from '@/views/agent/components/RagTraceDrawer.vue';
+  import WorkflowTraceDrawer from '@/views/chat/components/WorkflowTraceDrawer.vue';
   import { useTypewriter } from '@/composables/useTypewriter';
   import { marked } from 'marked';
 
@@ -438,12 +603,27 @@
   const themeVars = useThemeVars();
 
   // ========== 类型定义 ==========
+  /** 对话目标类型：智能体 / 编排智能体 */
+  type ChatKind = 'agent' | 'workflow';
+
   interface Conversation {
     id: string;
     title: string;
     agentId: string;
+    /** 本会话绑定的目标类型（agent 智能体 / workflow 编排智能体） */
+    kind: ChatKind;
     messages: AgentChatMessage[];
     updatedAt: string;
+  }
+
+  /** 下拉里统一展示的条目（智能体 / 编排智能体都映射成它） */
+  interface TargetItem {
+    id: string;
+    name?: string;
+    description?: string;
+    kind: ChatKind;
+    /** 智能体的推荐问题（编排暂无） */
+    suggestedQuestions?: string[];
   }
 
   // ========== 欢迎页状态 ==========
@@ -451,18 +631,49 @@
   const inputRef = ref<any>(null);
   const creating = ref(false);
   const agents = ref<Agent[]>([]);
+  const workflows = ref<Workflow[]>([]);
   const selectedAgentId = ref<string | null>(null);
+  /** 当前选中目标的类型：agent / workflow */
+  const selectedKind = ref<ChatKind>('agent');
   const agentPopoverShow = ref(false);
   const suggestedQuestions = ref<string[]>([]);
   const sqLoading = ref(false);
 
-  // 智能体持久化
+  // 智能体持久化（同时存类型，以便还原「编排智能体」选择）
   const SELECTED_AGENT_KEY = 'SPARKX_SELECTED_AGENT';
+  const SELECTED_KIND_KEY = 'SPARKX_SELECTED_KIND';
 
   const selectedAgentName = computed(() => {
-    if (!selectedAgentId.value) return '';
+    if (!selectedAgentId.value) {
+      return '';
+    }
+    if (selectedKind.value === 'workflow') {
+      return workflows.value.find((w) => w.id === selectedAgentId.value)?.name || '';
+    }
     return agents.value.find((a) => a.id === selectedAgentId.value)?.name || '';
   });
+
+  /** 智能体分组（映射成统一 TargetItem） */
+  const agentItems = computed<TargetItem[]>(
+    () => agents.value.map((a) => ({
+      id: a.id as string,
+      name: a.name,
+      description: a.description,
+      kind: 'agent',
+      suggestedQuestions: a.suggestedQuestions as string[] | undefined,
+    }))
+  );
+  /** 编排智能体分组（仅展示启用项，status !== 2） */
+  const workflowItems = computed<TargetItem[]>(() =>
+    workflows.value
+      .filter((w) => w.status !== 2)
+      .map((w) => ({
+        id: w.id as string,
+        name: w.name,
+        description: w.description,
+        kind: 'workflow',
+      }))
+  );
 
   const AGENT_ICON_MAP: Record<string, any> = {
     快速问答: MessageOutlined,
@@ -474,7 +685,10 @@
     实验: ExperimentOutlined,
     工具: ApiOutlined,
   };
-  function getAgentIcon(agent: Agent): any {
+  function getAgentIcon(agent: Agent | TargetItem): any {
+    if ((agent as TargetItem).kind === 'workflow') {
+      return DeploymentUnitOutlined;
+    }
     const name = agent.name || '';
     for (const [key, icon] of Object.entries(AGENT_ICON_MAP)) {
       if (name.includes(key)) return icon;
@@ -482,7 +696,9 @@
     return RobotOutlined;
   }
 
-  const canSend = computed(() => !!inputValue.value.trim() && !creating.value);
+  const canSend = computed(
+    () => !!inputValue.value.trim() && !creating.value && !!selectedAgentId.value
+  );
 
   async function loadAgents() {
     try {
@@ -495,18 +711,42 @@
     }
   }
 
+  /** 加载编排列表（复用分页接口，取前 100 条，仅展示启用项） */
+  async function loadWorkflows() {
+    try {
+      const resp: any = await getWorkflowList({ page: 1, size: 100 });
+      const data = resp?.data ?? {};
+      const arr: Workflow[] = Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data?.list)
+          ? data.list
+          : Array.isArray(data)
+            ? data
+            : [];
+      workflows.value = arr.filter((x: any) => x && x.id != null);
+    } catch (e: any) {
+      // 编排加载失败不阻塞主流程
+      workflows.value = [];
+    }
+  }
+
   function loadSuggested() {
     sqLoading.value = true;
     const agent = agents.value.find((a) => a.id === selectedAgentId.value);
     setTimeout(() => {
-      suggestedQuestions.value = (agent?.suggestedQuestions as string[]) || [];
+      // 编排智能体暂无推荐问题
+      suggestedQuestions.value =
+        selectedKind.value === 'agent' ? (agent?.suggestedQuestions as string[]) || [] : [];
       sqLoading.value = false;
     }, 100);
   }
 
-  function selectAgent(agent: Agent) {
-    selectedAgentId.value = agent.id as string;
-    localStorage.setItem(SELECTED_AGENT_KEY, selectedAgentId.value);
+  /** 统一选择：智能体或编排智能体 */
+  function selectTarget(item: TargetItem) {
+    selectedKind.value = item.kind;
+    selectedAgentId.value = item.id;
+    localStorage.setItem(SELECTED_AGENT_KEY, item.id);
+    localStorage.setItem(SELECTED_KIND_KEY, item.kind);
     agentPopoverShow.value = false;
     loadSuggested();
   }
@@ -514,10 +754,21 @@
   function restoreSelectedAgent() {
     const savedId = localStorage.getItem(SELECTED_AGENT_KEY);
     if (!savedId) return;
-    if (agents.value.some((a) => a.id === savedId)) {
+    const savedKind = (localStorage.getItem(SELECTED_KIND_KEY) as ChatKind) || 'agent';
+    if (savedKind === 'workflow') {
+      if (workflows.value.some((w) => w.id === savedId)) {
+        selectedKind.value = 'workflow';
+        selectedAgentId.value = savedId;
+      } else {
+        localStorage.removeItem(SELECTED_AGENT_KEY);
+        localStorage.removeItem(SELECTED_KIND_KEY);
+      }
+    } else if (agents.value.some((a) => a.id === savedId)) {
+      selectedKind.value = 'agent';
       selectedAgentId.value = savedId;
     } else {
       localStorage.removeItem(SELECTED_AGENT_KEY);
+      localStorage.removeItem(SELECTED_KIND_KEY);
     }
   }
 
@@ -529,6 +780,11 @@
   function goAgentCreate() {
     agentPopoverShow.value = false;
     router.push('/agent').catch(() => {});
+  }
+
+  function goWorkflowManage() {
+    agentPopoverShow.value = false;
+    router.push('/workflow').catch(() => {});
   }
 
   function onSuggestedClick(q: string) {
@@ -549,6 +805,8 @@
 
   // 当前活跃会话的智能体
   const currentAgentId = ref<string>('');
+  // 当前活跃会话的目标类型（agent / workflow）
+  const currentKind = ref<ChatKind>('agent');
 
   function convLsKey(id: string) {
     return `${CONV_LS_PREFIX}${id}`;
@@ -592,8 +850,8 @@
     )}`;
   }
 
-  function createLocalConv(agentId: string, title = '新会话'): Conversation {
-    return { id: genId(), title, agentId, messages: [], updatedAt: nowStr() };
+  function createLocalConv(agentId: string, title = '新会话', kind: ChatKind = 'agent'): Conversation {
+    return { id: genId(), title, agentId, kind, messages: [], updatedAt: nowStr() };
   }
 
   function newConversation() {
@@ -618,6 +876,7 @@
     const c = conversations.value.find((x) => x.id === id);
     if (c) {
       currentAgentId.value = c.agentId;
+      currentKind.value = c.kind || 'agent';
     }
     resetStream();
     chatInput.value = '';
@@ -663,9 +922,39 @@
     return c ? c.messages : [];
   });
 
-  const currentAgent = computed(
-    () => agents.value.find((a) => a.id === currentAgentId.value) || null
-  );
+  /** 当前活跃会话的目标（智能体 / 编排智能体），统一成 TargetItem */
+  const currentTarget = computed<TargetItem | null>(() => {
+    if (currentKind.value === 'workflow') {
+      const w = workflows.value.find((x) => x.id === currentAgentId.value);
+      return w
+        ? {
+            id: w.id as string,
+            name: w.name,
+            description: w.description,
+            kind: 'workflow',
+          }
+        : null;
+    }
+    const a = agents.value.find((x) => x.id === currentAgentId.value);
+    return a
+      ? {
+          id: a.id as string,
+          name: a.name,
+          description: a.description,
+          kind: 'agent',
+          suggestedQuestions: a.suggestedQuestions as string[] | undefined,
+        }
+      : null;
+  });
+
+  // 保留向后兼容（部分模板/逻辑引用 currentAgent?.name）
+  const currentAgent = computed(() => {
+    if (currentKind.value === 'workflow') {
+      const w = workflows.value.find((x) => x.id === currentAgentId.value);
+      return (w as unknown as Agent) || null;
+    }
+    return agents.value.find((a) => a.id === currentAgentId.value) || null;
+  });
 
   const currentSessionTitle = computed(() => {
     const c = conversations.value.find((x) => x.id === activeSessionId.value);
@@ -673,6 +962,7 @@
   });
 
   const currentSuggestedQuestions = computed(() => {
+    if (currentKind.value === 'workflow') return []; // 编排暂无推荐问题
     const agent = currentAgent.value;
     return (agent?.suggestedQuestions as string[]) || [];
   });
@@ -680,6 +970,7 @@
   // 推荐追问（从当前智能体取）
   const suggestedFollowUp = computed(() => {
     // 可以后续根据上下文动态生成，目前先用固定示例或智能体的建议问题
+    if (currentKind.value === 'workflow') return [];
     const agent = currentAgent.value;
     const qs = (agent?.suggestedQuestions as string[]) || [];
     return qs.slice(0, 3);
@@ -735,39 +1026,101 @@
 
     abortCtl = new AbortController();
     try {
-      await streamAgentChat(
-        { agentId: currentAgentId.value, conversationId: conv.id, query },
-        {
-          onAnswer: (token) => {
-            streamFullText.value += token;
+      if (conv.kind === 'workflow') {
+        // 编排智能体：走 workflow SSE，捕获各节点步骤（node/node_end），
+        // complete 后用 getRunDetail 回填每步真实上下文（召回片段/prompt/耗时）
+        let roundRuntimeId: number | null = null;
+        const roundMsg = conv.messages[streamingIdx.value];
+        await streamWorkflowChat(
+          { workflowId: currentAgentId.value, conversationId: conv.id, query },
+          {
+            onAnswer: (token) => {
+              streamFullText.value += token;
+            },
+            onNode: (p) => {
+              // 首个 node 事件即本轮 runtimeId
+              if (p.runtimeId && !roundRuntimeId) roundRuntimeId = p.runtimeId;
+              if (!roundMsg) return;
+              roundMsg.workflowSteps = roundMsg.workflowSteps || [];
+              // 同一 cell 不重复追加
+              if (!roundMsg.workflowSteps.some((s) => s.cell === p.cell)) {
+                roundMsg.workflowSteps.push({
+                  cell: p.cell,
+                  nodeType: p.nodeType,
+                  status: 'running',
+                });
+                conv.messages = [...conv.messages];
+              }
+            },
+            onNodeEnd: (p) => {
+              if (!roundMsg?.workflowSteps) return;
+              const s = roundMsg.workflowSteps.find((x) => x.cell === p.cell);
+              if (s) s.status = 'done';
+              conv.messages = [...conv.messages];
+            },
+            onComplete: async (payload) => {
+              if (roundMsg) {
+                roundMsg.content = streamFullText.value;
+                roundMsg.totalCost =
+                  typeof payload.time === 'number' ? payload.time * 1000 : 0;
+                roundMsg.totalTokens =
+                  typeof payload.totalTokens === 'number' ? payload.totalTokens : undefined;
+                // 回填每步真实详情
+                await fetchWorkflowDetail(roundMsg, roundRuntimeId);
+                roundMsg.streaming = false;
+              }
+              streamDone.value = true;
+              conv.updatedAt = nowStr();
+              conv.messages = [...conv.messages];
+              persistConv(conv);
+            },
+            onError: (errMsg) => {
+              const msg = conv.messages[streamingIdx.value];
+              if (msg) {
+                msg.content = `\u26A0\uFE0F ${errMsg}`;
+                msg.streaming = false;
+              }
+              streamDone.value = true;
+              message.error(errMsg);
+            },
           },
-          onComplete: (payload) => {
-            const msg = conv.messages[streamingIdx.value];
-            if (msg) {
-              msg.content = payload.answer;
-              msg.references = payload.references;
-              msg.stageTimings = payload.stageTimings;
-              msg.totalCost = payload.totalCost;
-              msg.stageData = payload.stageData;
-              msg.streaming = false;
-            }
-            streamDone.value = true;
-            conv.updatedAt = nowStr();
-            conv.messages = [...conv.messages]; // 触发响应式更新
-            persistConv(conv);
+          abortCtl.signal
+        );
+      } else {
+        await streamAgentChat(
+          { agentId: currentAgentId.value, conversationId: conv.id, query },
+          {
+            onAnswer: (token) => {
+              streamFullText.value += token;
+            },
+            onComplete: (payload) => {
+              const msg = conv.messages[streamingIdx.value];
+              if (msg) {
+                msg.content = payload.answer;
+                msg.references = payload.references;
+                msg.stageTimings = payload.stageTimings;
+                msg.totalCost = payload.totalCost;
+                msg.stageData = payload.stageData;
+                msg.streaming = false;
+              }
+              streamDone.value = true;
+              conv.updatedAt = nowStr();
+              conv.messages = [...conv.messages]; // 触发响应式更新
+              persistConv(conv);
+            },
+            onError: (errMsg) => {
+              const msg = conv.messages[streamingIdx.value];
+              if (msg) {
+                msg.content = `\u26A0\uFE0F ${errMsg}`;
+                msg.streaming = false;
+              }
+              streamDone.value = true;
+              message.error(errMsg);
+            },
           },
-          onError: (errMsg) => {
-            const msg = conv.messages[streamingIdx.value];
-            if (msg) {
-              msg.content = `\u26A0\uFE0F ${errMsg}`;
-              msg.streaming = false;
-            }
-            streamDone.value = true;
-            message.error(errMsg);
-          },
-        },
-        abortCtl.signal
-      );
+          abortCtl.signal
+        );
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
         const msg = conv.messages[streamingIdx.value];
@@ -824,12 +1177,87 @@
     refsDrawerVisible.value = true;
   }
 
-  // ========== 调用流程（RAG 各阶段上下文） ==========
+  // ========== 调用流程（智能体 RAG 各阶段上下文） ==========
   const traceDrawerVisible = ref(false);
   const traceDrawerData = ref<RagStageData | null>(null);
   function openTrace(data: RagStageData) {
     traceDrawerData.value = data;
     traceDrawerVisible.value = true;
+  }
+
+  // ========== 调用流程（编排智能体各节点步骤） ==========
+  const workflowTraceVisible = ref(false);
+  const workflowTraceSteps = ref<WorkflowStep[]>([]);
+  const workflowTraceMeta = ref<{ name?: string; totalCost?: number; totalTokens?: number }>({});
+  function openWorkflowTrace(msg: AgentChatMessage) {
+    workflowTraceSteps.value = msg.workflowSteps || [];
+    workflowTraceMeta.value = {
+      name: currentTarget.value?.name,
+      totalCost: msg.totalCost,
+      totalTokens: msg.totalTokens,
+    };
+    workflowTraceVisible.value = true;
+  }
+
+  /** complete 后用 getRunDetail 回填每步真实上下文（按 step 排序，对齐 debug.vue 逻辑） */
+  async function fetchWorkflowDetail(msg: AgentChatMessage, runtimeId: number | null) {
+    if (!runtimeId) return;
+    try {
+      const res: any = await getRunDetail(runtimeId);
+      if (res && res.code === 0 && Array.isArray(res.data)) {
+        const rows = res.data
+          .filter((x: any) => x && (x.outputData || x.modelData))
+          .slice()
+          .sort((a: any, b: any) => (a.step ?? 0) - (b.step ?? 0));
+        if (!rows.length) return;
+        const skeleton = msg.workflowSteps || [];
+        const merged: WorkflowStep[] = rows.map((row: any) => {
+          const matched = skeleton.find((s) => s.cell && s.cell === row.cell);
+          return {
+            cell: row.cell || matched?.cell,
+            nodeType: row.nodeType || matched?.nodeType,
+            status: 'done',
+            step: row.step,
+            outputData: row.outputData,
+            modelData: row.modelData,
+          };
+        });
+        msg.workflowSteps = merged;
+      }
+    } catch {
+      // 拉取失败：保留运行时骨架
+    }
+  }
+
+  // 步骤展开状态（消息下精简步骤条）：key = `${msgIdx}-${stepIdx}`
+  const expandedSteps = ref(new Set<string>());
+  function stepHeadIcon(step: WorkflowStep): any {
+    return nodeMeta(step).icon;
+  }
+  function stepHeadMeta(step: WorkflowStep) {
+    return nodeMeta(step);
+  }
+  function toggleStepExpand(msgIdx: number, stepIdx: number) {
+    const key = `${msgIdx}-${stepIdx}`;
+    const set = new Set(expandedSteps.value);
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    expandedSteps.value = set;
+  }
+  function isStepExpanded(msgIdx: number, stepIdx: number): boolean {
+    return expandedSteps.value.has(`${msgIdx}-${stepIdx}`);
+  }
+
+  // 整条消息的步骤区折叠（精简条 ↔ 时间线展开）
+  const expandedMsgSteps = ref(new Set<number>());
+  function toggleMsgStepsExpand(msgIdx: number) {
+    const set = new Set(expandedMsgSteps.value);
+    if (set.has(msgIdx)) set.delete(msgIdx);
+    else set.add(msgIdx);
+    expandedMsgSteps.value = set;
+  }
+  function isMsgStepsExpanded(msgIdx: number): boolean {
+    return expandedMsgSteps.value.has(msgIdx);
   }
 
   // ========== 工具方法 ==========
@@ -857,11 +1285,13 @@
     }
   }
 
-  function switchAgent(agentId: string) {
-    currentAgentId.value = agentId;
+  function switchAgent(item: TargetItem) {
+    currentAgentId.value = item.id;
+    currentKind.value = item.kind;
     const conv = conversations.value.find((c) => c.id === activeSessionId.value);
     if (conv) {
-      conv.agentId = agentId;
+      conv.agentId = item.id;
+      conv.kind = item.kind;
       persistConv(conv);
     }
   }
@@ -872,15 +1302,27 @@
     if (!q) return;
     creating.value = true;
     try {
-      const aid = selectedAgentId.value || (agents.value[0]?.id as string) || '';
+      const kind: ChatKind = selectedKind.value;
+      const aid =
+        selectedAgentId.value ||
+        (kind === 'workflow'
+          ? (workflowItems.value[0]?.id as string)
+          : (agents.value[0]?.id as string)) ||
+        '';
+      if (!aid) {
+        message.warning('请先选择一个智能体或编排智能体');
+        creating.value = false;
+        return;
+      }
       // 先创建本地会话
-      const conv = createLocalConv(aid, q.length > 20 ? q.slice(0, 20) + '...' : q);
+      const conv = createLocalConv(aid, q.length > 20 ? q.slice(0, 20) + '...' : q, kind);
       conversations.value.unshift(conv);
       persistConv(conv);
 
       // 切换到聊天模式
       activeSessionId.value = conv.id;
       currentAgentId.value = aid;
+      currentKind.value = kind;
 
       // 尝试同步到后端（失败不影响本地使用）
       try {
@@ -920,6 +1362,7 @@
   // ========== 初始化 ==========
   onMounted(async () => {
     await loadAgents();
+    await loadWorkflows();
     restoreSelectedAgent();
     loadSuggested();
 
@@ -937,11 +1380,19 @@
         persistConv(conv);
       }
       activeSessionId.value = conv.id;
-      // 从 query 取 agentId 和初始问题
+      // 从 query 取 agentId / kind 和初始问题
       const qAgentId = (route.query.agentId as string) || '';
-      if (qAgentId) currentAgentId.value = qAgentId;
-      else if (conv.agentId) currentAgentId.value = conv.agentId;
-      else if (selectedAgentId.value) currentAgentId.value = selectedAgentId.value;
+      const qKind = (route.query.kind as ChatKind) || '';
+      if (qAgentId) {
+        currentAgentId.value = qAgentId;
+        currentKind.value = qKind || conv.kind || 'agent';
+      } else if (conv.agentId) {
+        currentAgentId.value = conv.agentId;
+        currentKind.value = conv.kind || 'agent';
+      } else if (selectedAgentId.value) {
+        currentAgentId.value = selectedAgentId.value;
+        currentKind.value = selectedKind.value;
+      }
 
       const initQ = (route.query.q as string) || '';
       if (initQ) {
@@ -1349,14 +1800,19 @@
   }
   .sidebar-item-del {
     opacity: 0;
-    color: v-bind('themeVars.errorColor');
+    color: v-bind('themeVars.textColor3');
     font-size: 14px;
     transition: all 0.15s;
     flex-shrink: 0;
-    padding: 2px;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
     &:hover {
-      background: v-bind('themeVars.errorColorSuppl');
+      color: #fff;
+      background: v-bind('themeVars.errorColor');
     }
   }
 
@@ -1441,6 +1897,18 @@
 
   .model-panel {
     padding: 4px 0;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .model-group-label {
+    padding: 6px 14px 2px;
+    font-size: 11px;
+    color: v-bind('themeVars.textColor3');
+    font-weight: 500;
+    &:not(:first-child) {
+      margin-top: 4px;
+      border-top: 1px solid v-bind('themeVars.dividerColor');
+    }
   }
   .model-item {
     display: flex;
@@ -1679,6 +2147,314 @@
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 4px;
+  }
+
+  /* ========== 调用流程步骤（编排智能体，消息下内联） ========== */
+  .msg-step-timeline {
+    margin-top: 6px;
+    width: 100%;
+  }
+  /* 精简条：折叠态展示链路概要 */
+  .step-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: v-bind('themeVars.actionColor');
+    border: 1px solid v-bind('themeVars.borderColor');
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    &:hover {
+      border-color: v-bind('themeVars.primaryColor');
+    }
+  }
+  .step-summary-caret {
+    color: v-bind('themeVars.textColor3');
+    flex-shrink: 0;
+    transition: transform 0.15s;
+    &.open {
+      transform: rotate(90deg);
+    }
+  }
+  .step-summary-label {
+    font-size: 12px;
+    color: v-bind('themeVars.primaryColor');
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .step-summary-chain {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    flex-wrap: wrap;
+  }
+  .step-chain-node {
+    font-size: 12px;
+    color: v-bind('themeVars.textColor2');
+  }
+  .step-chain-arrow {
+    font-size: 11px;
+    color: v-bind('themeVars.textColor3');
+  }
+  .step-summary-cost {
+    font-size: 11px;
+    color: v-bind('themeVars.textColor3');
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  /* 步骤时间线 */
+  .step-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .step-card {
+    background: v-bind('themeVars.cardColor');
+    border: 1px solid v-bind('themeVars.borderColor');
+    border-radius: 6px;
+    padding: 7px 10px;
+    transition: border-color 0.15s;
+    &.is-open {
+      border-color: v-bind('themeVars.dividerColor');
+    }
+    &.is-running {
+      border-color: v-bind('themeVars.primaryColor');
+    }
+  }
+  .step-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .step-caret {
+    color: v-bind('themeVars.textColor3');
+    flex-shrink: 0;
+  }
+  .step-num {
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    background: v-bind('themeVars.textColor3');
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .step-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: v-bind('themeVars.textColorBase');
+  }
+  .cost-badge {
+    margin-left: 2px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .cost-ok {
+    background: v-bind('themeVars.successColorSuppl');
+    color: #fff;
+  }
+  .cost-warning {
+    background: v-bind('themeVars.warningColorSuppl');
+    color: v-bind('themeVars.warningColor');
+  }
+  .cost-danger {
+    background: v-bind('themeVars.errorColorSuppl');
+    color: v-bind('themeVars.errorColor');
+  }
+  /* 执行中转圈 */
+  .step-spin {
+    margin-left: auto;
+    width: 12px;
+    height: 12px;
+    border: 2px solid v-bind('themeVars.primaryColor');
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: step-spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes step-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .step-check {
+    margin-left: auto;
+    color: v-bind('themeVars.successColor');
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-body {
+    margin-top: 8px;
+    font-size: 13px;
+  }
+
+  /* ===== NodeBody 渲染依赖的深层 class（scoped 需 :deep） ===== */
+  :deep(.detail-stack) {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  :deep(.detail-grid) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  :deep(.detail-title) {
+    font-size: 12px;
+    font-weight: 600;
+    color: v-bind('themeVars.textColorBase');
+    margin-bottom: 2px;
+  }
+  :deep(.kv-row) {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  :deep(.kv-label) {
+    flex-shrink: 0;
+    width: 76px;
+    font-size: 12px;
+    color: v-bind('themeVars.textColor3');
+    padding-top: 2px;
+  }
+  :deep(.kv-val) {
+    flex: 1;
+    font-size: 13px;
+    color: v-bind('themeVars.textColorBase');
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  :deep(.kv-strong) {
+    color: v-bind('themeVars.primaryColor');
+    font-weight: 600;
+  }
+  :deep(.code-view) {
+    background: #282c34;
+    color: #abb2bf;
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 4px 0 0;
+  }
+  :deep(.md-output) {
+    background: v-bind('themeVars.actionColor');
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: v-bind('themeVars.textColorBase');
+    word-break: break-word;
+    p {
+      margin: 4px 0;
+    }
+    pre {
+      background: #282c34;
+      color: #abb2bf;
+      padding: 10px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    code {
+      background: rgba(0, 0, 0, 0.06);
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+    }
+  }
+  :deep(.stat-row) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 8px 10px;
+    background: v-bind('themeVars.actionColor');
+    border-radius: 6px;
+  }
+  :deep(.stat-item) {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  :deep(.stat-k) {
+    font-size: 12px;
+    color: v-bind('themeVars.textColor3');
+  }
+  :deep(.stat-v) {
+    font-size: 13px;
+    font-weight: 600;
+    color: v-bind('themeVars.textColorBase');
+    font-variant-numeric: tabular-nums;
+  }
+  :deep(.frag-list) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  :deep(.frag-card) {
+    padding: 8px 10px;
+    background: v-bind('themeVars.actionColor');
+    border-left: 3px solid v-bind('themeVars.primaryColor');
+    border-radius: 4px;
+  }
+  :deep(.frag-head) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  :deep(.frag-idx) {
+    font-size: 11px;
+    color: v-bind('themeVars.textColor3');
+    font-weight: 600;
+  }
+  :deep(.frag-text) {
+    font-size: 12px;
+    line-height: 1.6;
+    color: v-bind('themeVars.textColor2');
+  }
+  :deep(.note-tip) {
+    padding: 6px 10px;
+    background: v-bind('themeVars.infoColorSuppl');
+    border-left: 3px solid v-bind('themeVars.infoColor');
+    border-radius: 4px;
+    font-size: 12px;
+    color: v-bind('themeVars.textColor2');
+  }
+  :deep(.detail-box) {
+    background: v-bind('themeVars.actionColor');
+    border-radius: 4px;
+  }
+  :deep(.json-view) {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 12px;
+    color: v-bind('themeVars.textColorBase');
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 8px 12px;
   }
 
   /* 输入区 —— 复用欢迎页 .cc-input-card 样式 */

@@ -421,16 +421,16 @@
     font-variant-numeric: tabular-nums;
   }
   .cost-ok {
-    background: #f6ffed;
-    color: #18a058;
+    background: #e8f5e9;
+    color: #2e7d32;
   }
   .cost-warning {
-    background: #fff7e6;
-    color: #fa8c16;
+    background: #fff3e0;
+    color: #e65100;
   }
   .cost-danger {
-    background: #fff1f0;
-    color: #cf1322;
+    background: #ffebee;
+    color: #c62828;
   }
   /* 执行中转圈 */
   .step-spin {
