@@ -123,6 +123,11 @@ public class RerankStage implements PipelineStage {
                 filtered.add(candidates.get(i));
             }
         }
+        // ★ 持久化重排上下文供 RagTraceBuilder 落库/透出（scoreByText 原为局部变量，方法结束即丢）
+        ctx.setAttr("rerankScoreByText", scoreByText);
+        ctx.setAttr("rerankThreshold", threshold);
+        ctx.setAttr("rerankTopK", topK);
+        ctx.setAttr("rerankCandidates", candidates);
         // 阈值兜底：全被过滤但最高分还行，保留 Top1
         if (filtered.isEmpty() && !scores.isEmpty()) {
             double top = scores.stream().max(Double::compare).orElse(0.0);

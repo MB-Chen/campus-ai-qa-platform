@@ -37,33 +37,12 @@ export const LoginRoute: RouteRecordRaw = {
   },
 };
 
-export const DashboardRoute: RouteRecordRaw = {
-  path: '/dashboard',
-  name: 'Dashboard',
-  redirect: '/dashboard/console',
-  meta: {
-    title: 'Dashboard',
-    icon: 'DashboardOutlined',
-  },
-  children: [
-    {
-      path: 'console',
-      name: 'dashboard_console',
-      component: () => import('@/views/dashboard/index.vue'),
-      meta: {
-        title: '主控台',
-      },
-    },
-  ],
-};
-
 //需要验证权限
 export const asyncRoutes = [...routeModuleList];
 
 //普通路由 无需验证权限
 export const constantRouter: RouteRecordRaw[] = [
   LoginRoute,
-  DashboardRoute,
   RootRoute,
   RedirectRoute,
 ];

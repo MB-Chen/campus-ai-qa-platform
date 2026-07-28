@@ -120,7 +120,6 @@ export const useUserStore = defineStore({
         } else {
           // 设置默认权限
           this.setPermissions([
-            'dashboard_console',
             'permission',
             'permission_role',
             'permission_menu',
@@ -154,7 +153,6 @@ export const useUserStore = defineStore({
         } else {
           // 设置默认权限，确保路由能正常工作
           this.setPermissions([
-            'dashboard_console',
             'permission',
             'permission_role',
             'permission_menu',

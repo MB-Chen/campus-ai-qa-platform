@@ -77,15 +77,28 @@ public class IntentDirectedChannel implements ConditionalRetrievalChannel {
                         ? null : topKb.node().getCollectionName();
         String targetKbId = resolveTargetKbId(nodeKbId, ids, fallbackKbId);
         // 文档级限定：最高置信 KB 叶子的 docIds（为空则检索整库）
+        // ★ 智能体配了 documentIds 限定文档时优先用智能体的（节点级 docIds 仅作节点覆盖兜底）
         List<String> docIds = topKb == null ? null : topKb.node().getDocIds();
-        int topK = resolveTopK(kbIntents);
+
+        // ★ 智能体覆盖：topK / 向量阈值 / 关键词阈值。
+        //   原实现调 retriever.retrieve(query, kbId, docIds) 3 参数重载，topK/阈值全为 null，
+        //   导致智能体配 topK=10 却走全局默认 30；且 resolveTopK 算出的 topK 是死变量从未传入。
+        //   现优先用智能体覆盖，缺省回退节点级 topK×2，最终兜底 20。
+        sparkx.sparkshop.knowledge.pipeline.AgentOverrides ov = ctx.getAgentOverrides();
+        Integer topKOverride = ov != null ? ov.getEmbeddingTopK() : null;
+        Double vecThrOverride = ov != null ? ov.getVectorThreshold() : null;
+        Double kwThrOverride = ov != null ? ov.getKeywordThreshold() : null;
+        if (ov != null && ov.getDocumentIds() != null && !ov.getDocumentIds().isEmpty()) {
+            docIds = ov.getDocumentIds();
+        }
+        int topK = topKOverride != null ? topKOverride : resolveNodeTopK(kbIntents);
         log.debug("[Channel:intent-directed] KB intents={}, targetKbId={}, docIds={}, topK={}",
                 kbIntents.size(), targetKbId, docIds == null ? 0 : docIds.size(), topK);
-        return retriever.retrieve(query, targetKbId, docIds);
+        return retriever.retrieve(query, targetKbId, docIds, topK, vecThrOverride, kwThrOverride);
     }
 
-    /** 节点级 topK 覆盖：取最高优先意图的 topK ×2，缺省 10×2 */
-    private int resolveTopK(List<NodeScore> kbIntents) {
+    /** 节点级 topK 兜底：取最高优先意图的 topK ×2，缺省 10×2（智能体未覆盖时用） */
+    private int resolveNodeTopK(List<NodeScore> kbIntents) {
         if (kbIntents.isEmpty()) return 20;
         Integer nodeTopK = kbIntents.get(0).node().getTopK();
         return (nodeTopK != null ? nodeTopK : 10) * 2;

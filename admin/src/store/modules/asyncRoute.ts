@@ -131,17 +131,6 @@ export const useAsyncRouteStore = defineStore({
         // 使用路由生成器处理菜单数据
         accessedRouters = generateRoutes(userMenus);
         asyncImportRoute(accessedRouters);
-
-        // 为 Dashboard 父菜单添加重定向到第一个子路由（覆盖 constantRouter 中同名记录）
-        const dashboardRoute = accessedRouters.find(
-          (route: any) =>
-            route.name === 'Dashboard' && route.children && route.children.length > 0
-        );
-        if (dashboardRoute && !dashboardRoute.redirect) {
-          if (dashboardRoute.children) {
-            dashboardRoute.redirect = dashboardRoute.children[0].path;
-          }
-        }
       } else {
         try {
           // 使用静态路由（前端静态配置）

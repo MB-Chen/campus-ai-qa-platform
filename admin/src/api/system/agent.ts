@@ -90,6 +90,8 @@ export interface AgentChatMessage {
   stageTimings?: Record<string, number>;
   /** RAG 管线总耗时(ms) */
   totalCost?: number;
+  /** RAG 各阶段上下文（调用流程抽屉展示用），由后端 complete 事件回传 */
+  stageData?: RagStageData;
 }
 
 /** 引用来源 */
@@ -97,6 +99,112 @@ export interface AgentReference {
   index: number;
   content: string;
   documentId?: string;
+}
+
+// ===== RAG 调用流程上下文类型（对齐后端 RagTraceBuilder 产出结构） =====
+
+/** 单阶段基类 */
+export interface RagStageBase {
+  /** 是否执行过该阶段 */
+  ran: boolean;
+}
+
+/** 改写拆分阶段 */
+export interface RagRewriteSplitStage extends RagStageBase {
+  original?: string;
+  rewritten?: string;
+  subQuestions?: string[];
+}
+
+/** 意图判定阶段 */
+export interface RagIntentStage extends RagStageBase {
+  code?: string;
+  desc?: string;
+  needsRetrieval?: boolean;
+  /** 是否注入（非走 IntentStage，如 kbMode=none 直接注入闲聊） */
+  injected?: boolean;
+}
+
+/** 意图分类（tree-intent）候选 */
+export interface RagIntentCandidate {
+  name?: string;
+  kind?: string;
+  fullPath?: string;
+  score: number;
+}
+export interface RagTreeIntentStage extends RagStageBase {
+  candidates?: RagIntentCandidate[];
+}
+
+/** 歧义引导 */
+export interface RagGuidanceStage extends RagStageBase {
+  prompt?: boolean;
+  message?: string | null;
+}
+
+/** 检索召回片段 */
+export interface RagRetrieveFragment {
+  text: string;
+  documentId?: string;
+  channel?: string;
+  rrfRank?: string;
+}
+export interface RagRetrieveStage extends RagStageBase {
+  count?: number;
+  fragments?: RagRetrieveFragment[];
+}
+
+/** 重排打分条目 */
+export interface RagRerankScored {
+  text: string;
+  score: number;
+  kept: boolean;
+}
+export interface RagRerankStage extends RagStageBase {
+  threshold?: number;
+  topK?: number;
+  scored?: RagRerankScored[];
+  keptCount?: number;
+}
+
+/** 合并阶段 */
+export interface RagMergeStage extends RagStageBase {
+  count?: number;
+}
+
+/** 兜底阶段 */
+export interface RagFallbackStage extends RagStageBase {
+  strategy?: string;
+  response?: string;
+}
+
+/** 生成阶段 */
+export interface RagGenerateStage extends RagStageBase {
+  promptScene?: string;
+}
+
+/** 各阶段集合 */
+export interface RagStages {
+  'rewrite-split'?: RagRewriteSplitStage;
+  intent?: RagIntentStage;
+  'tree-intent'?: RagTreeIntentStage;
+  guidance?: RagGuidanceStage;
+  'vague-clarify'?: RagStageBase;
+  retrieve?: RagRetrieveStage;
+  rerank?: RagRerankStage;
+  merge?: RagMergeStage;
+  fallback?: RagFallbackStage;
+  generate?: RagGenerateStage;
+  [key: string]: any;
+}
+
+/** RAG 调用流程完整数据 */
+export interface RagStageData {
+  originalQuery?: string;
+  totalCost?: number;
+  llmCallCount?: number;
+  stageTimings?: Record<string, number>;
+  stages?: RagStages;
 }
 
 /** complete 事件载荷（含 RAG 各阶段耗时，供前端时间线展示） */
@@ -108,6 +216,8 @@ export interface AgentChatCompletePayload {
   stageTimings: Record<string, number>;
   /** RAG 管线总耗时(ms)，无则 0 */
   totalCost: number;
+  /** RAG 各阶段上下文（调用流程抽屉展示用），无则 undefined */
+  stageData?: RagStageData;
 }
 
 /** 评估用例 */
@@ -309,6 +419,8 @@ function parseSseFrame(
       stageTimings:
         payload.stageTimings && typeof payload.stageTimings === 'object' ? payload.stageTimings : {},
       totalCost: typeof payload.totalCost === 'number' ? payload.totalCost : 0,
+      stageData:
+        payload.stageData && typeof payload.stageData === 'object' ? payload.stageData : undefined,
     });
   } else if (eventName === 'error' || payload.type === 'error') {
     handlers.onError?.(payload.message || '生成失败');

@@ -564,10 +564,8 @@ COMMENT ON TABLE "public"."admin_menu" IS '菜单/权限节点表';
 -- ----------------------------
 -- Records of admin_menu
 -- ----------------------------
-INSERT INTO "public"."admin_menu" VALUES (1, 0, '主页面版', 1, 'dashboard', '#', 'LAYOUT', '#', 'DashboardOutlined', 99, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
 INSERT INTO "public"."admin_menu" VALUES (3, 0, '部门员工', 1, 'permission', '#', 'LAYOUT', '#', 'SafetyCertificateOutlined', 80, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
 INSERT INTO "public"."admin_menu" VALUES (20, 0, '企业云盘', 1, 'drive', '#', 'LAYOUT', '#', 'CloudUploadOutlined', 70, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
-INSERT INTO "public"."admin_menu" VALUES (2, 1, '主控台', 1, 'dashboard', 'console', '/dashboard/index', 'dashboard/index', '', 90, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
 INSERT INTO "public"."admin_menu" VALUES (4, 3, '员工管理', 1, 'admin', 'admin', '/admin/index', 'admin/index', '', 70, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
 INSERT INTO "public"."admin_menu" VALUES (5, 3, '角色管理', 1, 'role', 'role', '/role/index', 'role/index', '', 60, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');
 INSERT INTO "public"."admin_menu" VALUES (12, 3, '菜单管理', 1, 'menu', 'menu', '/menu/index', 'menu/index', '', 50, 0, 1, '2026-07-22 03:56:53.79827', '2026-07-22 03:56:53.79827');

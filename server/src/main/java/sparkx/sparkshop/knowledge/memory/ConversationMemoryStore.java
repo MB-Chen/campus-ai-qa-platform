@@ -72,9 +72,18 @@ public class ConversationMemoryStore {
 
     /** 追加一条消息 */
     public void append(String conversationId, String userId, ChatMessage message) {
+        append(conversationId, userId, message, null);
+    }
+
+    /**
+     * 追加一条消息（可携带 RAG 上下文）。
+     *
+     * @param ragContextJson RAG 调用流程上下文 JSON 字符串；仅 assistant 消息传入，其余传 null
+     */
+    public void append(String conversationId, String userId, ChatMessage message, String ragContextJson) {
         String role = roleOf(message);
         String content = textOf(message);
-        repo.insert(new ConversationMessageEntity(conversationId, userId, role, content, null));
+        repo.insert(new ConversationMessageEntity(conversationId, userId, role, content, null, ragContextJson));
     }
 
     /** 统计用户消息数（摘要闸门用） */

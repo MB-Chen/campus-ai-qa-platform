@@ -52,6 +52,13 @@ public class ConversationMessageEntity implements Serializable {
     @TableField(value = "thinking_content")
     private String thinkingContent;
 
+    /**
+     * RAG 各阶段上下文 JSON（jsonb 列），仅 assistant 消息填充。
+     * 存序列化后的 JSON 字符串（同 chunks.metadata 范式，避免引入 TypeHandler）。可为 null。
+     */
+    @TableField(value = "rag_context")
+    private String ragContext;
+
     @TableField(value = "created_at")
     private LocalDateTime createdAt;
 
@@ -64,5 +71,16 @@ public class ConversationMessageEntity implements Serializable {
         this.role = role;
         this.content = content;
         this.thinkingContent = thinkingContent;
+    }
+
+    /** 含 RAG 上下文的构造（assistant 消息落库用） */
+    public ConversationMessageEntity(String conversationId, String userId, String role,
+                                     String content, String thinkingContent, String ragContext) {
+        this.conversationId = conversationId;
+        this.userId = userId;
+        this.role = role;
+        this.content = content;
+        this.thinkingContent = thinkingContent;
+        this.ragContext = ragContext;
     }
 }

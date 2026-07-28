@@ -71,9 +71,9 @@
             <div class="msg-body">
               <div class="md-body" v-html="renderMd(displayedOf(i))"></div>
               <span v-if="msg.streaming" class="streaming-dot">●●●</span>
-              <!-- 引用来源 + 总耗时 同一行显示（仅 assistant 消息完成后） -->
+              <!-- 引用来源 + 调用流程 + 总耗时 同一行显示（仅 assistant 消息完成后） -->
               <div
-                v-if="msg.role === 'assistant' && !msg.streaming && (msg.references?.length || msg.totalCost)"
+                v-if="msg.role === 'assistant' && !msg.streaming && (msg.references?.length || msg.totalCost || msg.stageData)"
                 class="msg-actions"
               >
                 <n-button
@@ -85,6 +85,16 @@
                 >
                   <template #icon><n-icon><FileTextOutlined /></n-icon></template>
                   引用来源（{{ msg.references.length }}）
+                </n-button>
+                <n-button
+                  v-if="msg.stageData"
+                  text
+                  type="primary"
+                  size="tiny"
+                  @click="openTrace(msg.stageData)"
+                >
+                  <template #icon><n-icon><ApartmentOutlined /></n-icon></template>
+                  调用流程
                 </n-button>
                 <n-button
                   v-if="msg.totalCost"
@@ -189,16 +199,25 @@
       </div>
       <n-empty v-else description="暂无耗时数据" />
     </n-modal>
+
+    <!-- 调用流程抽屉（RAG 各阶段上下文） -->
+    <RagTraceDrawer v-model:show="traceDrawerVisible" :data="traceDrawerData" />
   </n-modal>
 </template>
 
 <script setup lang="ts">
   import { ref, computed, nextTick } from 'vue';
   import { useMessage } from 'naive-ui';
-  import { PlusOutlined, DeleteOutlined, FileTextOutlined, ClockCircleOutlined, FieldTimeOutlined } from '@vicons/antd';
+  import { PlusOutlined, DeleteOutlined, FileTextOutlined, ClockCircleOutlined, FieldTimeOutlined, ApartmentOutlined } from '@vicons/antd';
   import { marked } from 'marked';
-  import { streamAgentChat, type Agent, type AgentChatMessage } from '@/api/system/agent';
+  import {
+    streamAgentChat,
+    type Agent,
+    type AgentChatMessage,
+    type RagStageData,
+  } from '@/api/system/agent';
   import { useTypewriter } from '@/composables/useTypewriter';
+  import RagTraceDrawer from '@/views/agent/components/RagTraceDrawer.vue';
   import * as echarts from 'echarts';
 
   marked.use({ breaks: true, gfm: true });
@@ -242,6 +261,14 @@
   function openRefs(refs: { index: number; content: string }[]) {
     refsDrawerData.value = refs || [];
     refsDrawerVisible.value = true;
+  }
+
+  // 调用流程抽屉（RAG 各阶段上下文）
+  const traceDrawerVisible = ref(false);
+  const traceDrawerData = ref<RagStageData | null>(null);
+  function openTrace(data: RagStageData) {
+    traceDrawerData.value = data;
+    traceDrawerVisible.value = true;
   }
 
   // ===== RAG 阶段耗时时间线（弹窗展示） =====
@@ -532,6 +559,7 @@
               msg.references = payload.references;
               msg.stageTimings = payload.stageTimings;
               msg.totalCost = payload.totalCost;
+              msg.stageData = payload.stageData;
               msg.streaming = false;
             }
             streamDone.value = true;

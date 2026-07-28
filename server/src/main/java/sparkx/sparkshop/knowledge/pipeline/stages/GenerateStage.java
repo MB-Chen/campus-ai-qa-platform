@@ -290,8 +290,15 @@ public class GenerateStage implements PipelineStage {
             String userQuery = ctx.getRewriteQuery() != null
                     ? ctx.getRewriteQuery() : ctx.getOriginalQuery();
             memoryService.append(convId, userId, UserMessage.from(userQuery));
-            // 再追加 ASSISTANT 消息（此调用触发异步摘要压缩）
-            memoryService.append(convId, userId, dev.langchain4j.data.message.AiMessage.from(answer));
+            // 再追加 ASSISTANT 消息（携带 RAG 调用流程上下文；此调用触发异步摘要压缩）
+            String ragContextJson = null;
+            try {
+                ragContextJson = cn.hutool.json.JSONUtil.toJsonStr(
+                        sparkx.sparkshop.knowledge.pipeline.RagTraceBuilder.build(ctx));
+            } catch (Exception je) {
+                log.debug("[Generate] 序列化 RAG 上下文失败（忽略，不影响落库）: {}", je.getMessage());
+            }
+            memoryService.append(convId, userId, dev.langchain4j.data.message.AiMessage.from(answer), ragContextJson);
         } catch (Exception e) {
             log.debug("[Generate] 追加会话记忆失败（不影响主流程）: {}", e.getMessage());
         }

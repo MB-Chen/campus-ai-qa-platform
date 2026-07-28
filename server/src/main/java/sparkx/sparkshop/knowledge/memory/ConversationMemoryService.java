@@ -69,7 +69,16 @@ public class ConversationMemoryService {
      * 追加消息。ASSISTANT 消息追加后异步触发摘要压缩。
      */
     public void append(String conversationId, String userId, ChatMessage message) {
-        store.append(conversationId, userId, message);
+        append(conversationId, userId, message, null);
+    }
+
+    /**
+     * 追加消息（可携带 RAG 上下文）。ASSISTANT 消息追加后异步触发摘要压缩。
+     *
+     * @param ragContextJson RAG 调用流程上下文 JSON；仅 assistant 消息传入，其余传 null
+     */
+    public void append(String conversationId, String userId, ChatMessage message, String ragContextJson) {
+        store.append(conversationId, userId, message, ragContextJson);
         // 仅 ASSISTANT 消息追加后触发摘要（一轮对话完整）
         if (isAssistant(message)) {
             summaryService.compressIfNeeded(conversationId, userId);

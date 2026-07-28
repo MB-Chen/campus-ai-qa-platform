@@ -47,29 +47,6 @@ const chatMenu = {
   ],
 };
 
-// 监控（原主控台）：LAYOUT + 单子项，扁平化显示为一级可点击项
-const dashboardMenu = {
-  path: '#',
-  name: 'Dashboard',
-  component: 'LAYOUT',
-  redirect: '/dashboard/console',
-  meta: {
-    title: '监控',
-    icon: 'DashboardOutlined',
-    alwaysShow: false,
-  },
-  children: [
-    {
-      path: 'console',
-      name: 'dashboard_console',
-      component: '/dashboard/index',
-      meta: {
-        title: '监控',
-      },
-    },
-  ],
-};
-
 // 知识库：LAYOUT + 单子项，扁平化（列表页 + 隐藏的详情页）
 const knowledgeMenu = {
   path: '#',
@@ -223,7 +200,6 @@ const systemMenu = {
 
 export const STATIC_MENUS = [
   chatMenu,
-  dashboardMenu,
   knowledgeMenu,
   agentMenu,
   workflowMenu,

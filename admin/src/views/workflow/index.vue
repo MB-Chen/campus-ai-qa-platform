@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="n-layout-page-header">
-      <n-card :bordered="false" title="编排管理">
+      <n-card :bordered="false" title="编排">
         可视化流程编排：拖拽 Start → 知识检索/LLM/意图分类/条件分支/智能体 → 回复 节点， 串联 DAG
         并调试，支持 SSE 流式执行与执行详情回溯
       </n-card>

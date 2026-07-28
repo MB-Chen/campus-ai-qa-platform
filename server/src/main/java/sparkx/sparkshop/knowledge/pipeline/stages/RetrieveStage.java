@@ -288,7 +288,7 @@ public class RetrieveStage implements PipelineStage {
     }
 
     private RetrievalContext buildRetrievalContext(String sq, PipelineContext ctx, List<NodeScore> intents) {
-        return new RetrievalContext(intents, sq, ctx.getKnowledgeBaseIds(), true);
+        return new RetrievalContext(intents, sq, ctx.getKnowledgeBaseIds(), true, ctx.getAgentOverrides());
     }
 
     /** 合并 KB 上下文（逐子问题 <context> 包裹） */

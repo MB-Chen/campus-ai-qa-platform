@@ -144,7 +144,9 @@ public class AgentChatService {
                     "references", result.references,
                     "conversationId", sessionKey.substring(sessionKey.lastIndexOf(':') + 1),
                     "stageTimings", ctx.getStageTimings(),
-                    "totalCost", ctx.getTotalCost()
+                    "totalCost", ctx.getTotalCost(),
+                    // ★ RAG 各阶段上下文（改写/召回/重排分数/意图等），供前端调用流程抽屉展示
+                    "stageData", sparkx.sparkshop.knowledge.pipeline.RagTraceBuilder.build(ctx)
             ));
             emitter.complete();
 

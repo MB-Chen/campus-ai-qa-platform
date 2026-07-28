@@ -64,6 +64,14 @@ public class VectorKeywordHybridChannel implements ConditionalRetrievalChannel {
         log.debug("[Channel:hybrid-global] 全局混合检索");
         // 按 kb.embedding_model_id 解析对应 embedding 模型（查询向量与入库向量维度一致）
         String primaryKbId = primaryKbId(ctx);
+        // ★ 智能体覆盖：传 topK/向量阈值/关键词阈值，让「智能体配置的向量召回 topK」生效，
+        //   而非回退全局默认（曾因未传导致智能体配 topK=10 却召回 30 条）。
+        sparkx.sparkshop.knowledge.pipeline.AgentOverrides ov = ctx.getAgentOverrides();
+        if (ov != null) {
+            return hybridRetriever.retrieve(query, primaryKbId,
+                    ov.getDocumentIds(), ov.getEmbeddingTopK(),
+                    ov.getVectorThreshold(), ov.getKeywordThreshold());
+        }
         return hybridRetriever.retrieve(query, primaryKbId);
     }
 

@@ -239,86 +239,96 @@
 
         <!-- 消息列表 -->
         <div ref="msgBoxRef" class="chat-messages">
-          <!-- 空状态 / 欢迎语 -->
-          <template v-if="currentMessages.length === 0">
-            <div class="chat-welcome">
-              <div class="welcome-avatar">
-                <n-icon :size="28" color="#fff"><RobotOutlined /></n-icon>
+          <div class="chat-messages-inner">
+            <!-- 空状态 / 欢迎语 -->
+            <template v-if="currentMessages.length === 0">
+              <div class="chat-welcome">
+                <div class="welcome-avatar">
+                  <n-icon :size="28" color="#fff"><RobotOutlined /></n-icon>
+                </div>
+                <div class="welcome-text"
+                  >你好！我是 {{ currentAgent?.name || 'SparkX' }}，有什么可以帮你的吗？</div
+                >
               </div>
-              <div class="welcome-text"
-                >你好！我是 {{ currentAgent?.name || 'SparkX' }}，有什么可以帮你的吗？</div
-              >
-            </div>
-            <div v-if="currentSuggestedQuestions.length" class="chat-suggested-chips">
-              <button
-                v-for="(q, i) in currentSuggestedQuestions"
-                :key="i"
-                class="suggested-chip"
-                @click="onSuggestedClick(q)"
-                >{{ q }}</button
-              >
-            </div>
-            <n-empty v-else description="输入问题开始对话" style="margin-top: 60px" />
-          </template>
+              <div v-if="currentSuggestedQuestions.length" class="chat-suggested-chips">
+                <button
+                  v-for="(q, i) in currentSuggestedQuestions"
+                  :key="i"
+                  class="suggested-chip"
+                  @click="onSuggestedClick(q)"
+                  >{{ q }}</button
+                >
+              </div>
+              <n-empty v-else description="输入问题开始对话" style="margin-top: 60px" />
+            </template>
 
-          <!-- 消息列表 -->
-          <div v-for="(msg, i) in currentMessages" :key="i" class="msg-row" :class="msg.role">
-            <img
-              class="msg-avatar"
-              :src="msg.role === 'user' ? '/images/user.png' : '/images/robot.png'"
-              alt=""
-            />
-            <div class="msg-content">
-              <div v-if="msg.role === 'assistant'" class="msg-sender">
-                {{ currentAgent?.name || 'SparkX' }}
-                <n-tag
-                  v-if="msg.role === 'assistant'"
-                  size="tiny"
-                  :bordered="false"
-                  type="default"
-                  class="msg-model-tag"
-                  >思考结果</n-tag
+            <!-- 消息列表 -->
+            <div v-for="(msg, i) in currentMessages" :key="i" class="msg-row" :class="msg.role">
+              <img
+                class="msg-avatar"
+                :src="msg.role === 'user' ? '/images/user.png' : '/images/robot.png'"
+                alt=""
+              />
+              <div class="msg-content">
+                <div v-if="msg.role === 'assistant'" class="msg-sender">
+                  {{ currentAgent?.name || 'SparkX' }}
+                  <n-tag
+                    v-if="msg.role === 'assistant'"
+                    size="tiny"
+                    :bordered="false"
+                    type="default"
+                    class="msg-model-tag"
+                    >思考结果</n-tag
+                  >
+                </div>
+                <div class="msg-bubble" :class="msg.role" v-html="renderMd(displayedOf(i))"></div>
+                <span v-if="msg.streaming" class="streaming-dots">●●●</span>
+                <!-- 操作栏（仅 assistant 消息完成后） -->
+                <div v-if="msg.role === 'assistant' && !msg.streaming" class="msg-actions">
+                  <button class="msg-action-btn" title="复制" @click="copyText(msg.content)">
+                    <n-icon size="14"><CopyOutlined /></n-icon>
+                  </button>
+                  <button class="msg-action-btn" title="重新生成" @click="regenerateMessage(i)">
+                    <n-icon size="14"><ReloadOutlined /></n-icon>
+                  </button>
+                  <button
+                    v-if="msg.references?.length"
+                    class="msg-action-btn"
+                    title="引用来源"
+                    @click="openRefs(msg.references!)"
+                  >
+                    <n-icon size="14"><FileTextOutlined /></n-icon>
+                  </button>
+                  <button
+                    v-if="msg.stageData"
+                    class="msg-action-btn"
+                    title="调用流程"
+                    @click="openTrace(msg.stageData!)"
+                  >
+                    <n-icon size="14"><ApartmentOutlined /></n-icon>
+                  </button>
+                  <button v-if="msg.totalCost" class="msg-action-btn msg-cost" disabled>
+                    总耗时 {{ (msg.totalCost / 1000).toFixed(2) }}s
+                  </button>
+                </div>
+                <!-- 推荐追问（仅最后一条 assistant 消息后） -->
+                <div
+                  v-if="
+                    msg.role === 'assistant' &&
+                    !msg.streaming &&
+                    i === currentMessages.length - 1 &&
+                    suggestedFollowUp.length
+                  "
+                  class="follow-up-chips"
                 >
-              </div>
-              <div class="msg-bubble" :class="msg.role" v-html="renderMd(displayedOf(i))"></div>
-              <span v-if="msg.streaming" class="streaming-dots">●●●</span>
-              <!-- 操作栏（仅 assistant 消息完成后） -->
-              <div v-if="msg.role === 'assistant' && !msg.streaming" class="msg-actions">
-                <button class="msg-action-btn" title="复制" @click="copyText(msg.content)">
-                  <n-icon size="14"><CopyOutlined /></n-icon>
-                </button>
-                <button class="msg-action-btn" title="重新生成" @click="regenerateMessage(i)">
-                  <n-icon size="14"><ReloadOutlined /></n-icon>
-                </button>
-                <button
-                  v-if="msg.references?.length"
-                  class="msg-action-btn"
-                  title="引用来源"
-                  @click="openRefs(msg.references!)"
-                >
-                  <n-icon size="14"><FileTextOutlined /></n-icon>
-                </button>
-                <button v-if="msg.totalCost" class="msg-action-btn msg-cost" disabled>
-                  总耗时 {{ (msg.totalCost / 1000).toFixed(2) }}s
-                </button>
-              </div>
-              <!-- 推荐追问（仅最后一条 assistant 消息后） -->
-              <div
-                v-if="
-                  msg.role === 'assistant' &&
-                  !msg.streaming &&
-                  i === currentMessages.length - 1 &&
-                  suggestedFollowUp.length
-                "
-                class="follow-up-chips"
-              >
-                <button
-                  v-for="(fq, fi) in suggestedFollowUp"
-                  :key="fi"
-                  class="suggested-chip small"
-                  @click="onSuggestedClick(fq)"
-                  >{{ fq }}</button
-                >
+                  <button
+                    v-for="(fq, fi) in suggestedFollowUp"
+                    :key="fi"
+                    class="suggested-chip small"
+                    @click="onSuggestedClick(fq)"
+                    >{{ fq }}</button
+                  >
+                </div>
               </div>
             </div>
           </div>
@@ -326,24 +336,23 @@
 
         <!-- 输入区 -->
         <div class="chat-input-area">
-          <div class="input-box">
-            <textarea
+          <div class="cc-input-card">
+            <n-input
               ref="chatInputRef"
-              v-model="chatInput"
-              class="chat-textarea"
-              rows="1"
+              v-model:value="chatInput"
+              type="textarea"
+              :autosize="{ minRows: 3, maxRows: 8 }"
               placeholder="和我聊聊天吧"
               :disabled="streaming"
+              :bordered="false"
+              class="cc-textarea"
               @keydown.enter.exact.prevent="onChatSend"
-              @input="autoResizeTextarea"
-            ></textarea>
-            <div class="input-bar">
-              <div class="input-bar-left">
-                <button class="input-tool-btn" title="附件">
-                  <n-icon size="16"><PaperClipOutlined /></n-icon>
-                </button>
+            />
+            <div class="cc-toolbar">
+              <div class="cc-toolbar-left">
+                <!-- 聊天模式下可放快捷工具 -->
               </div>
-              <div class="input-bar-right">
+              <div class="cc-toolbar-right">
                 <n-button v-if="streaming" type="error" ghost size="small" round @click="onStop"
                   >停止</n-button
                 >
@@ -358,6 +367,7 @@
                   <template #icon
                     ><n-icon size="14"><SendOutlined /></n-icon
                   ></template>
+                  发送
                 </n-button>
               </div>
             </div>
@@ -376,6 +386,9 @@
         <n-empty v-if="refsDrawerData.length === 0" description="暂无引用" />
       </n-drawer-content>
     </n-drawer>
+
+    <!-- 调用流程抽屉（RAG 各阶段上下文） -->
+    <RagTraceDrawer v-model:show="traceDrawerVisible" :data="traceDrawerData" />
   </div>
 </template>
 
@@ -402,7 +415,7 @@
     CopyOutlined,
     ReloadOutlined,
     FileTextOutlined,
-    PaperClipOutlined,
+    ApartmentOutlined,
   } from '@vicons/antd';
   import { createSessions } from '@/api/system/chat';
   import {
@@ -411,7 +424,9 @@
     type Agent,
     type AgentChatMessage,
     type AgentReference,
+    type RagStageData,
   } from '@/api/system/agent';
+  import RagTraceDrawer from '@/views/agent/components/RagTraceDrawer.vue';
   import { useTypewriter } from '@/composables/useTypewriter';
   import { marked } from 'marked';
 
@@ -628,7 +643,7 @@
 
   // ========== 聊天核心 ==========
   const chatInput = ref('');
-  const chatInputRef = ref<HTMLTextAreaElement | null>(null);
+  const chatInputRef = ref<any>(null);
   const streaming = ref(false);
   const msgBoxRef = ref<HTMLElement | null>(null);
 
@@ -733,6 +748,7 @@
               msg.references = payload.references;
               msg.stageTimings = payload.stageTimings;
               msg.totalCost = payload.totalCost;
+              msg.stageData = payload.stageData;
               msg.streaming = false;
             }
             streamDone.value = true;
@@ -808,6 +824,14 @@
     refsDrawerVisible.value = true;
   }
 
+  // ========== 调用流程（RAG 各阶段上下文） ==========
+  const traceDrawerVisible = ref(false);
+  const traceDrawerData = ref<RagStageData | null>(null);
+  function openTrace(data: RagStageData) {
+    traceDrawerData.value = data;
+    traceDrawerVisible.value = true;
+  }
+
   // ========== 工具方法 ==========
   function copyText(text: string) {
     navigator.clipboard
@@ -831,13 +855,6 @@
     if (msgBoxRef.value) {
       msgBoxRef.value.scrollTop = msgBoxRef.value.scrollHeight;
     }
-  }
-
-  function autoResizeTextarea() {
-    const el = chatInputRef.value;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   }
 
   function switchAgent(agentId: string) {
@@ -953,9 +970,9 @@
   .chat-app {
     display: flex;
     width: 100%;
-    height: 100%;
-    min-height: calc(100vh - 56px);
+    height: calc(100vh - 56px);
     background: v-bind('themeVars.bodyColor');
+    overflow: hidden;
 
     &.has-session {
       padding: 0;
@@ -1305,9 +1322,10 @@
       }
     }
     &.active {
-      background: v-bind('themeVars.primaryColorSuppl');
+      background: v-bind('themeVars.hoverColor');
+      border-left: 3px solid v-bind('themeVars.primaryColor');
       .sidebar-item-title {
-        color: v-bind('themeVars.primaryColor');
+        color: v-bind('themeVars.textColorBase');
         font-weight: 600;
       }
     }
@@ -1375,6 +1393,7 @@
     flex-direction: column;
     min-width: 0;
     height: 100%;
+    overflow: hidden;
   }
 
   /* 顶栏 */
@@ -1382,7 +1401,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 20px;
+    padding: 10px 24px;
     border-bottom: 1px solid v-bind('themeVars.borderColor');
     background: v-bind('themeVars.cardColor');
     flex-shrink: 0;
@@ -1444,11 +1463,15 @@
     }
   }
 
-  /* 消息区 */
+  /* 消息区：外层滚动，内层容器限宽 800px 居中 */
   .chat-messages {
     flex: 1;
     overflow-y: auto;
     padding: 24px 32px;
+  }
+  .chat-messages-inner {
+    max-width: 1000px;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1459,7 +1482,7 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 20px 24px;
+    padding: 20px 0;
     margin-bottom: 12px;
   }
   .welcome-avatar {
@@ -1484,7 +1507,6 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 20px;
-    padding: 0 24px;
   }
   .suggested-chip {
     padding: 8px 16px;
@@ -1659,77 +1681,17 @@
     margin-top: 4px;
   }
 
-  /* 输入区 */
+  /* 输入区 —— 复用欢迎页 .cc-input-card 样式 */
   .chat-input-area {
     flex-shrink: 0;
-    padding: 12px 24px 16px;
-    border-top: 1px solid v-bind('themeVars.borderColor');
+    padding: 12px 24px 20px;
     background: v-bind('themeVars.bodyColor');
-  }
-
-  .input-box {
-    max-width: 800px;
-    margin: 0 auto;
-    background: v-bind('themeVars.cardColor');
-    border: 1px solid v-bind('themeVars.borderColor');
-    border-radius: 16px;
-    padding: 10px 16px;
-    box-shadow: v-bind('themeVars.boxShadow1');
-    transition: border-color 0.2s, box-shadow 0.2s;
-    &:focus-within {
-      border-color: v-bind('themeVars.primaryColor');
-      box-shadow: 0 2px 16px rgba(64, 158, 255, 0.08);
-    }
-  }
-
-  .chat-textarea {
-    width: 100%;
-    box-sizing: border-box;
-    resize: none;
-    border: none;
-    outline: none;
-    padding: 4px 0;
-    font-family: inherit;
-    font-size: 14px;
-    line-height: 1.6;
-    color: v-bind('themeVars.textColorBase');
-    background: transparent;
-    min-height: 24px;
-    max-height: 160px;
-    &::placeholder {
-      color: v-bind('themeVars.textColor3');
-    }
-  }
-
-  .input-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
-    padding-top: 6px;
-  }
-  .input-bar-left,
-  .input-bar-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .input-tool-btn {
-    width: 30px;
-    height: 30px;
-    border: none;
-    background: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: v-bind('themeVars.textColor3');
-    display: flex;
-    align-items: center;
     justify-content: center;
-    transition: all 0.12s;
-    &:hover {
-      background: v-bind('themeVars.hoverColor');
-      color: v-bind('themeVars.textColorBase');
-    }
+  }
+  .chat-input-area .cc-input-card {
+    max-width: 1000px;
+    width: 100%;
   }
 
   /* 引用来源抽屉 */
