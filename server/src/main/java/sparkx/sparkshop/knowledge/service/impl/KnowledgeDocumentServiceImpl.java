@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import sparkx.sparkshop.knowledge.service.MinioService;
 import sparkx.sparkshop.common.exception.BusinessException;
+import sparkx.sparkshop.knowledge.entity.KgConfig;
 import sparkx.sparkshop.knowledge.config.RagProperties;
 import sparkx.sparkshop.knowledge.entity.ChunkEntity;
 import sparkx.sparkshop.knowledge.entity.KgExtractionRecord;
@@ -828,6 +829,17 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
         }
         if (kgEnabled == null || (kgEnabled != 1 && kgEnabled != 2)) {
             throw new BusinessException("kgEnabled 取值非法（1=启用 2=禁用）");
+        }
+        // 开启文档级 KG 前，必须全局开关已启用（双闸：yml 总闸 + kg_config.enabled 运行期开关）。
+        // 全局未开启则不允许打开单文档图谱，避免抽取/可视化空跑。
+        if (kgEnabled == 1) {
+            KgConfig globalCfg = knowledgeGraphService.getConfig();
+            boolean globalOn = globalCfg != null
+                    && globalCfg.getEnabled() != null
+                    && globalCfg.getEnabled() == 1;
+            if (!globalOn) {
+                throw new BusinessException("知识图谱全局开关未开启，请先在「知识图谱-全局配置」中启用知识图谱功能后再开启该文档");
+            }
         }
         KnowledgeDocument doc = knowledgeDocumentMapper.selectById(documentId);
         if (doc == null) {

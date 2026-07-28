@@ -26,6 +26,7 @@
     ApartmentOutlined,
     DatabaseOutlined,
     BranchesOutlined,
+    PartitionOutlined,
   } from '@vicons/antd';
 
   defineEmits(['addNode']);
@@ -36,6 +37,7 @@
     { type: 'agent', label: 'Agent', color: '#17b26a', icon: RobotOutlined },
     { type: 'purpose', label: '意图分类', color: '#f79009', icon: ApartmentOutlined },
     { type: 'dataset', label: '知识检索', color: '#6172f3', icon: DatabaseOutlined },
+    { type: 'graph', label: '知识图谱', color: '#722ed1', icon: PartitionOutlined },
     { type: 'switch', label: '条件分支', color: '#6172f3', icon: BranchesOutlined },
   ];
 

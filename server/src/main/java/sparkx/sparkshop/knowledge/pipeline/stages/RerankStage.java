@@ -35,7 +35,7 @@ import java.util.Map;
  * 复用 LangChain4j 的 ScoringModel 做精排，自研 embedding-MMR 做去冗余。
  */
 @Component
-@Order(40)
+@Order(70)
 public class RerankStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(RerankStage.class);

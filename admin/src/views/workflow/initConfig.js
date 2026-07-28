@@ -41,6 +41,15 @@ export default {
 		rerankModelId: '',
 		outData: [{ field: 'sys.result', name: '检索结果' }],
 	},
+	// 知识图谱节点初始数据（绑定知识库 + 文档，检索该文档的知识图谱）
+	graphData: {
+		type: 'graph',
+		inputData: [],
+		kbId: '',
+		docIds: [],
+		topRank: 5,
+		outData: [{ field: 'sys.result', name: '检索结果' }],
+	},
 	// 回复节点的初始数据
 	answerData: {
 		type: 'answer',

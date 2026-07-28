@@ -103,6 +103,41 @@ public class KnowledgeGraphChannel implements GraphChannel {
     @Override
     public ChannelType getType() { return ChannelType.KNOWLEDGE_GRAPH; }
 
+    /**
+     * ★ 工作流图谱节点专用入口：检索「某个知识库下某个文档」的知识图谱，返回文本片段。
+     *
+     * <p>与 {@link #retrieve(Query, RetrievalContext)}（按 KB 全域、由 RAG 管道驱动）不同，
+     * 本方法由工作流 {@code GraphNode} 直接调用，检索范围限定到 {@code docId} 这一篇文档的子图，
+     * 用于「按文档维度绑定知识图谱」的场景。检索逻辑复用 {@link #retrieveLocal}（local 路）。
+     *
+     * @param kbId      知识库 id
+     * @param docId     文档 id（非空时只在该文档子图内扩展）
+     * @param queryText 检索问题
+     * @return 召回的文本片段（{@code source=graph}），无命中返回空
+     */
+    public List<Content> retrieveForDocument(String kbId, String docId, String queryText) {
+        if (queryText == null || queryText.isBlank() || kbId == null || kbId.isBlank()) {
+            return List.of();
+        }
+        KgConfig config = kgConfigMapper.selectById(1);
+        if (config == null) {
+            return List.of();
+        }
+        int topK = 10;
+        double threshold = config.getSimilarityThreshold() != null
+                ? config.getSimilarityThreshold().doubleValue() : 0.65;
+        int hopDepth = config.getHopDepth() != null ? config.getHopDepth() : 2;
+        double secondHopWeight = config.getSecondHopWeight() != null
+                ? config.getSecondHopWeight().doubleValue() : 0.5;
+
+        List<String> entityNames = queryEntityExtractor.extract(queryText, kbId);
+        if (entityNames.isEmpty()) {
+            log.debug("[KgChannel:doc] query 无实体 kbId={} docId={} query={}", kbId, docId, queryText);
+            return List.of();
+        }
+        return retrieveLocal(kbId, entityNames, config, threshold, topK, hopDepth, secondHopWeight, docId);
+    }
+
     @Override
     public boolean isEnabled(RetrievalContext ctx) {
         // ★ 基础设施前置：Neo4j 未配置（NoopGraphRepository 兜底）时直接禁用通道，
@@ -163,7 +198,7 @@ public class KnowledgeGraphChannel implements GraphChannel {
             // local 路（local/hybrid 模式都跑）：向量召回 → 子图扩展
             if (!"global".equals(mode)) {
                 List<Content> localResults = retrieveLocal(kbId, entityNames, config,
-                        threshold, topK, hopDepth, secondHopWeight);
+                        threshold, topK, hopDepth, secondHopWeight, null);
                 allResults.addAll(localResults);
             }
 
@@ -183,7 +218,8 @@ public class KnowledgeGraphChannel implements GraphChannel {
      * 向量召回 kg_entity → Neo4j 子图扩展取关联 chunk → 包装 Content。
      */
     private List<Content> retrieveLocal(String kbId, List<String> entityNames, KgConfig config,
-                                         double threshold, int topK, int hopDepth, double secondHopWeight) {
+                                         double threshold, int topK, int hopDepth, double secondHopWeight,
+                                         String docId) {
         List<Content> results = new ArrayList<>();
         EmbeddingModel embModel = embeddingModelProvider.resolveByModelId(
                 config.getEmbeddingModelId(), config.getEmbeddingModelName());
@@ -221,7 +257,7 @@ public class KnowledgeGraphChannel implements GraphChannel {
                 .toList();
 
         Map<String, Double> chunkScores = graphRepository.findRelatedChunkIds(
-                kbId, null, canonicalNames, hopDepth, secondHopWeight);
+                kbId, docId, canonicalNames, hopDepth, secondHopWeight);
 
         if (chunkScores.isEmpty()) {
             log.debug("[KgChannel] 子图无关联 chunk kbId={}", kbId);

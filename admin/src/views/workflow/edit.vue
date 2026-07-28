@@ -107,7 +107,7 @@
   const formData = ref({});
   const inputOptions = ref([]);
   const pageComp = shallowRef(null);
-  const nodeNoData = ref({ purpose: 0, agent: 0, answer: 0, llm: 0, dataset: 0, switch: 0 });
+  const nodeNoData = ref({ purpose: 0, agent: 0, answer: 0, llm: 0, dataset: 0, graph: 0, switch: 0 });
   const flowData = ref(null);
 
   // 节点配置抽屉的动态组件映射
@@ -116,6 +116,7 @@
     purpose: () => import('./dialog/purposeDialog.vue'),
     llm: () => import('./dialog/llmDialog.vue'),
     dataset: () => import('./dialog/datasetDialog.vue'),
+    graph: () => import('./dialog/graphDialog.vue'),
     answer: () => import('./dialog/answerDialog.vue'),
     switch: () => import('./dialog/switchDialog.vue'),
     agent: () => import('./dialog/agentDialog.vue'),

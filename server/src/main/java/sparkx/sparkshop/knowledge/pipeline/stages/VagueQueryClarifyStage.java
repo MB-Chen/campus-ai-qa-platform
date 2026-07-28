@@ -21,7 +21,7 @@ import sparkx.sparkshop.knowledge.pipeline.PipelineStage;
 import java.util.List;
 
 /**
- * 模糊查询澄清阶段 —— @Order(17)，紧跟 {@link GuidanceStage}（@Order 16）之后。
+ * 模糊查询澄清阶段 —— @Order(50)，紧跟 {@link GuidanceStage}（@Order 40）之后。
  *
  * <p>补齐 clarification 的盲区。{@link GuidanceStage} 只在「意图候选≥2」时反问澄清，
  * 无法处理用户问题过于笼统导致候选不足（0 或 1 个低分）的场景。本阶段专门兜底这类情况：
@@ -31,15 +31,15 @@ import java.util.List;
  * </ul>
  * 调 {@link VagueQueryClarifier} 判定：闲聊/明确 → 放行；模糊 → 反问澄清并短路。
  *
- * <p>执行顺序与 {@link IntentStage}（@Order 10 规则闸门）、{@link TreeIntentStage}（@Order 15 意图分类）、
- * {@link GuidanceStage}（@Order 16 歧义）协同：
+ * <p>执行顺序与 {@link IntentStage}（@Order 20 规则闸门）、{@link TreeIntentStage}（@Order 30 意图分类）、
+ * {@link GuidanceStage}（@Order 40 歧义）协同：
  * <pre>
  *   IntentStage(规则) → TreeIntentStage(意图分类) → GuidanceStage(候选≥2 歧义)
  *      → ★VagueQueryClarifyStage(候选不足 模糊澄清) → RetrieveStage(检索) → ...
  * </pre>
  */
 @Component
-@Order(17)
+@Order(50)
 public class VagueQueryClarifyStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(VagueQueryClarifyStage.class);

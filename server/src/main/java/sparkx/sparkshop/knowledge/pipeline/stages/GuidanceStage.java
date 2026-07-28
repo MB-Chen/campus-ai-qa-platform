@@ -19,7 +19,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * 歧义引导阶段（文档 5.1.3 短路①）—— @Order(16)，置信度不足时先反问澄清。
+ * 歧义引导阶段（文档 5.1.3 短路①）—— @Order(40)，置信度不足时先反问澄清。
  *
  * 仅在"候选意图≥2"时触发（IntentGuidanceService 内部判定）。
  * ★ 短路：歧义时把澄清选项推给前端并结束整条链路（SHORTCIRCUIT）。
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  * 需改造 RagPipeline 支持 SHORTCIRCUIT 结果（现有只支持 COMPLETE/FALLBACK）。
  */
 @Component
-@Order(16)
+@Order(40)
 public class GuidanceStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(GuidanceStage.class);

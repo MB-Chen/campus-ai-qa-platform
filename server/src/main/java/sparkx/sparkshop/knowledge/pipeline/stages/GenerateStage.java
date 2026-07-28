@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * 失败兜底：容错层全候选失败时 onError 回调设置固定话术，仍走 FallbackProvider。
  */
 @Component
-@Order(90)
+@Order(100)
 public class GenerateStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(GenerateStage.class);

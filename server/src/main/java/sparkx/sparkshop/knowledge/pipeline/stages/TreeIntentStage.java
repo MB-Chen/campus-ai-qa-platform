@@ -25,13 +25,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 /**
- * 意图路由分类阶段（文档 5.2.3）—— @Order(15)，按子问题并行分类 + 配额控制。
+ * 意图路由分类阶段（文档 5.2.3）—— @Order(30)，按子问题并行分类 + 配额控制。
  *
  * <p>命名说明：类名 {@code TreeIntentStage} 与 stage name {@code "tree-intent"} 为历史遗留
  * （早期 IntentNode 为三级树结构），现 IntentNode 已简化为单层扁平列表，但类名/stage name
  * 作为前后端数据契约（stageTimings 的 key）保留不变，避免破坏前端时间线展示。
  *
- * 与 {@link IntentStage}（@Order(10)，规则闸门）协同：
+ * 与 {@link IntentStage}（@Order(20)，规则闸门）协同：
  *  - IntentStage 先判规则路径（闲聊/问候零成本），设 ctx.intent
  *  - 本阶段做 LLM 精分类（KB/SYSTEM/MCP 三态），设 ctx.subIntents
  * 若 IntentStage 已判定纯闲聊（非检索），本阶段 shouldRun=false 跳过。
@@ -39,7 +39,7 @@ import java.util.concurrent.ExecutorService;
  * 子问题来源：ctx.rewriteResult.subQuestions（RewriteSplitStage 产出），空则用单条主问题。
  */
 @Component
-@Order(15)
+@Order(30)
 public class TreeIntentStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(TreeIntentStage.class);

@@ -16,8 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * RAG 管线引擎
@@ -49,7 +48,7 @@ public class RagPipeline {
     }
 
     /** 会调 LLM 的阶段名（用于汇总日志统计 LLM 调用次数） */
-    private static final java.util.Set<String> LLM_STAGES = java.util.Set.of(
+    private static final Set<String> LLM_STAGES = Set.of(
             "rewrite-split", "tree-intent", "vague-clarify", "generate", "fallback");
 
     /**
@@ -61,7 +60,7 @@ public class RagPipeline {
                 ctx.getSessionId(), ctx.getOriginalQuery());
 
         // 各阶段耗时累计（name → ms），用于结尾汇总
-        java.util.Map<String, Long> stageCosts = new java.util.LinkedHashMap<>();
+        Map<String, Long> stageCosts = new LinkedHashMap<>();
         int llmCallCount = 0;
 
         for (PipelineStage stage : stages) {

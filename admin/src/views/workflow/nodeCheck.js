@@ -69,6 +69,17 @@ export default {
 				if (node.data.agentId === '') {
 					return { code: -22, msg: '请设置【Agent' + name + '】的Agent', data: [] };
 				}
+			} else if (node.shape === 'graph-node') {
+				// 知识图谱节点
+				if (node.data.inputData.length === 0) {
+					return { code: -23, msg: '请设置【知识图谱' + name + '】的输入参数', data: [] };
+				}
+				if (!node.data.kbId) {
+					return { code: -24, msg: '请设置【知识图谱' + name + '】的关联知识库', data: [] };
+				}
+				if (!Array.isArray(node.data.docIds) || node.data.docIds.length === 0) {
+					return { code: -25, msg: '请设置【知识图谱' + name + '】的关联文档', data: [] };
+				}
 			}
 		}
 

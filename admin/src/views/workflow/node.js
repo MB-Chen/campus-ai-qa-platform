@@ -112,6 +112,24 @@ export default {
       ports: { ...initConfig.ports },
     };
   },
+  // 知识图谱节点（绑定知识库 + 文档，检索文档知识图谱）
+  graphNode: (x, y, no) => {
+    return {
+      x,
+      y,
+      shape: 'graph-node',
+      width: 230,
+      height: 40,
+      data: {
+        no,
+        pages: 'graph',
+        checked: false,
+        portsVisible: false,
+        ...initConfig.graphData,
+      },
+      ports: { ...initConfig.ports },
+    };
+  },
   // 回复节点
   answerNode: (x, y, no) => {
     return {
@@ -189,11 +207,13 @@ import Dataset from './node/dataset.vue';
 import Answer from './node/answer.vue';
 import Switch from './node/switch.vue';
 import Agent from './node/agent.vue';
+import Graph from './node/graph.vue';
 
 register({ shape: 'start-node', width: 100, height: 100, component: Start });
 register({ shape: 'purpose-node', width: 100, height: 100, component: Purpose });
 register({ shape: 'llm-node', width: 100, height: 100, component: Llm });
 register({ shape: 'dataset-node', width: 100, height: 100, component: Dataset });
+register({ shape: 'graph-node', width: 100, height: 100, component: Graph });
 register({ shape: 'answer-node', width: 100, height: 100, component: Answer });
 register({ shape: 'switch-node', width: 100, height: 100, component: Switch });
 register({ shape: 'agent-node', width: 100, height: 100, component: Agent });

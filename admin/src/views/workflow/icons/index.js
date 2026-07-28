@@ -8,6 +8,7 @@ import {
   MessageOutlined,
   BranchesOutlined,
   ThunderboltOutlined,
+  PartitionOutlined,
 } from '@vicons/antd';
 
 export const NODE_ICON_META = {
@@ -15,6 +16,7 @@ export const NODE_ICON_META = {
   'purpose-node': { icon: ApartmentOutlined, name: '意图分类', color: '#f79009' },
   'llm-node': { icon: ThunderboltOutlined, name: 'LLM', color: '#6172f3' },
   'dataset-node': { icon: DatabaseOutlined, name: '知识检索', color: '#6172f3' },
+  'graph-node': { icon: PartitionOutlined, name: '知识图谱', color: '#722ed1' },
   'answer-node': { icon: MessageOutlined, name: '回复', color: '#06ae4d' },
   'switch-node': { icon: BranchesOutlined, name: '条件分支', color: '#f79009' },
   'agent-node': { icon: RobotOutlined, name: 'Agent', color: '#17b26a' },

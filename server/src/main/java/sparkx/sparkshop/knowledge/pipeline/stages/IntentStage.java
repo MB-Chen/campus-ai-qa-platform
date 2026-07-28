@@ -32,7 +32,7 @@ import org.springframework.stereotype.Component;
  * 结果写入 ctx.intent（仅用于 needsRetrieval 判定），决定后续 stage 是否执行。
  */
 @Component
-@Order(10)
+@Order(20)
 public class IntentStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(IntentStage.class);

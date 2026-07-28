@@ -17,6 +17,7 @@ public enum NodeTypeEnum {
     AGENT("agent-node", "智能体节点"),
     ANSWER("answer-node", "回复节点"),
     DATASET("dataset-node", "知识库节点"),
+    GRAPH("graph-node", "知识图谱节点"),
     LLM("llm-node", "大模型节点"),
     PURPOSE("purpose-node", "意图分类节点"),
     SWITCH("switch-node", "分支节点");

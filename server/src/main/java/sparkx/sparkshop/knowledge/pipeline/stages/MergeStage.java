@@ -31,7 +31,7 @@ import java.util.Map;
  * 3. 结果写入 ctx.mergeResult，供生成阶段使用
  */
 @Component
-@Order(70)
+@Order(80)
 public class MergeStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(MergeStage.class);

@@ -9,8 +9,10 @@
 // +----------------------------------------------------------------------
 package sparkx.sparkshop.workflow.engine.node;
 
+import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -36,9 +38,13 @@ import sparkx.sparkshop.workflow.vo.NodeRuntimeVo;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -76,6 +82,16 @@ public class LlmNode implements IWorkflowNode {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
         JSONObject modelObject = nodeObject;
         long startTime = System.currentTimeMillis();
+
+        // ★ 多入边冗余执行守卫：当多个检索节点（知识检索/知识图谱）同时连到本 LLM 时，
+        //   执行器会按每条入边各执行一次本节点（见 FlowNodeParser.execute 的 nextNeedVoMap.forEach）。
+        //   这里只真正跑一次，其余冗余调用直接跳过，避免重复流式输出 + 写入互相覆盖。
+        //   真正的那次执行会自行汇聚所有上游分支的召回结果做 RRF 融合。
+        String llmCell = runtimeVo.getNodeInfo().getId();
+        if (isAlreadyExecuted(runtimeVo.getRuntimeId(), llmCell)) {
+            runtimeVo.getLatch().countDown();
+            return runtimeVo.getEdges().get(llmCell);
+        }
 
         // 取首个输入变量 {nodeId, field}（多输入取第 0 个作为主问题来源）
         List<Map<String, String>> inputs = runtimeHelper.readInputList(nodeObject);
@@ -138,7 +154,10 @@ public class LlmNode implements IWorkflowNode {
         // 组装 user prompt
         String question = preOutput.getStr("sys.question");
         String userPrompt = modelObject.getStr("userPrompt");
-        String finalUserPrompt = buildUserPrompt(userPrompt, question, preOutput);
+        // ★ 多源召回融合：当多个上游检索节点（知识检索/知识图谱）连到本 LLM 时，
+        //   优先做 RRF 融合，否则退回旧逻辑（直接取首个 sys.result）。
+        String kbContext = resolveKbContext(preOutput, runtimeVo);
+        String finalUserPrompt = buildUserPrompt(userPrompt, question, preOutput, kbContext);
 
         String systemMsg = modelObject.getStr("systemMsg");
 
@@ -257,12 +276,12 @@ public class LlmNode implements IWorkflowNode {
      * 构建用户提示词。
      * <ul>
      *   <li>用户配了 userPrompt：按 {{var}} 替换上游输出（变量跨上游分区解析）</li>
-     *   <li>没配但上游有知识库结果（sys.result）：question + 检索结果</li>
+     *   <li>没配但上游有召回上下文（kbContext，可能已是多源 RRF 融合结果）：question + 上下文</li>
      *   <li>都没：直接用原问题</li>
      * </ul>
      * 变量解析顺序：全局 sys.* → 各上游分区 node.<cell>.<field>，首个非空命中。
      */
-    private String buildUserPrompt(String userPrompt, String question, JSONObject preOutput) {
+    private String buildUserPrompt(String userPrompt, String question, JSONObject preOutput, String kbContext) {
         if (userPrompt != null && !userPrompt.isBlank()) {
             PromptTemplate tpl = PromptTemplate.from(userPrompt);
             Matcher m = VAR_PATTERN.matcher(userPrompt);
@@ -273,16 +292,137 @@ public class LlmNode implements IWorkflowNode {
             return tpl.apply(vars).text();
         }
 
-        String kbResult = resolveVar(preOutput, "sys.result");
-        if (kbResult != null && !kbResult.isBlank()) {
+        if (kbContext != null && !kbContext.isBlank()) {
             PromptTemplate tpl = PromptTemplate.from(
-                    "{{question}}\n\n Answer using the following information:\n\n {{sys.result}}");
+                    "{{question}}\n\n Answer using the following information:\n\n {{kbContext}}");
             Map<String, Object> vars = new HashMap<>();
             vars.put("question", question == null ? "" : question);
-            vars.put("sys.result", kbResult);
+            vars.put("kbContext", kbContext);
             return tpl.apply(vars).text();
         }
         return question == null ? "" : question;
+    }
+
+    /**
+     * 解析 LLM 的召回上下文：
+     * <ul>
+     *   <li>存在 ≥2 个上游检索源（datasets.fragments / graph.fragments）→ RRF 多源融合</li>
+     *   <li>否则沿用旧逻辑（取首个上游分区的 sys.result）</li>
+     * </ul>
+     */
+    private String resolveKbContext(JSONObject preOutput, NodeRuntimeVo runtimeVo) {
+        List<RetrieverSource> sources = collectRetrieverSources(preOutput, runtimeVo);
+        if (sources.size() >= 2) {
+            log.info("[LlmNode] 检测到 {} 个上游召回源，执行 RRF 多源融合", sources.size());
+            return rrfFuse(sources);
+        }
+        return resolveVar(preOutput, "sys.result");
+    }
+
+    /**
+     * 收集所有上游检索源的分区（datasets.fragments / graph.fragments）。
+     * 除当前 preOutput 外，还扫描所有入边对应的上游上下文，补齐并行分支（另一路检索节点）的产出。
+     */
+    private List<RetrieverSource> collectRetrieverSources(JSONObject preOutput, NodeRuntimeVo runtimeVo) {
+        List<RetrieverSource> sources = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        collectFromPartition(preOutput, sources, seen);
+
+        Map<String, List<EdgeVo>> edges = runtimeVo.getEdges();
+        if (edges != null) {
+            String llmCell = runtimeVo.getNodeInfo().getId();
+            for (Map.Entry<String, List<EdgeVo>> e : edges.entrySet()) {
+                String srcCell = e.getKey();
+                if (e.getValue() == null) continue;
+                for (EdgeVo edge : e.getValue()) {
+                    if (edge.getTarget() != null && edge.getTarget().contains(llmCell)) {
+                        WorkflowRuntimeContext ctx = runtimeHelper.getRuntimeContext(
+                                runtimeVo.getRuntimeId(), srcCell, srcCell);
+                        if (ctx != null && ctx.getOutputData() != null) {
+                            collectFromPartition(JSONUtil.parseObj(ctx.getOutputData()), sources, seen);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        return sources;
+    }
+
+    /** 从某个 outputData 的分区里提取检索源（datasets→权重1.0，graph→权重0.5，对齐 RAG 通道权重） */
+    private void collectFromPartition(JSONObject output, List<RetrieverSource> sources, Set<String> seen) {
+        if (output == null) return;
+        for (String key : output.keySet()) {
+            if (!key.startsWith("node.")) continue;
+            String cell = key.substring(5);
+            if (seen.contains(cell)) continue;
+            Object part = output.get(key);
+            if (!(part instanceof JSONObject jo)) continue;
+            JSONArray dsFrags = jo.getJSONArray("datasets.fragments");
+            if (dsFrags != null && !dsFrags.isEmpty()) {
+                sources.add(new RetrieverSource("dataset", dsFrags, 1.0));
+                seen.add(cell);
+                continue;
+            }
+            JSONArray gFrags = jo.getJSONArray("graph.fragments");
+            if (gFrags != null && !gFrags.isEmpty()) {
+                sources.add(new RetrieverSource("graph", gFrags, 0.5));
+                seen.add(cell);
+            }
+        }
+    }
+
+    /**
+     * RRF（Reciprocal Rank Fusion）多源融合：score(d) = Σ_source w_s / (k + rank_s(d))。
+     * <ul>
+     *   <li>rank = 片段在所属源返回列表中的名次（0-based）</li>
+     *   <li>k = 20（对齐 RagProperties.Fusion.rrfK 默认，针对小候选池）</li>
+     *   <li>同文本跨源累加；按总分降序截断候选池（≤40）</li>
+     * </ul>
+     */
+    private String rrfFuse(List<RetrieverSource> sources) {
+        final double k = 20.0;
+        Map<String, Double> scoreByText = new LinkedHashMap<>();
+        for (RetrieverSource src : sources) {
+            JSONArray frags = src.fragments;
+            for (int i = 0; i < frags.size(); i++) {
+                JSONObject f = frags.getJSONObject(i);
+                if (f == null) continue;
+                String text = f.getStr("text");
+                if (text == null || text.isBlank()) continue;
+                double contribution = src.weight / (k + i);
+                scoreByText.merge(text, contribution, Double::sum);
+            }
+        }
+        List<String> sorted = new ArrayList<>(scoreByText.keySet());
+        sorted.sort(Comparator.comparingDouble((String t) -> scoreByText.getOrDefault(t, 0.0)).reversed());
+        if (sorted.size() > 40) {
+            sorted = sorted.subList(0, 40);
+        }
+        return String.join("\n", sorted);
+    }
+
+    /** 判断本 LLM 节点是否已执行过（(runtimeId, cell) 上下文已写入 sys.content） */
+    private boolean isAlreadyExecuted(long runtimeId, String cell) {
+        WorkflowRuntimeContext prior = runtimeContextMapper.selectOne(
+                new LambdaQueryWrapper<WorkflowRuntimeContext>()
+                        .eq(WorkflowRuntimeContext::getRuntimeId, runtimeId)
+                        .eq(WorkflowRuntimeContext::getCell, cell)
+                        .last("limit 1"));
+        if (prior == null || prior.getOutputData() == null) return false;
+        return hasSysContent(prior.getOutputData(), cell);
+    }
+
+    private boolean hasSysContent(String outputData, String cell) {
+        JSONObject obj = JSONUtil.parseObj(outputData);
+        JSONObject part = obj.getJSONObject("node." + cell);
+        if (part == null) return false;
+        String c = part.getStr("sys.content");
+        return c != null && !c.isBlank();
+    }
+
+    /** 上游检索源：类型（dataset/graph）、片段列表（按返回顺序排列即名次）、融合权重 */
+    private record RetrieverSource(String type, JSONArray fragments, double weight) {
     }
 
     /**

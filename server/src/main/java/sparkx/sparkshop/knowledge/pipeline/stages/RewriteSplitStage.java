@@ -21,7 +21,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * 改写+拆分阶段（文档 5.3.2）—— @Order(8)，在意图分类之前。
+ * 改写+拆分阶段（文档 5.3.2）—— @Order(10)，在意图分类之前。
  *
  * 改写+拆分让复杂问题（"OA 介绍和数据安全要求分别是什么"）拆成两个独立子问题，
  * 配合 TreeIntentStage 按子问题并行意图分类，召回更精准。
@@ -37,7 +37,7 @@ import org.springframework.stereotype.Component;
  * shouldRun：需要检索时才改写（纯闲聊无需）。
  */
 @Component
-@Order(8)
+@Order(10)
 public class RewriteSplitStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(RewriteSplitStage.class);
@@ -60,7 +60,7 @@ public class RewriteSplitStage implements PipelineStage {
         if (!ctx.needsRetrieval()) {
             return false;
         }
-        // ★ 闲聊预判：本阶段（@Order 8）在 IntentStage（@Order 10）之前执行，此时 ctx.intent 仍为 null，
+        // ★ 闲聊预判：本阶段（@Order 10）在 IntentStage（@Order 20）之前执行，此时 ctx.intent 仍为 null，
         //   needsRetrieval() 默认 true，会导致"你好"这类闲聊被白白做一次 LLM 改写（数秒纯浪费）。
         //   这里用规则零成本预判：命中 GREETING/CHITCHAT 则直接跳过，闲聊本就无需改写。
         //   与 IntentStage 的闲聊短路保持一致（同一套 RuleBasedIntentRouter）。

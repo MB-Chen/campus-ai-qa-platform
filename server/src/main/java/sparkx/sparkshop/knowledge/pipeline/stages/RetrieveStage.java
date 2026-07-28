@@ -57,7 +57,7 @@ import java.util.concurrent.ExecutorService;
  * 真实能力在 WF-7 落地后自动生效（@ConditionalOnMissingBean 自动退让）。
  */
 @Component
-@Order(30)
+@Order(60)
 public class RetrieveStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(RetrieveStage.class);

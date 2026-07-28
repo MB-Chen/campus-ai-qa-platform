@@ -130,6 +130,7 @@
   import {
     triggerKgExtract,
     getKgExtractProgress,
+    getKgConfig,
     type KgExtractionProgress,
   } from '@/api/system/knowledgeGraph';
   import UploadModal from './UploadModal.vue';
@@ -151,6 +152,20 @@
 
   /** 切换文档级 KG 开关 */
   async function handleKgToggle(row: KnowledgeDocument, val: boolean) {
+    // 开启前先校验全局知识图谱开关（kg_config.enabled=1）：全局未开启则不允许打开单文档图谱，并提示。
+    if (val) {
+      try {
+        const cfgRes: any = await getKgConfig();
+        const globalEnabled = cfgRes?.data?.enabled;
+        if (globalEnabled !== 1) {
+          message.warning('请先在「知识图谱 - 全局配置」中开启知识图谱功能，才能为文档启用图谱');
+          return; // 不乐观更新、不调接口，开关保持关闭
+        }
+      } catch (e: any) {
+        message.error(e?.message || '校验全局图谱配置失败');
+        return;
+      }
+    }
     const kgEnabled = val ? 1 : 2;
     const prev = row.kgEnabled ?? 2;
     row.kgEnabled = kgEnabled; // 乐观更新

@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
  * 避免「先白调全局 model 兜底生成答案，又被固定话术覆盖」的错乱。
  */
 @Component
-@Order(85)
+@Order(90)
 public class FallbackStage implements PipelineStage {
 
     private static final Logger log = LoggerFactory.getLogger(FallbackStage.class);
