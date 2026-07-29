@@ -174,6 +174,25 @@ public class AgentChatService {
      * @return 问答结果（answer + references）
      */
     public ChatResult chatSync(KnowledgeAgent agent, String query) {
+        return chatSyncCtx(agent, query).result();
+    }
+
+    /**
+     * 同步跑一次智能体问答，并把 {@link PipelineContext} 的全链路证据一并返回。
+     * <p>供评测旁路接口 {@code /agent/evalProbe} 与 Java 侧检索评估用。
+     * 单接口同源取证：答案与检索证据来自同一次 {@code RagPipeline.run}，
+     * 与生产链路完全一致，规避「双接口不同源」妥协。
+     *
+     * @param agent 智能体
+     * @param query 问题
+     * @return 含 ChatResult + PipelineContext 的取证结果
+     */
+    public EvalProbeResult chatSyncWithCtx(KnowledgeAgent agent, String query) {
+        return chatSyncCtx(agent, query);
+    }
+
+    /** 同步问答内部实现：跑管线，返回 result + ctx（ctx 供取证用） */
+    private EvalProbeResult chatSyncCtx(KnowledgeAgent agent, String query) {
         // 评估用独立会话 key，避免评估污染正式测试对话记忆
         String sessionKey = "agent:" + agent.getId() + ":eval:" + IdUtil.fastSimpleUUID();
         StringBuilder fullAnswer = new StringBuilder();
@@ -181,7 +200,8 @@ public class AgentChatService {
             PipelineContext ctx = buildContext(agent, query, sessionKey);
             ctx.setTokenConsumer(fullAnswer::append);
             ragPipeline.run(ctx);
-            return collectResult(agent, ctx, fullAnswer.toString());
+            ChatResult result = collectResult(agent, ctx, fullAnswer.toString());
+            return new EvalProbeResult(result, ctx);
         } catch (Exception e) {
             log.warn("[AgentChat] 同步问答失败 query=\"{}\": {}", query, e.getMessage());
             ChatResult r = new ChatResult();
@@ -189,7 +209,7 @@ public class AgentChatService {
             r.references = Collections.emptyList();
             r.error = true;
             r.errorMsg = e.getMessage();
-            return r;
+            return new EvalProbeResult(r, null);
         }
     }
 
@@ -216,6 +236,13 @@ public class AgentChatService {
         /** 异常信息 */
         public String errorMsg;
     }
+
+    /**
+     * 同步问答取证结果：ChatResult + PipelineContext（ctx 供评测旁路抽检索证据用）。
+     * <p>ctx 为 null 表示管线执行异常（result.error=true）。
+     */
+    public record EvalProbeResult(ChatResult result, PipelineContext ctx) {}
+
 
     /** 构造管线上下文：注入智能体的知识库 + 参数覆盖 */
     private PipelineContext buildContext(KnowledgeAgent agent, String query, String sessionKey) {
