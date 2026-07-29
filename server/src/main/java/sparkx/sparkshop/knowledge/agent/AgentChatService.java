@@ -196,12 +196,22 @@ public class AgentChatService {
         // 评估用独立会话 key，避免评估污染正式测试对话记忆
         String sessionKey = "agent:" + agent.getId() + ":eval:" + IdUtil.fastSimpleUUID();
         StringBuilder fullAnswer = new StringBuilder();
+        long[] firstTokenAt = {0L};
         try {
             PipelineContext ctx = buildContext(agent, query, sessionKey);
-            ctx.setTokenConsumer(fullAnswer::append);
+            long startMs = System.currentTimeMillis();
+            // 逐 token 回调：记录首个非空 token 到达时刻，供评测首字耗时(TTFT)用
+            ctx.setTokenConsumer(token -> {
+                if (firstTokenAt[0] == 0L && token != null && !token.isBlank()) {
+                    firstTokenAt[0] = System.currentTimeMillis();
+                }
+                fullAnswer.append(token);
+            });
             ragPipeline.run(ctx);
+            // 首字耗时：从管线启动到首个答案 token 到达（无真实回答时为 null）
+            Long firstTokenMs = (firstTokenAt[0] != 0L) ? (firstTokenAt[0] - startMs) : null;
             ChatResult result = collectResult(agent, ctx, fullAnswer.toString());
-            return new EvalProbeResult(result, ctx);
+            return new EvalProbeResult(result, ctx, firstTokenMs);
         } catch (Exception e) {
             log.warn("[AgentChat] 同步问答失败 query=\"{}\": {}", query, e.getMessage());
             ChatResult r = new ChatResult();
@@ -209,7 +219,7 @@ public class AgentChatService {
             r.references = Collections.emptyList();
             r.error = true;
             r.errorMsg = e.getMessage();
-            return new EvalProbeResult(r, null);
+            return new EvalProbeResult(r, null, null);
         }
     }
 
@@ -241,7 +251,7 @@ public class AgentChatService {
      * 同步问答取证结果：ChatResult + PipelineContext（ctx 供评测旁路抽检索证据用）。
      * <p>ctx 为 null 表示管线执行异常（result.error=true）。
      */
-    public record EvalProbeResult(ChatResult result, PipelineContext ctx) {}
+    public record EvalProbeResult(ChatResult result, PipelineContext ctx, Long firstTokenMs) {}
 
 
     /** 构造管线上下文：注入智能体的知识库 + 参数覆盖 */

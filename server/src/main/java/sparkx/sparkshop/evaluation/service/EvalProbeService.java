@@ -115,6 +115,7 @@ public class EvalProbeService {
         // 各阶段耗时 + 总耗时 + LLM 调用次数
         vo.setStageTimings(ctx.getStageTimings());
         vo.setTotalCost(ctx.getTotalCost());
+        vo.setFirstTokenMs(probe.firstTokenMs());
         vo.setLlmCallCount(ctx.getLlmCallCount());
 
         // 分支诊断
