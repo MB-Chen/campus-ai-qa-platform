@@ -819,12 +819,12 @@ COMMENT ON TABLE "public"."ai_model" IS 'AI 模型配置表';
 -- ----------------------------
 -- Records of ai_model
 -- ----------------------------
-INSERT INTO "public"."ai_model" VALUES (4, '智普AI', 4, 'openai', '[{"field":"apiKey","value":"13a8abb20dca472ea3802db2fbae5bd1.O87laDn79tUCCOUE"}]', 'glm-4.6v', NULL, '[{"field":"url","value":"https://open.bigmodel.cn/api/paas/v4"}]', 1, 100, 0, '2026-07-22 12:04:07.111601', '2026-07-22 12:04:07.111601');
-INSERT INTO "public"."ai_model" VALUES (5, '魔力方舟', 3, 'openai', '[{"field":"apiKey","value":"XYJYRDTRFJAKYFZGVAZKBXXS6DBZUMDRATHJEDD3"}]', 'bge-reranker-v2-m3', NULL, '[{"field":"url","value":"https://ai.gitee.com/v1/rerank"}]', 1, 100, 0, '2026-07-24 10:49:39.26721', '2026-07-24 10:49:39.26721');
+INSERT INTO "public"."ai_model" VALUES (4, '智普AI', 4, 'openai', '[{"field":"apiKey","value":""}]', 'glm-4.6v', NULL, '[{"field":"url","value":"https://open.bigmodel.cn/api/paas/v4"}]', 1, 100, 0, '2026-07-22 12:04:07.111601', '2026-07-22 12:04:07.111601');
+INSERT INTO "public"."ai_model" VALUES (5, '魔力方舟', 3, 'openai', '[{"field":"apiKey","value":""}]', 'bge-reranker-v2-m3', NULL, '[{"field":"url","value":"https://ai.gitee.com/v1/rerank"}]', 1, 100, 0, '2026-07-24 10:49:39.26721', '2026-07-24 10:49:39.26721');
 INSERT INTO "public"."ai_model" VALUES (3, 'Ollama向量', 2, 'ollama', '[]', 'qwen3-embedding:0.6b', NULL, '[{"field":"url","value":"http://localhost:11434/v1"}]', 2, 100, 0, '2026-07-22 12:01:55.414914', '2026-07-24 17:07:10.869096');
-INSERT INTO "public"."ai_model" VALUES (2, '小米MiMo', 1, 'openai', '[{"field":"apiKey","value":"tp-c67pts4poixp7y9zfij5c93fksqwfx2ilwbjb9khyz57bshp"}]', 'mimo-v2.5', NULL, '[{"field":"url","value":"https://token-plan-cn.xiaomimimo.com/v1"},{"field":"temperature","value":0.1,"range":[0,2]},{"field":"maxOutputTokens","value":2048,"range":[1,128000]}]', 1, 100, 1, '2026-07-22 11:58:50.412913', '2026-07-24 18:05:57.960498');
-INSERT INTO "public"."ai_model" VALUES (6, '百度千帆', 2, 'openai', '[{"field":"apiKey","value":"***REMOVED***"}]', 'qwen3-embedding-0.6b', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2"}]', 1, 100, 0, '2026-07-24 17:07:42.646569', '2026-07-24 18:06:48.585965');
-INSERT INTO "public"."ai_model" VALUES (7, '魔力方舟', 2, 'openai', '[{"field":"apiKey","value":"XYJYRDTRFJAKYFZGVAZKBXXS6DBZUMDRATHJEDD3"}]', 'Qwen3-Embedding-4B', NULL, '[{"field":"url","value":"https://ai.gitee.com/v1"}]', 1, 100, 0, '2026-07-24 18:07:53.571187', '2026-07-24 18:07:53.571187');
+INSERT INTO "public"."ai_model" VALUES (2, '小米MiMo', 1, 'openai', '[{"field":"apiKey","value":""}]', 'mimo-v2.5', NULL, '[{"field":"url","value":"https://token-plan-cn.xiaomimimo.com/v1"},{"field":"temperature","value":0.1,"range":[0,2]},{"field":"maxOutputTokens","value":2048,"range":[1,128000]}]', 1, 100, 1, '2026-07-22 11:58:50.412913', '2026-07-24 18:05:57.960498');
+INSERT INTO "public"."ai_model" VALUES (6, '百度千帆', 2, 'openai', '[{"field":"apiKey","value":""}]', 'qwen3-embedding-0.6b', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2"}]', 1, 100, 0, '2026-07-24 17:07:42.646569', '2026-07-24 18:06:48.585965');
+INSERT INTO "public"."ai_model" VALUES (7, '魔力方舟', 2, 'openai', '[{"field":"apiKey","value":""}]', 'Qwen3-Embedding-4B', NULL, '[{"field":"url","value":"https://ai.gitee.com/v1"}]', 1, 100, 0, '2026-07-24 18:07:53.571187', '2026-07-24 18:07:53.571187');
 
 -- ----------------------------
 -- Table structure for chunks
