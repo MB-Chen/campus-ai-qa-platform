@@ -99,28 +99,28 @@
         <div class="showcase-content">
           <h1 class="showcase-title">{{ websiteConfig.title }}</h1>
           <p class="showcase-description">
-            结合 AI 智能知识库客服 + 人工客服 + 工单客服于一体，提供完整的客户服务体验
+            融合知识库 RAG、智能体与可视化编排，低代码搭建企业级 AI 应用
           </p>
 
           <div class="feature-tags">
-            <span class="tag">智能对话</span>
             <span class="tag">知识库</span>
-            <span class="tag">工单系统</span>
+            <span class="tag">智能体</span>
+            <span class="tag">可视化编排</span>
           </div>
 
           <!-- 特性列表 -->
           <div class="login-features">
             <div class="feature-item">
               <span class="feature-icon">✓</span>
-              <span class="feature-text">AI 驱动的自然语言处理</span>
+              <span class="feature-text">知识库 RAG 精准问答</span>
             </div>
             <div class="feature-item">
               <span class="feature-icon">✓</span>
-              <span class="feature-text">7×24 小时全天候智能服务</span>
+              <span class="feature-text">智能体编排，灵活组合业务流程</span>
             </div>
             <div class="feature-item">
               <span class="feature-icon">✓</span>
-              <span class="feature-text">实时数据洞察与分析</span>
+              <span class="feature-text">模型中立，开箱即用</span>
             </div>
           </div>
         </div>
@@ -237,13 +237,13 @@
     }, 500);
   });
 
-  // 点击登录 - 临时跳过验证码，直接登录（方便浏览器自动化测试）
+  // 点击登录 - 弹出汉字点选验证码
   const handleSubmit = (e) => {
     e.preventDefault();
     if (loading.value) return;
     formRef.value.validate((errors) => {
       if (!errors) {
-        handleCaptchaSuccess({ key: '', points: [] });
+        showCaptcha.value = true;
       } else {
         message.error('请填写账号和密码');
       }
