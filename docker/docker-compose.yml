@@ -67,6 +67,32 @@ services:
       "
     restart: "no"
 
+  # 知识图谱 Neo4j 图数据库
+  # sparkx 后端从 ext_service_config 表（category=neo4j_self）读取连接信息：
+  #   uri = bolt://127.0.0.1:7687   username = neo4j   password = neo4j123
+  # （KnowledgeGraphConfig 启动时 verifyConnectivity，配了就必须连通，否则后端启动失败）
+  neo4j:
+    # 国内镜像加速源；自建 registry 可改回 neo4j:5-community
+    image: docker.1ms.run/neo4j:5-community
+    container_name: sparkx-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/neo4j123          # 与 sparkx.sql 中 neo4j_self 的 password 对齐
+      NEO4J_PLUGINS: '["apoc"]'            # APOC 过程插件（部分图谱操作依赖）
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+    volumes:
+      - ./neo4j-data:/data
+      - ./neo4j-logs:/logs
+    ports:
+      - "7474:7474"   # 浏览器控制台（http://localhost:7474）
+      - "7687:7687"   # Bolt 协议（sparkx 后端连接）
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # 自建 MinerU 文档解析服务（PDF/图片 → Markdown）
   # sparkx 后端在「外部服务配置」中按 category=mineru_self 读取 endpoint 调用：
   #   endpoint = http://127.0.0.1:8000   （MinerUConfig 的 SSRF 白名单对本机回环放行）
@@ -114,6 +140,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      neo4j:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sparkx
       SPRING_DATASOURCE_USERNAME: sparkx

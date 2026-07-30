@@ -839,7 +839,7 @@ COMMENT ON TABLE "public"."ext_service_config" IS '外部服务配置表';
 -- ----------------------------
 -- Records of ext_service_config
 -- ----------------------------
-INSERT INTO "public"."ext_service_config" VALUES (1, '本地Neo4j', 'neo4j_self', '{"uri":"bolt://127.0.0.1:7687","username":"neo4j","password":""}', NULL, 1, 100, '2026-07-22 12:55:09.406744', '2026-07-22 12:55:09.406744');
+INSERT INTO "public"."ext_service_config" VALUES (1, '本地Neo4j', 'neo4j_self', '{"uri":"bolt://127.0.0.1:7687","username":"neo4j","password":"neo4j123"}', NULL, 1, 100, '2026-07-22 12:55:09.406744', '2026-07-22 12:55:09.406744');
 INSERT INTO "public"."ext_service_config" VALUES (2, '本地MinerU', 'mineru_self', '{"endpoint":"http://127.0.0.1:8000","model":"pipeline","vlmServerUrl":"","enableFormula":true,"enableTable":true,"enableOcr":true,"language":"ch","timeoutSec":1000}', NULL, 1, 100, '2026-07-22 12:55:09.406744', '2026-07-22 12:55:09.406744');
 
 -- ----------------------------
