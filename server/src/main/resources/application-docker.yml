@@ -1,0 +1,18 @@
+# Docker 容器内运行的专属配置（通过 SPRING_PROFILES_ACTIVE=docker 激活）。
+# 仅覆盖与网络地址相关的项，其余全部继承 application.yml。
+# 容器在 bridge 网络内，必须用 compose 服务名互相寻址（127.0.0.1 在容器内指向容器自身）。
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/sparkx
+    username: sparkx
+    password: 123123
+  data:
+    redis:
+      host: redis
+
+# MinIO：后端容器内用服务名连接。
+# 注意：预签名 URL 会带此 host，部署到非本机时浏览器无法解析 minio，
+#       需在用户端 hosts 加一条「<部署机IP> minio」，或对外用同机反代。
+sparkx:
+  minio:
+    endpoint: http://minio:9000

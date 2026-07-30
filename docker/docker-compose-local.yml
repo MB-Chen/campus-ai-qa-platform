@@ -147,16 +147,8 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sparkx
-      SPRING_DATASOURCE_USERNAME: sparkx
-      SPRING_DATASOURCE_PASSWORD: 123123
-      # Redis 连接地址（application.yml 默认 127.0.0.1，容器内不通，必须用服务名）
-      SPRING_DATA_REDIS_HOST: redis
-      # MinIO 连接地址（application.yml 默认 http://127.0.0.1:9000）：
-      #   - 后端在宿主机裸跑 / backend 容器用 host 网络：保持默认即可（minio 端口已映射到宿主机 9000）。
-      #   - backend 也在本 compose 网络内（bridge）：需改用服务名，但 MinIO 预签名 URL 会带该 host，
-      #     浏览器/前端无法解析，故一般仍建议经宿主机端口访问。按需取消下行注释：
-      # SPARKX_MINIO_ENDPOINT: http://minio:9000
+      # 激活 docker profile：用服务名连接 postgres/redis/minio，配置见 application-docker.yml
+      SPRING_PROFILES_ACTIVE: docker
     ports:
       - "7026:7026"
 
