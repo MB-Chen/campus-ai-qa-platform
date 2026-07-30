@@ -17,9 +17,11 @@
 *.iml
 
 # ===== 数据库数据 =====
-# 所有 docker 服务的持久化数据统一放这里（postgres / minio / neo4j）
-docker_data/
+# 所有 docker 服务的持久化数据统一放在 docker/runtime_data/ 下
+# 覆盖 postgres / minio / neo4j / redis 四个服务的 data 目录
+runtime_data/
 # 兼容旧目录名（迁移前残留）
+docker_data/
 pg-data/
 minio-data/
 neo4j-data/

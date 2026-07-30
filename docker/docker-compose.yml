@@ -20,7 +20,7 @@ services:
       POSTGRES_PASSWORD: 123123
       POSTGRES_DB: sparkx
     volumes:
-      - ./pg-data:/var/lib/postgresql/data
+      - ./runtime_data/pg-data:/var/lib/postgresql/data
       - ./sql/sparkx.sql:/docker-entrypoint-initdb.d/sparkx.sql
     ports:
       - "5432:5432"
@@ -41,7 +41,7 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - ./minio-data:/data
+      - ./runtime_data/minio-data:/data
     ports:
       - "9000:9000"   # S3 API（sparkx 后端连接）
       - "9001:9001"   # Web Console（http://localhost:9001）
@@ -66,8 +66,8 @@ services:
       NEO4J_server_memory_heap_initial__size: 512m
       NEO4J_server_memory_heap_max__size: 1G
     volumes:
-      - ./neo4j-data:/data
-      - ./neo4j-logs:/logs
+      - ./runtime_data/neo4j-data:/data
+      - ./runtime_data/neo4j-logs:/logs
     ports:
       - "7474:7474"   # 浏览器控制台（http://localhost:7474）
       - "7687:7687"   # Bolt 协议（sparkx 后端连接）
@@ -85,7 +85,7 @@ services:
     image: docker.1ms.run/redis:7-alpine
     container_name: sparkx-redis
     volumes:
-      - ./redis-data:/data
+      - ./runtime_data/redis-data:/data
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes
