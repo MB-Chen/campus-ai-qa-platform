@@ -9,6 +9,8 @@
 #
 # 国内拉取：MinerU/MinIO 均走 docker.1ms.run 加速源，避免 Docker Hub 直连超时。
 # 如已有本地镜像或自建 registry，把 image 改回 opendatalab/mineru:latest / minio/minio 即可。
+name: sparkx-app
+
 services:
   postgres:
     image: crpi-35xwxmfks2ouwnqn.cn-shanghai.personal.cr.aliyuncs.com/sparkx/pgvector:15
