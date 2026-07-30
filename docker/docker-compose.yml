@@ -78,6 +78,23 @@ services:
       retries: 15
       start_period: 180s
 
+  # Redis 缓存（验证码 + 权限缓存 + Redisson 分布式锁）
+  # 与 application.yml 的 spring.data.redis.* 对齐：
+  #   host=127.0.0.1  port=6379  database=0  无密码
+  redis:
+    image: docker.1ms.run/redis:7-alpine
+    container_name: sparkx-redis
+    volumes:
+      - ./redis-data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # 自建 MinerU 文档解析服务（PDF/图片 → Markdown）
   # sparkx 后端在「外部服务配置」中按 category=mineru_self 读取 endpoint 调用：
   #   endpoint = http://127.0.0.1:8000   （MinerUConfig 的 SSRF 白名单对本机回环放行）
@@ -127,10 +144,14 @@ services:
         condition: service_started
       neo4j:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sparkx
       SPRING_DATASOURCE_USERNAME: sparkx
       SPRING_DATASOURCE_PASSWORD: 123123
+      # Redis 连接地址（application.yml 默认 127.0.0.1，容器内不通，必须用服务名）
+      SPRING_DATA_REDIS_HOST: redis
       # MinIO 连接地址（application.yml 默认 http://127.0.0.1:9000）：
       #   - 后端在宿主机裸跑 / backend 容器用 host 网络：保持默认即可（minio 端口已映射到宿主机 9000）。
       #   - backend 也在本 compose 网络内（bridge）：需改用服务名，但 MinIO 预签名 URL 会带该 host，

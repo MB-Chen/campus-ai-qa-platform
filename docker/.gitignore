@@ -1,3 +1,7 @@
 *.jar
 /pg-data
+/redis-data
+/neo4j-data
+/neo4j-logs
+/minio-data
 frontend/dist
