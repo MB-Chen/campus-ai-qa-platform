@@ -5,6 +5,6 @@
 const APP_CONFIG = {
 	//标题
 	APP_NAME: "SparkX企业智能体开发平台",
-	//接口地址，如遇跨域需使用nginx代理
-	API_URL: "http://localhost:8989/api",
+	//接口地址，如遇跨域需使用nginx代理（后端 context-path 为 /，不要带 /api）
+	API_URL: "http://localhost:8989",
 }
