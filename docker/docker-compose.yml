@@ -158,7 +158,7 @@ services:
       #     浏览器/前端无法解析，故一般仍建议经宿主机端口访问。按需取消下行注释：
       # SPARKX_MINIO_ENDPOINT: http://minio:9000
     ports:
-      - "8989:8989"
+      - "7026:7026"
 
   frontend:
     image: crpi-35xwxmfks2ouwnqn.cn-shanghai.personal.cr.aliyuncs.com/sparkx/sparkx-frontend:1.1.5
