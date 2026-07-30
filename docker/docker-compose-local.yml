@@ -52,23 +52,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # 首次启动自动创建 sparkx-drive bucket（幂等，已存在则跳过）。
-  # 用官方 mc 客户端连本编排内的 minio 服务，跑完即退出。
-  minio-init:
-    image: docker.1ms.run/minio/mc
-    container_name: sparkx-minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin;
-      mc mb --ignore-existing local/sparkx-drive;
-      mc anonymous set download local/sparkx-drive;
-      echo '[minio-init] bucket sparkx-drive ready';
-      "
-    restart: "no"
-
   # 知识图谱 Neo4j 图数据库
   # sparkx 后端从 ext_service_config 表（category=neo4j_self）读取连接信息：
   #   uri = bolt://127.0.0.1:7687   username = neo4j   password = neo4j123
