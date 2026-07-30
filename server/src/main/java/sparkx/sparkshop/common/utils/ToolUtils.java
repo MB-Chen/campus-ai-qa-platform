@@ -177,6 +177,37 @@ public class ToolUtils {
     }
 
     /**
+     * 按优先级选择一个支持中文的字体
+     * <p>
+     * Windows 开发环境优先 Microsoft YaHei；
+     * Linux/Docker 环境安装 Noto CJK 后命中 Noto Sans CJK SC；
+     * 都没有则回退到 SansSerif（仍可能显示为方块，但至少不会抛异常）。
+     */
+    private static Font resolveChineseFont(int style, int size) {
+        String[] candidates = {
+                "Microsoft YaHei",
+                "Noto Sans CJK SC",
+                "Noto Sans CJK TC",
+                "Noto Sans CJK JP",
+                "Noto Serif CJK SC",
+                "WenQuanYi Micro Hei",
+                "WenQuanYi Zen Hei",
+                "Source Han Sans SC",
+                "SimHei",
+                "SimSun",
+                "SansSerif"
+        };
+        java.util.Set<String> available = new java.util.HashSet<>(
+                java.util.Arrays.asList(java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames()));
+        for (String name : candidates) {
+            if (available.contains(name)) {
+                return new Font(name, style, size);
+            }
+        }
+        return new Font("SansSerif", style, size);
+    }
+
+    /**
      * 绘制验证码图片
      */
     private static BufferedImage drawCaptchaImage(List<ClickCaptchaResult.CharPosition> positions) {
@@ -210,8 +241,8 @@ public class ToolUtils {
             g.fillOval(x, y, 2, 2);
         }
 
-        // 绘制汉字
-        Font baseFont = new Font("微软雅黑", Font.BOLD, 28);
+        // 绘制汉字（优先使用系统已安装的中文字体，避免 Docker 等 Linux 环境缺字体导致方块）
+        Font baseFont = resolveChineseFont(Font.BOLD, 28);
         for (ClickCaptchaResult.CharPosition pos : positions) {
             Graphics2D g2 = (Graphics2D) g.create();
 
