@@ -15,6 +15,7 @@ import sparkx.sparkshop.knowledge.validate.KgConfigValidate;
 import sparkx.sparkshop.knowledge.validate.KgExtractValidate;
 import sparkx.sparkshop.knowledge.validate.KgHitTestValidate;
 import sparkx.sparkshop.knowledge.validate.KgKbSettingValidate;
+import sparkx.sparkshop.knowledge.validate.KgRecordListValidate;
 import sparkx.sparkshop.knowledge.vo.KgExtractionProgressVo;
 import sparkx.sparkshop.knowledge.vo.KgKbSettingVo;
 import sparkx.sparkshop.knowledge.vo.TaskIdVo;
@@ -54,8 +55,7 @@ public interface KnowledgeGraphService {
     KgExtractionProgressVo getExtractProgress(String taskId);
 
     /** 抽取记录分页列表 */
-    PageResult<KgExtractionRecord> getRecords(String kbId, String documentId,
-                                               String status, Integer page, Integer size);
+    PageResult<KgExtractionRecord> getRecords(KgRecordListValidate query);
 
     /** 检索测试（阶段 2：接入 KnowledgeGraphChannel 后完善） */
     Map<String, Object> hitTest(KgHitTestValidate validate);

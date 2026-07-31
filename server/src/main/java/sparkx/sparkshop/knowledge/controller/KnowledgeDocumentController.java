@@ -20,11 +20,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 import sparkx.sparkshop.common.core.AjaxResult;
 import sparkx.sparkshop.knowledge.service.IKnowledgeDocumentService;
 import sparkx.sparkshop.knowledge.validate.DocumentListValidate;
 import sparkx.sparkshop.knowledge.validate.DocumentSaveValidate;
+import sparkx.sparkshop.knowledge.validate.DocumentUploadValidate;
 import sparkx.sparkshop.knowledge.validate.KbQuestionGenValidate;
 import sparkx.sparkshop.knowledge.validate.PreviewValidate;
 import sparkx.sparkshop.knowledge.vo.DocumentDetailVo;
@@ -54,10 +54,8 @@ public class KnowledgeDocumentController {
 
     @Operation(summary = "上传文档（同步解析+分块+向量化）")
     @PostMapping("/upload")
-    public AjaxResult<DocumentVo> upload(@RequestParam("file") MultipartFile file,
-                                         @RequestParam("kbId") String kbId,
-                                         @RequestParam(value = "engine", defaultValue = "tika") String engine) {
-        return AjaxResult.success(documentService.upload(file, kbId, engine));
+    public AjaxResult<DocumentVo> upload(@Valid DocumentUploadValidate validate) {
+        return AjaxResult.success(documentService.upload(validate));
     }
 
     @Operation(summary = "试切预览（非 mineru 同步返回切片；mineru 异步返回 taskId）")

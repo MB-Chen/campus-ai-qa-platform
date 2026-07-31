@@ -54,6 +54,7 @@ import sparkx.sparkshop.knowledge.graph.GraphRepository;
 import sparkx.sparkshop.knowledge.service.IKnowledgeDocumentService;
 import sparkx.sparkshop.knowledge.validate.DocumentListValidate;
 import sparkx.sparkshop.knowledge.validate.DocumentSaveValidate;
+import sparkx.sparkshop.knowledge.validate.DocumentUploadValidate;
 import sparkx.sparkshop.knowledge.validate.KbQuestionGenValidate;
 import sparkx.sparkshop.knowledge.validate.PreviewValidate;
 import sparkx.sparkshop.knowledge.vo.ChunkVo;
@@ -297,7 +298,10 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
 
     /** 上传文档：落 MinIO → 建 pending 文档记录 → 同步调引擎入库（解析 + 分块 + 向量化）。 */
     @Override
-    public DocumentVo upload(MultipartFile file, String kbId, String engine) {
+    public DocumentVo upload(DocumentUploadValidate validate) {
+        MultipartFile file = validate.getFile();
+        String kbId = validate.getKbId();
+        String engine = validate.getEngine();
         KnowledgeBase kb = knowledgeBaseMapper.selectById(kbId);
         if (kb == null) {
             throw new BusinessException("知识库不存在");

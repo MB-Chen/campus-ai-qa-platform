@@ -27,6 +27,7 @@ import sparkx.sparkshop.knowledge.validate.KgConfigValidate;
 import sparkx.sparkshop.knowledge.validate.KgExtractValidate;
 import sparkx.sparkshop.knowledge.validate.KgHitTestValidate;
 import sparkx.sparkshop.knowledge.validate.KgKbSettingValidate;
+import sparkx.sparkshop.knowledge.validate.KgRecordListValidate;
 import sparkx.sparkshop.knowledge.vo.KgExtractionProgressVo;
 import sparkx.sparkshop.knowledge.vo.KgKbSettingVo;
 import sparkx.sparkshop.knowledge.vo.TaskIdVo;
@@ -99,13 +100,8 @@ public class KnowledgeGraphController {
 
     @Operation(summary = "抽取记录列表")
     @GetMapping("/records")
-    public AjaxResult<PageResult<KgExtractionRecord>> records(
-            @RequestParam(required = false) String kbId,
-            @RequestParam(required = false) String documentId,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-        return AjaxResult.success(knowledgeGraphService.getRecords(kbId, documentId, status, page, size));
+    public AjaxResult<PageResult<KgExtractionRecord>> records(KgRecordListValidate query) {
+        return AjaxResult.success(knowledgeGraphService.getRecords(query));
     }
 
 

@@ -10,9 +10,9 @@
 package sparkx.sparkshop.knowledge.service;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.web.multipart.MultipartFile;
 import sparkx.sparkshop.knowledge.validate.DocumentListValidate;
 import sparkx.sparkshop.knowledge.validate.DocumentSaveValidate;
+import sparkx.sparkshop.knowledge.validate.DocumentUploadValidate;
 import sparkx.sparkshop.knowledge.validate.KbQuestionGenValidate;
 import sparkx.sparkshop.knowledge.validate.PreviewValidate;
 import sparkx.sparkshop.knowledge.vo.DocumentDetailVo;
@@ -41,7 +41,7 @@ public interface IKnowledgeDocumentService {
      *
      * @return 文档记录
      */
-    DocumentVo upload(MultipartFile file, String kbId, String engine);
+    DocumentVo upload(DocumentUploadValidate validate);
 
     /**
      * 试切预览：对每个文件解析 + 按运行时分块参数切分，返回切片预览。

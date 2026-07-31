@@ -39,6 +39,7 @@ import sparkx.sparkshop.knowledge.validate.KgConfigValidate;
 import sparkx.sparkshop.knowledge.validate.KgExtractValidate;
 import sparkx.sparkshop.knowledge.validate.KgHitTestValidate;
 import sparkx.sparkshop.knowledge.validate.KgKbSettingValidate;
+import sparkx.sparkshop.knowledge.validate.KgRecordListValidate;
 import sparkx.sparkshop.knowledge.vo.KgExtractionProgressVo;
 import sparkx.sparkshop.knowledge.vo.KgKbSettingVo;
 import sparkx.sparkshop.knowledge.vo.TaskIdVo;
@@ -258,15 +259,14 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
      * 批量回填知识库名、文档名，避免前端显示 UUID。
      */
     @Override
-    public PageResult<KgExtractionRecord> getRecords(String kbId, String documentId,
-                                                      String status, Integer page, Integer size) {
-        page = (page == null || page < 1) ? 1 : page;
-        size = (size == null || size < 1) ? 20 : Math.min(size, 100);
+    public PageResult<KgExtractionRecord> getRecords(KgRecordListValidate query) {
+        int page = (query.getPage() == null || query.getPage() < 1) ? 1 : query.getPage();
+        int size = (query.getSize() == null || query.getSize() < 1) ? 20 : Math.min(query.getSize(), 100);
 
         LambdaQueryWrapper<KgExtractionRecord> wrapper = new LambdaQueryWrapper<>();
-        if (kbId != null && !kbId.isBlank()) wrapper.eq(KgExtractionRecord::getKbId, kbId);
-        if (documentId != null && !documentId.isBlank()) wrapper.eq(KgExtractionRecord::getDocumentId, documentId);
-        if (status != null && !status.isBlank()) wrapper.eq(KgExtractionRecord::getStatus, status);
+        if (query.getKbId() != null && !query.getKbId().isBlank()) wrapper.eq(KgExtractionRecord::getKbId, query.getKbId());
+        if (query.getDocumentId() != null && !query.getDocumentId().isBlank()) wrapper.eq(KgExtractionRecord::getDocumentId, query.getDocumentId());
+        if (query.getStatus() != null && !query.getStatus().isBlank()) wrapper.eq(KgExtractionRecord::getStatus, query.getStatus());
         wrapper.orderByDesc(KgExtractionRecord::getCreatedAt);
 
         var pageObj = kgExtractionRecordMapper.selectPage(
