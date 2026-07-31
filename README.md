@@ -107,8 +107,6 @@ spark-x/
 
 一次用户提问，在 SparkX 服务里经过的 RAG 核心链路如下：
 
-> 实际项目代码中，逻辑比图表上更加复杂。下图仅展示核心流程。
-
 ![](screenshot/rag_pipeline.png)
 
 <details>
@@ -330,15 +328,6 @@ http://localhost:8189
 ## 📖 使用手册
 
 完整使用文档：https://x.sparkshop.cn/
-
-## 📌 迭代计划
-
-- [ ] 编排增加数据库节点
-- [ ] 编排增加 API 节点
-- [ ] 系统支持 API 调用
-- [ ] 支持 SearXNG 搜索功能
-- [ ] 支持智谱 AI 搜索功能
-- [ ] 支持图片理解
 
 ## 🤝 交流群
 
