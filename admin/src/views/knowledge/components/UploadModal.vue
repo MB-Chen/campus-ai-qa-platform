@@ -147,9 +147,13 @@
           v-if="previewing && previewProgress"
           :elapsed-ms="previewElapsedMs"
           label="解析中"
-          :text="previewProgress.status === 'failed'
-            ? '解析失败'
-            : (previewSilentMode ? '正在解析并切分文档，完成后将自动入库…' : '正在解析并切分文档，请稍候…')"
+          :text="
+            previewProgress.status === 'failed'
+              ? '解析失败'
+              : previewSilentMode
+              ? '正在解析并切分文档，完成后将自动入库…'
+              : '正在解析并切分文档，请稍候…'
+          "
           :failed="previewProgress.status === 'failed'"
           show-progress
           :percent="previewPercent"
@@ -172,7 +176,11 @@
           v-else-if="previewing"
           :elapsed-ms="previewElapsedMs"
           label="解析中"
-          :text="previewSilentMode ? '正在解析并切分文档，完成后将自动入库…' : '正在解析并切分文档，请稍候…'"
+          :text="
+            previewSilentMode
+              ? '正在解析并切分文档，完成后将自动入库…'
+              : '正在解析并切分文档，请稍候…'
+          "
         />
         <template v-else>
           <!-- 多文档切换 tab -->
@@ -308,11 +316,6 @@
             />
           </template>
         </ProcessingStatus>
-
-        <!-- 知识图谱提示：文档入库后自动触发实体/关系抽取（需在知识图谱页面启用） -->
-        <n-alert type="info" size="small" style="margin-top: 12px" :show-icon="true">
-          如该知识库已启用知识图谱，文档入库后将自动抽取实体/关系构建图谱（异步执行，可在「知识图谱 → 抽取记录」查看进度）。
-        </n-alert>
       </div>
 
       <!-- 编辑切片弹窗 -->
@@ -816,7 +819,9 @@
       return `文件数 ${fileList.value.length}（>${AUTO_CLOSE.FILE_COUNT}）`;
     }
     if (totalFileSize.value > AUTO_CLOSE.TOTAL_MB * 1024 * 1024) {
-      return `总大小 ${(totalFileSize.value / 1024 / 1024).toFixed(1)}MB（>${AUTO_CLOSE.TOTAL_MB}MB）`;
+      return `总大小 ${(totalFileSize.value / 1024 / 1024).toFixed(1)}MB（>${
+        AUTO_CLOSE.TOTAL_MB
+      }MB）`;
     }
     return '';
   });
