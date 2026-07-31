@@ -1,173 +1,171 @@
 <template>
   <n-drawer v-model:show="show" :width="720" placement="right" :mask-closable="false">
-    <n-drawer-content
-      :title="form.id ? '编辑模型' : '新增模型'"
-      closable
-      :native-scrollbar="false"
-    >
-    <n-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-placement="left"
-      label-width="100px"
-      autocomplete="off"
-    >
-      <!-- 假输入框：吸收浏览器对密码/账号的自动回填 -->
-      <input type="text" name="fake-user" style="display: none" autocomplete="off" />
-      <input type="password" name="fake-pass" style="display: none" autocomplete="new-password" />
+    <n-drawer-content :title="form.id ? '编辑模型' : '新增模型'" closable :native-scrollbar="false">
+      <n-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-placement="left"
+        label-width="100px"
+        autocomplete="off"
+      >
+        <!-- 假输入框：吸收浏览器对密码/账号的自动回填 -->
+        <input type="text" name="fake-user" style="display: none" autocomplete="off" />
+        <input type="password" name="fake-pass" style="display: none" autocomplete="new-password" />
 
-      <n-form-item label="模型名称" path="name">
-        <n-input
-          v-model:value="form.name"
-          placeholder="如 OpenAI、通义千问"
-          :maxlength="100"
-          autocomplete="off"
-        />
-      </n-form-item>
-      <n-form-item label="模型类型" path="type">
-        <n-select
-          v-model:value="form.type"
-          :options="typeOptions"
-          :disabled="!!form.id"
-          @update:value="onTypeChange"
-        />
-      </n-form-item>
-      <n-form-item label="接入方式" path="provider">
-        <n-select
-          v-model:value="form.provider"
-          :options="providerOptionsByType"
-          @update:value="onProviderChange"
-        />
-      </n-form-item>
-
-      <!-- 凭证（动态字段） -->
-      <n-divider title-placement="left" style="margin-top: 8px">凭证配置</n-divider>
-      <n-space vertical>
-        <div v-for="(c, idx) in credentialList" :key="'c' + idx" class="kv-row">
-          <span v-if="isPresetCredentialField(c.field)" class="preset-field-name">{{
-            c.field
-          }}</span>
+        <n-form-item label="模型名称" path="name">
           <n-input
-            v-else
-            v-model:value="c.field"
-            placeholder="字段名"
-            size="small"
-            style="width: 160px"
+            v-model:value="form.name"
+            placeholder="如 OpenAI、通义千问"
+            :maxlength="100"
+            autocomplete="off"
           />
+        </n-form-item>
+        <n-form-item label="模型类型" path="type">
+          <n-select
+            v-model:value="form.type"
+            :options="typeOptions"
+            :disabled="!!form.id"
+            @update:value="onTypeChange"
+          />
+        </n-form-item>
+        <n-form-item label="接入方式" path="provider">
+          <n-select
+            v-model:value="form.provider"
+            :options="providerOptionsByType"
+            @update:value="onProviderChange"
+          />
+        </n-form-item>
+
+        <!-- 凭证（动态字段） -->
+        <n-divider title-placement="left" style="margin-top: 8px">凭证配置</n-divider>
+        <n-space vertical>
+          <div v-for="(c, idx) in credentialList" :key="'c' + idx" class="kv-row">
+            <span v-if="isPresetCredentialField(c.field)" class="preset-field-name">{{
+              fieldLabel(c.field)
+            }}</span>
+            <n-input
+              v-else
+              v-model:value="c.field"
+              placeholder="字段名"
+              size="small"
+              style="width: 160px"
+            />
+            <n-input
+              v-model:value="c.value"
+              placeholder="字段值"
+              size="small"
+              style="flex: 1"
+              :autocomplete="isPresetCredentialField(c.field) ? 'new-password' : 'off'"
+            />
+          </div>
+        </n-space>
+
+        <!-- 模型名 -->
+        <n-divider title-placement="left">模型列表</n-divider>
+        <n-form-item :label="form.type === 3 ? '重排模型名' : '可用模型名'">
           <n-input
-            v-model:value="c.value"
-            placeholder="字段值"
-            size="small"
-            style="flex: 1"
-            :autocomplete="
-              isPresetCredentialField(c.field) ? 'new-password' : 'off'
+            v-model:value="form.models"
+            :placeholder="
+              form.type === 3
+                ? '重排模型只允许一个（如 rerank-v1）'
+                : '逗号分隔（如 gpt-4o-mini,gpt-4o）'
             "
           />
-        </div>
-      </n-space>
+        </n-form-item>
 
-      <!-- 模型名 -->
-      <n-divider title-placement="left">模型列表</n-divider>
-      <n-form-item :label="form.type === 3 ? '重排模型名' : '可用模型名'">
-        <n-input
-          v-model:value="form.models"
-          :placeholder="
-            form.type === 3
-              ? '重排模型只允许一个（如 rerank-v1）'
-              : '逗号分隔（如 gpt-4o-mini,gpt-4o）'
-          "
-        />
-      </n-form-item>
-
-      <!-- options 动态字段：url / temperature / maxOutputTokens 等 -->
-      <n-divider title-placement="left">调用选项</n-divider>
-      <n-space vertical>
-        <div v-for="(o, idx) in optionsList" :key="'o' + idx" class="kv-row">
-          <!-- 预设字段名只读文本，自定义字段才用输入框 -->
-          <span v-if="isPresetOptionField(o.field)" class="preset-field-name">{{ o.field }}</span>
-          <n-input
-            v-else
-            v-model:value="o.field"
-            placeholder="字段名"
-            size="small"
-            style="width: 160px"
-          />
-          <!-- 字段值：数字字段用滑块 + 数字输入框，其余用普通输入框 -->
-          <template v-if="isNumberField(o.field)">
-            <n-slider
+        <!-- options 动态字段：url / temperature / maxOutputTokens 等 -->
+        <n-divider title-placement="left">调用选项</n-divider>
+        <n-space vertical>
+          <div v-for="(o, idx) in optionsList" :key="'o' + idx" class="kv-row">
+            <!-- 预设字段名只读文本，自定义字段才用输入框 -->
+            <span v-if="isPresetOptionField(o.field)" class="preset-field-name">{{ fieldLabel(o.field) }}</span>
+            <n-input
+              v-else
+              v-model:value="o.field"
+              placeholder="字段名"
+              size="small"
+              style="width: 160px"
+            />
+            <!-- 字段值：数字字段用滑块 + 数字输入框，其余用普通输入框 -->
+            <template v-if="isNumberField(o.field)">
+              <n-slider
+                v-model:value="o.value"
+                :min="o.range ? o.range[0] : 0"
+                :max="o.range ? o.range[1] : 2"
+                :step="o.field === 'temperature' ? 0.1 : 1"
+                style="flex: 1"
+              />
+              <n-input-number
+                v-model:value="o.value"
+                size="small"
+                style="width: 120px"
+                :min="o.range ? o.range[0] : undefined"
+                :max="o.range ? o.range[1] : undefined"
+                :step="o.field === 'temperature' ? 0.1 : 1"
+              />
+            </template>
+            <n-input
+              v-else
               v-model:value="o.value"
-              :min="o.range ? o.range[0] : 0"
-              :max="o.range ? o.range[1] : 2"
-              :step="o.field === 'temperature' ? 0.1 : 1"
+              :placeholder="
+                o.field === 'url'
+                  ? '完整接口地址，含路径，如 https://.../chat/completions'
+                  : '字段值'
+              "
+              size="small"
               style="flex: 1"
             />
-            <n-input-number
-              v-model:value="o.value"
-              size="small"
-              style="width: 120px"
-              :min="o.range ? o.range[0] : undefined"
-              :max="o.range ? o.range[1] : undefined"
-              :step="o.field === 'temperature' ? 0.1 : 1"
-            />
-          </template>
-          <n-input
-            v-else
-            v-model:value="o.value"
-            placeholder="字段值"
-            size="small"
-            style="flex: 1"
-          />
-        </div>
-      </n-space>
+          </div>
+        </n-space>
 
-      <!-- 能力配置（仅对话模型） -->
-      <template v-if="form.type === 1">
-        <n-divider title-placement="left">能力配置</n-divider>
-        <n-form-item label="深度思考">
-          <n-switch v-model:value="form.supportsThinking" :checked-value="1" :unchecked-value="0">
-            <template #checked>支持</template>
-            <template #unchecked>不支持</template>
+        <!-- 能力配置（仅对话模型） -->
+        <template v-if="form.type === 1">
+          <n-divider title-placement="left">能力配置</n-divider>
+          <n-form-item label="深度思考">
+            <n-switch v-model:value="form.supportsThinking" :checked-value="1" :unchecked-value="0">
+              <template #checked>支持</template>
+              <template #unchecked>不支持</template>
+            </n-switch>
+          </n-form-item>
+        </template>
+
+        <n-divider title-placement="left">状态与优先级</n-divider>
+        <n-form-item label="状态">
+          <n-switch v-model:value="form.status" :checked-value="1" :unchecked-value="2">
+            <template #checked>启用</template>
+            <template #unchecked>禁用</template>
           </n-switch>
         </n-form-item>
-      </template>
-
-      <n-divider title-placement="left">状态与优先级</n-divider>
-      <n-form-item label="状态">
-        <n-switch v-model:value="form.status" :checked-value="1" :unchecked-value="2">
-          <template #checked>启用</template>
-          <template #unchecked>禁用</template>
-        </n-switch>
-      </n-form-item>
-      <n-form-item label="优先级">
-        <n-input-number v-model:value="form.priority" :min="0" style="width: 200px" />
-        <span style="margin-left: 8px; color: #aaa; font-size: 12px"
-          >数值小者优先（多模型容错降级）</span
-        >
-      </n-form-item>
-    </n-form>
-
-    <template #footer>
-      <n-space justify="space-between" style="width: 100%">
-        <n-tooltip :disabled="canTest">
-          <template #trigger>
-            <n-button :loading="testing" :disabled="!canTest" @click="handleTest">
-              <template #icon
-                ><n-icon><ApiOutlined /></n-icon
-              ></template>
-              测试连接
-            </n-button>
-          </template>
-          <span>{{ testDisabledReason }}</span>
-        </n-tooltip>
-        <n-space>
-          <n-button @click="show = false">取消</n-button>
-          <n-button type="primary" strong secondary :loading="saving" @click="handleSave"
-            >保存</n-button
+        <n-form-item label="优先级">
+          <n-input-number v-model:value="form.priority" :min="0" style="width: 200px" />
+          <span style="margin-left: 8px; color: #aaa; font-size: 12px"
+            >数值小者优先（多模型容错降级）</span
           >
+        </n-form-item>
+      </n-form>
+
+      <template #footer>
+        <n-space justify="space-between" style="width: 100%">
+          <n-tooltip :disabled="canTest">
+            <template #trigger>
+              <n-button :loading="testing" :disabled="!canTest" @click="handleTest">
+                <template #icon
+                  ><n-icon><ApiOutlined /></n-icon
+                ></template>
+                测试连接
+              </n-button>
+            </template>
+            <span>{{ testDisabledReason }}</span>
+          </n-tooltip>
+          <n-space>
+            <n-button @click="show = false">取消</n-button>
+            <n-button type="primary" strong secondary :loading="saving" @click="handleSave"
+              >保存</n-button
+            >
+          </n-space>
         </n-space>
-      </n-space>
-    </template>
+      </template>
     </n-drawer-content>
   </n-drawer>
 </template>
@@ -247,6 +245,17 @@
     return field === 'temperature' || field === 'maxOutputTokens';
   }
 
+  /** 预设字段的展示名（中文）；底层 field 值仍为英文，用于序列化/传给后端 */
+  const FIELD_LABELS: Record<string, string> = {
+    apiKey: 'API 密钥',
+    url: '接口地址',
+    temperature: '温度',
+    maxOutputTokens: '最大输出 Tokens',
+  };
+  function fieldLabel(field: string): string {
+    return FIELD_LABELS[field] || field;
+  }
+
   /** 默认凭证字段（按 provider / type） */
   function defaultCredential(provider: string): FieldValue[] {
     if (provider === 'ollama') {
@@ -321,7 +330,9 @@
     // 同步默认 URL：仅在「空」或「任一 provider 默认值」时覆盖，自定义 URL 保留
     const curUrl = getField(optionsList.value, 'url');
     const isDefault =
-      !curUrl || !String(curUrl).trim() || Object.values(DEFAULT_URLS).includes(String(curUrl).trim());
+      !curUrl ||
+      !String(curUrl).trim() ||
+      Object.values(DEFAULT_URLS).includes(String(curUrl).trim());
     if (isDefault) {
       const idx = optionsList.value.findIndex((o) => o.field === 'url');
       const nextUrl = DEFAULT_URLS[next] || DEFAULT_URLS.openai;

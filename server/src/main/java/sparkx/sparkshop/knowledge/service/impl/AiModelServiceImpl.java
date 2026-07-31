@@ -576,30 +576,20 @@ public class AiModelServiceImpl implements IAiModelService {
     }
 
     /**
-     * 按模型 type 拼 OpenAI 兼容测试 URL（参考 {@code ModelUrlResolver}）。
+     * 按模型 type 解析连通性测试 URL。
      *
-     * <p>路径映射：embedding→{@code /embeddings}，rerank→{@code /rerank}，
-     * chat / vlm→{@code /chat/completions}。
-     *
-     * <p>容错：base 为空走 OpenAI 默认端点；base 已是完整路径（含任意已知后缀）
-     * 则原样返回（兼容用户自填完整 URL 的场景）；否则去尾斜杠按 type 拼对应路径。
+     * <p>★ 设计变更：{@code options.url} 由用户填写<b>完整接口地址</b>（含协议路径，
+     * 如对话/视觉 {@code /chat/completions}、向量 {@code /embeddings}、重排 {@code /rerank}），
+     * 后端<b>不再自动补全路径</b>。此处直接以用户输入为准（仅做 trim）；
+     * 仅在 url 完全缺失时回退 OpenAI 默认端点（全地址形态），便于发现漏配。
      */
     private String resolveTestUrl(int type, String base) {
-        String path = pathByType(type);
         if (base == null || base.isBlank()) {
-            return "https://api.openai.com/v1" + path;
+            // 未配置 url 时回退 OpenAI 默认端点（全地址形态）
+            return "https://api.openai.com/v1" + pathByType(type);
         }
-        base = base.trim();
-        // 用户已填完整路径（含任意已知后缀）直接返回
-        if (base.contains("/chat/completions")
-                || base.contains("/embeddings")
-                || base.contains("/rerank")) {
-            return base;
-        }
-        if (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
-        }
-        return base + path;
+        // 用户应填写完整接口地址，后端不再补全
+        return base.trim();
     }
 
     /** 按 type 取 OpenAI 兼容协议路径后缀。 */

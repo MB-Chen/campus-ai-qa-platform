@@ -140,15 +140,16 @@ public class AgentRerankClient {
     }
 
 
-    /** rerank URL 拼接：base 已含 /rerank 原样用，否则去尾斜杠 + /rerank；base 空走 SiliconFlow 默认 */
+    /**
+     * rerank URL 解析：{@code options.url} 由用户填写<b>完整接口地址</b>（含 /rerank 路径），
+     * 后端不再自动补全，直接以用户输入为准（仅做 trim）。
+     * 仅在 url 完全缺失时回退 SiliconFlow 默认端点。
+     */
     private String resolveRerankUrl(String base) {
         if (base == null || base.isBlank()) {
             return "https://api.siliconflow.cn/v1/rerank";
         }
-        base = base.trim();
-        if (base.contains("/rerank")) return base;
-        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-        return base + "/rerank";
+        return base.trim();
     }
 
     /** 从 options/credential 的 [{field,value}] JSON 数组中取字段值 */

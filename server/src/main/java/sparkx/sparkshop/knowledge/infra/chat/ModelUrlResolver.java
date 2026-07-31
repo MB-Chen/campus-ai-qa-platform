@@ -52,13 +52,8 @@ public final class ModelUrlResolver {
                     target.id(), target.provider(), target.model(), path);
             return "https://api.openai.com/v1" + path;
         }
-        base = base.trim();
-        // 已是完整路径（含 /chat/completions）直接返回
-        if (base.contains("/chat/completions") || base.contains("/embeddings")) {
-            return base;
-        }
-        // 去尾斜杠再拼路径
-        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-        return base + path;
+        // ★ 设计变更：options.url 由用户填写完整接口地址（含协议路径），后端不再自动补全路径。
+        // 直接以用户输入为准（仅做 trim）。
+        return base.trim();
     }
 }

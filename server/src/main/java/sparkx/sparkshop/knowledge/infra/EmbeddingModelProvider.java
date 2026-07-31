@@ -125,7 +125,7 @@ public class EmbeddingModelProvider {
      */
     private EmbeddingModel buildFromSnapshot(String url, String apiKey, String modelName) {
         var b = OpenAiEmbeddingModel.builder()
-                .baseUrl(url)
+                .baseUrl(normalizeEmbeddingBaseUrl(url))
                 .modelName(modelName)
                 .timeout(Duration.ofSeconds(60));
         if (apiKey != null && !apiKey.isBlank()) {
@@ -192,7 +192,7 @@ public class EmbeddingModelProvider {
             // 注意：1.17.0 OpenAiEmbeddingModel.builder() 返回的 Builder 类型不是公开嵌套类，
             // 不能显式声明为 OpenAiEmbeddingModel.Builder，用 var 接收。
             var b = OpenAiEmbeddingModel.builder()
-                    .baseUrl(url)
+                    .baseUrl(normalizeEmbeddingBaseUrl(url))
                     .modelName(effModelName)
                     .timeout(Duration.ofSeconds(60));
             if (apiKey != null && !apiKey.isBlank()) {
@@ -295,5 +295,36 @@ public class EmbeddingModelProvider {
             if (p != null && !p.isBlank()) return p.trim();
         }
         return null;
+    }
+
+    /**
+     * 归一化 embedding baseUrl。
+     *
+     * <p>★ 关键修复：langchain4j 的 {@code OpenAiEmbeddingModel} 会在 baseUrl 后<b>自动追加</b>
+     * {@code /embeddings} 再发请求。而 {@code ai_model.options.url} 里用户常填完整路径
+     * （如百度千帆 {@code https://qianfan.baidubce.com/v2/embeddings}），若不剥离，
+     * 实际请求会变成 {@code .../v2/embeddings/embeddings} → 供应商网关返回
+     * {@code 404 page not found}（向量维度探测失败、嵌入模型不可用）。
+     *
+     * <p>此处与 {@code AiModelServiceImpl#resolveTestUrl} 的后缀集合对齐：若 url 已含任一
+     * 已知端点后缀则剥离，再交给 langchain4j 自行拼接，保证「填 base 或填完整路径都正确」。
+     *
+     * @param url 配置中的原始 url（可能含 /embeddings 等后缀）
+     * @return 净 baseUrl；为 null/空时原样返回 null
+     */
+    private String normalizeEmbeddingBaseUrl(String url) {
+        if (url == null || url.isBlank()) return url;
+        String u = url.trim();
+        String[] suffixes = {"/embeddings", "/chat/completions", "/rerank"};
+        for (String s : suffixes) {
+            if (u.endsWith(s)) {
+                u = u.substring(0, u.length() - s.length());
+                break;
+            }
+        }
+        while (u.endsWith("/")) {
+            u = u.substring(0, u.length() - 1);
+        }
+        return u;
     }
 }

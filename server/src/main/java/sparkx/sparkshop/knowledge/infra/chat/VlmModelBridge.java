@@ -96,11 +96,40 @@ public class VlmModelBridge {
         }
         AiModelProperties.ModelCandidate c = candidates.get(0);
         log.debug("[VLM] 使用候选 model={} provider={} url={}", c.getModel(), c.getProvider(), c.getUrl());
+        // ★ 设计变更：options.url 为完整接口地址（含 /chat/completions）。
+        // 但 langchain4j 的 OpenAiChatModel 会在 baseUrl 后自动追加 /chat/completions，
+        // 故此处剥离已知端点后缀再传入，避免 .../chat/completions/chat/completions 双路径 404。
         return OpenAiChatModel.builder()
-                .baseUrl(c.getUrl())
+                .baseUrl(normalizeLangchainBaseUrl(c.getUrl()))
                 .apiKey(c.getApiKey())
                 .modelName(c.getModel())
                 .timeout(Duration.ofSeconds(120))
                 .build();
+    }
+
+    /**
+     * 归一化 langchain4j 模型 baseUrl。
+     *
+     * <p>options.url 由用户填写完整接口地址（如 .../v1/chat/completions），而 langchain4j 的
+     * OpenAiChatModel / OpenAiEmbeddingModel 会自行追加对应协议路径（/chat/completions、/embeddings），
+     * 若直接传入完整地址会变成双路径 → 供应商网关 404。故剥离已知端点后缀及尾斜杠后再交给 langchain4j。
+     *
+     * @param url 配置中的原始 url（可能含协议路径后缀）
+     * @return 净 baseUrl；为 null/空时原样返回 null
+     */
+    private static String normalizeLangchainBaseUrl(String url) {
+        if (url == null || url.isBlank()) return url;
+        String u = url.trim();
+        String[] suffixes = {"/chat/completions", "/embeddings", "/rerank"};
+        for (String s : suffixes) {
+            if (u.endsWith(s)) {
+                u = u.substring(0, u.length() - s.length());
+                break;
+            }
+        }
+        while (u.endsWith("/")) {
+            u = u.substring(0, u.length() - 1);
+        }
+        return u;
     }
 }
