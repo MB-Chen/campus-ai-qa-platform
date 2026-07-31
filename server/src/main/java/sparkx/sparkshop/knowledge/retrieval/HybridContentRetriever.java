@@ -233,23 +233,32 @@ public class HybridContentRetriever implements ContentRetriever {
         }
 
         // 4.3 拼上下文：问题切片用原文 content 替换；原文切片保持自身 content；按原文 id 去重
+        //    ★ 必须用 2 参 TextSegment.from(text, metadata) 保留 chunk 的 JSONB metadata
+        //    （含 parentId/chunkRole），否则后续 ParentExpansionPostProcessor 拿不到 parentId，
+        //    父子分块的父块展开会失效。
         Set<String> seenOriginal = new LinkedHashSet<>();
         List<Content> result = new ArrayList<>(topFused.size());
         for (Map<String, Object> row : topFused) {
             String type = readMetaField(row.get("metadata"), "type");
             String content;
             String dedupKey;
+            Map<String, Object> meta = readMetaMap(row.get("metadata"));
             if ("question".equals(type)) {
                 String sid = readMetaField(row.get("metadata"), "source_chunk_id");
                 content = originalContent.getOrDefault(sid, (String) row.get("content"));
                 dedupKey = "q:" + sid;   // 同一原文的多个问题只保留一条
+                // 问题切片回溯到原文后，parent-child 等字段已无意义，清掉避免误导后处理器
+                if (meta != null) meta.remove("parentId");
             } else {
                 content = (String) row.get("content");
                 dedupKey = "c:" + row.get("id");
             }
             if (content == null || content.isBlank()) continue;
             if (!seenOriginal.add(dedupKey)) continue;   // 已出现过，跳过
-            result.add(Content.from(TextSegment.from(content)));
+            dev.langchain4j.data.document.Metadata lcMeta =
+                    meta != null ? dev.langchain4j.data.document.Metadata.from(meta)
+                                 : new dev.langchain4j.data.document.Metadata();
+            result.add(Content.from(TextSegment.from(content, lcMeta)));
         }
         return result;
     }
@@ -268,6 +277,30 @@ public class HybridContentRetriever implements ContentRetriever {
             JsonNode node = root.path(field);
             if (node.isMissingNode() || node.isNull()) return null;
             return node.asText();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从 chunks.metadata（jsonb 文本或已序列化字符串）解析出完整 Map。
+     * 与 {@link #readMetaField} 同款解析，但返回整个对象，供检索结果挂载到
+     * {@link TextSegment}（保留 parentId/chunkRole 等，供父块展开后处理器使用）。
+     * 任意异常返回 null（旧数据 metadata 为空/非对象时降级为空 metadata）。
+     */
+    private static Map<String, Object> readMetaMap(Object metadata) {
+        if (metadata == null) return null;
+        String json = metadata.toString();
+        if (json.isBlank() || !json.startsWith("{")) return null;
+        try {
+            JsonNode root = META_MAPPER.readTree(json);
+            Map<String, Object> map = new LinkedHashMap<>();
+            root.fields().forEachRemaining(e -> {
+                JsonNode v = e.getValue();
+                if (v == null || v.isNull()) return;
+                map.put(e.getKey(), v.isNumber() ? v.numberValue() : v.asText());
+            });
+            return map;
         } catch (Exception e) {
             return null;
         }

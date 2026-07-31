@@ -350,6 +350,15 @@ public class RetrieveStage implements PipelineStage {
         }
         ctx.setSearchResult(hits);
         if (hits.isEmpty()) return StageResult.FALLBACK;
+        // ★ 补跑后处理器链（与 channel 路径对齐）：原 retrieveLegacy 完全跳过后处理器，
+        //   导致无 rewrite 的简单查询（如 IM 链路）走不到父块展开（ParentExpansionPostProcessor）。
+        //   查询扩写后用最终 hits 跑一遍去重/父块展开，与 channel 路径行为一致。
+        if (!postProcessors.isEmpty()) {
+            hits = executePostProcessors(hits,
+                    Query.from(q, Metadata.from(UserMessage.from(""), null, null)),
+                    buildRetrievalContext(q, ctx, null));
+            ctx.setSearchResult(hits);
+        }
         return StageResult.CONTINUE;
     }
 

@@ -37,7 +37,7 @@ public interface ParentChunkMapper extends BaseMapper<ParentChunkEntity> {
                     @Param("content") String content,
                     @Param("metadata") String metadata);
 
-    /** 按多个 parentId 批量查询父块（供 ParentChildRetriever 展开用） */
+    /** 按多个 parentId 批量查询父块（供 ParentExpansionPostProcessor 展开用） */
     @Select({
             "<script>",
             "SELECT * FROM parent_chunks WHERE id IN ",

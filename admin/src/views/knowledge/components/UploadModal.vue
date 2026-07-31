@@ -571,7 +571,7 @@
     chunkOverlap: 80,
     separators: ['\n\n', '\n', '。', '！', '？', '；', ';'],
     enableParentChild: false,
-    parentChunkSize: 4096,
+    parentChunkSize: 1536,
     childChunkSize: 384,
     strategy: 'auto',
     tokenLimit: 0,
@@ -581,6 +581,50 @@
 
   // 解析引擎规则（按文件类型分组）
   const engineRules = ref<ParserEngineRule[]>([]);
+
+  // ===== 父块大小动态推荐 =====
+  // 父块现在会真正注入 LLM（后端 ParentExpansionPostProcessor 展开），过大会灌噪声、
+  // 过小会切碎上下文。按文件总体积估算纯文本量，给一个聚焦的推荐默认值。
+  // 用户手动拖过滑块后置 touched，之后不再覆盖，避免抢用户操作（与 previewUserTouched 同款思路）。
+  const parentChunkUserTouched = ref(false);
+
+  /** 按 totalFileSize 估算纯文本字符数（÷10：覆盖富文本被解析为纯文本的体积放大，保守估计） */
+  const estimatedTextChars = computed(() => {
+    // totalFileSize 在下方定义（computed）；此处 ref 安全——computed 是惰性的，调用时已就绪
+    return Math.floor(totalFileSize.value / 10);
+  });
+
+  /**
+   * 按估算文本量推荐父块大小（ChunkingSettings 滑块 min=512/max=8192/step=64，推荐值均合法）：
+   *  - 小文档（<2000 字符）：1024，接近全文级，避免切碎丢失上下文
+   *  - 中等（2000~10000）：1536（默认值），4 个子块聚焦一段
+   *  - 较大（>10000）：2048，更多上下文容纳长文段落
+   */
+  const recommendedParentChunkSize = computed(() => {
+    const chars = estimatedTextChars.value;
+    if (chars > 0 && chars < 2000) return 1024;
+    if (chars <= 10000) return 1536;
+    return 2048;
+  });
+
+  /** 应用推荐父块大小（仅用户未手动改过时生效） */
+  // applyingRecommended 防止下方 watch 把「推荐写入」误判成「用户手动改」而提前锁定 touched
+  let applyingRecommended = false;
+  function applyRecommendedParentChunkSize() {
+    if (parentChunkUserTouched.value) return;
+    applyingRecommended = true;
+    chunkingCfg.value.parentChunkSize = recommendedParentChunkSize.value;
+    applyingRecommended = false;
+  }
+
+  // 监听父块大小变化：用户手动拖动滑块（非推荐写入）时置 touched，之后推荐不再覆盖
+  watch(
+    () => chunkingCfg.value.parentChunkSize,
+    () => {
+      if (applyingRecommended) return; // 推荐自身的写入，不算用户操作
+      parentChunkUserTouched.value = true;
+    }
+  );
 
   // MinerU 是否已在「外部服务配置」正确配置并启用
   // null=未加载 / true=已配置 / false=未配置（引导用户去配置）
@@ -819,7 +863,11 @@
       () => chunkingCfg.value.childChunkSize,
       () => chunkingCfg.value.enableParentChild,
     ],
-    () => reevaluateAutoPreview()
+    () => {
+      reevaluateAutoPreview();
+      // 文件增删/规模变化时刷新父块大小推荐（用户已手动改过则 applyRecommended 内部跳过）
+      applyRecommendedParentChunkSize();
+    }
   );
 
   function getEngineForGroup(extensions: string[]): string {
@@ -920,7 +968,7 @@
       chunkOverlap: 80,
       separators: ['\n\n', '\n', '。', '！', '？', '；', ';'],
       enableParentChild: false,
-      parentChunkSize: 4096,
+      parentChunkSize: 1536,
       childChunkSize: 384,
       strategy: 'auto',
       tokenLimit: 0,
@@ -948,6 +996,8 @@
     previewAutoOff.value = false;
     previewUserTouched.value = false;
     previewSilentMode.value = false;
+    // 重置父块大小推荐 touched 标记，下次进入重新推荐
+    parentChunkUserTouched.value = false;
   }
 
   function open() {
@@ -980,6 +1030,8 @@
     // （从 Step 1 带大文件进来时能立即触发自动关闭预览）
     previewUserTouched.value = false;
     reevaluateAutoPreview();
+    // 进入 Step 2 时按文件规模推荐一次父块大小（用户未手动改过才覆盖）
+    applyRecommendedParentChunkSize();
   }
 
   /** 预览进度百分比（mineru 异步轮询时用） */

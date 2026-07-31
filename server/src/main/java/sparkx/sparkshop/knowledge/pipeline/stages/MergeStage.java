@@ -26,8 +26,8 @@ import java.util.Map;
  *
  * 职责：
  * 1. 对重排结果按文本去重（多查询变体可能召回相同内容）
- * 2. 若启用父子分块，此处已是父块内容（由 ParentChildRetriever 展开）；
- *    若使用普通检索，则做截断到合理上下文长度
+ * 2. 父子分块的父块展开已在检索阶段由 ParentExpansionPostProcessor（order=2）完成，
+ *    到达此处的 Content 若来自父子库即为父块内容；普通检索则做截断到合理上下文长度
  * 3. 结果写入 ctx.mergeResult，供生成阶段使用
  */
 @Component

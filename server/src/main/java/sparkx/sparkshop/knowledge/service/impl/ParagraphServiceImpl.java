@@ -129,7 +129,7 @@ public class ParagraphServiceImpl implements IParagraphService {
 
     /**
      * 文档维度列表：从当页子块 metadata 收集 parentId，批量查父块全文并回填到 VO。
-     * 与 {@link sparkx.sparkshop.knowledge.retrieval.ParentChildRetriever} 同款容错：
+     * 与 {@link sparkx.sparkshop.knowledge.retrieval.ParentExpansionPostProcessor} 同款容错：
      * 父块查询失败仅 warn 降级，不影响子块列表本身。
      * 没有 parentId 的子块（普通分块文档）保持 null，前端归到「独立切片」分组。
      */

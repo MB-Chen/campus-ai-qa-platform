@@ -243,7 +243,13 @@ public class RagProperties {
         /** 相邻 chunk 重叠字符数：中文 RAG 约 100 字（200 字符）能保住一个条款的语义连续性 */
         private int chunkOverlap = 200;
         private boolean parentEnabled = true;
-        private int parentSize = 4096;
+        /**
+         * 父块目标字符数。1536 ≈ 4 个子块（4×384），是上下文聚焦与噪声的折中：
+         * MergeStage 注入 LLM 的上下文上限是 12000 字符，父块越大单块噪声越大、能塞入的块数越少
+         * （4096 仅塞 2~3 块即满），1536 能塞 6~7 块、多样性更好。父块大小现在会真正注入 LLM
+         * （见 ParentExpansionPostProcessor），故此值直接影响生成质量。
+         */
+        private int parentSize = 1536;
         private int childSize = 384;
 
         public String getStrategy() { return strategy; }

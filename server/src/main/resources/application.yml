@@ -158,7 +158,10 @@ app:
       # 50 对中文约 25 字 + 句子边界对齐，足够衔接上下文又不会让相邻块大段重复。
       chunk-overlap: 50
       parent-enabled: true
-      parent-size: 4096
+      # 父块目标字符数：1536 ≈ 4 个子块（4×384）。父块经 ParentExpansionPostProcessor
+      # 展开后会真正注入 LLM，值越大单块噪声越大、能塞入的块数越少（MergeStage 上限 12000 字符，
+      # 4096 仅塞 2~3 块即满）。1536 是聚焦与上下文丰富度的折中。
+      parent-size: 1536
       child-size: 384
     cache:
       semantic-enabled: true
