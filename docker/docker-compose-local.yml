@@ -161,5 +161,3 @@ services:
       - backend
     volumes:
       - ./frontend/config.js:/usr/share/nginx/html/config.js
-volumes:
-  pg-data:
