@@ -72,6 +72,13 @@ public class KnowledgeController {
         return AjaxResult.success();
     }
 
+    @Operation(summary = "切换知识库启停状态（1启用 / 2禁用）")
+    @GetMapping("/status")
+    public AjaxResult<Object> status(@RequestParam String id, @RequestParam Integer status) {
+        knowledgeService.switchStatus(id, status);
+        return AjaxResult.success();
+    }
+
     @Operation(summary = "重新向量化整个知识库（异步）")
     @GetMapping("/embedding")
     public AjaxResult<Object> embedding(@RequestParam String id) {

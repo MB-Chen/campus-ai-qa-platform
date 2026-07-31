@@ -129,6 +129,11 @@ export function delKb(id: string) {
   return Alova.Get<any>('/knowledge/del', { params: { id } });
 }
 
+// 切换知识库启停状态（1启用 / 2禁用）
+export function switchKbStatus(id: string, status: number) {
+  return Alova.Get<any>('/knowledge/status', { params: { id, status } });
+}
+
 // 重新向量化整个知识库
 export function embeddingKb(id: string) {
   return Alova.Get<any>('/knowledge/embedding', { params: { id } });

@@ -206,6 +206,18 @@ public class KnowledgeServiceImpl implements IKnowledgeService {
         knowledgeBaseMapper.deleteById(id);
     }
 
+    /** 切换知识库启停状态（1启用 / 2禁用）。 */
+    @Override
+    public void switchStatus(String id, Integer status) {
+        KnowledgeBase kb = knowledgeBaseMapper.selectById(id);
+        if (kb == null) {
+            throw new BusinessException("知识库不存在");
+        }
+        kb.setStatus(status);
+        kb.setUpdatedAt(LocalDateTime.now());
+        knowledgeBaseMapper.updateById(kb);
+    }
+
     /**
      * 命中测试：复刻检索管线逻辑，支持 embedding / text / mix 三种模式。
      * mix 模式用 min-max 归一化 + 加权求和融合（非 RRF），向量默认权重 0.7。

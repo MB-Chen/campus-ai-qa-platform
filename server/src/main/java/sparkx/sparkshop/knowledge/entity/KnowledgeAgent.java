@@ -133,6 +133,14 @@ public class KnowledgeAgent implements Serializable {
     @TableField(value = "fallback_response")
     private String fallbackResponse;
 
+    /** 是否启用样例查询优先匹配 1启用 2禁用（启用后用户消息先到样例库向量匹配，命中阈值直接返回样例答案） */
+    @TableField(value = "sample_query_enabled")
+    private Integer sampleQueryEnabled;
+
+    /** 样例匹配相似度阈值（0~1，null 时回退全局 sample_query_config.similarity_threshold） */
+    @TableField(value = "sample_query_threshold")
+    private Double sampleQueryThreshold;
+
     /** 开场白 */
     @TableField(value = "welcome")
     private String welcome;

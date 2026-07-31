@@ -50,6 +50,7 @@
                     type="primary"
                     @click="openEdit(m)"
                   >
+                    <template #icon><n-icon><EditOutlined /></n-icon></template>
                     编辑
                   </n-button>
                   <span class="mc-action-divider">|</span>
@@ -60,6 +61,7 @@
                     type="error"
                     @click="handleDelete(m)"
                   >
+                    <template #icon><n-icon><DeleteOutlined /></n-icon></template>
                     删除
                   </n-button>
                 </div>
@@ -95,6 +97,7 @@
                     type="primary"
                     @click="openEdit(m)"
                   >
+                    <template #icon><n-icon><EditOutlined /></n-icon></template>
                     编辑
                   </n-button>
                   <span class="mc-action-divider">|</span>
@@ -105,6 +108,7 @@
                     type="error"
                     @click="handleDelete(m)"
                   >
+                    <template #icon><n-icon><DeleteOutlined /></n-icon></template>
                     删除
                   </n-button>
                 </div>
@@ -140,6 +144,7 @@
                     type="primary"
                     @click="openEdit(m)"
                   >
+                    <template #icon><n-icon><EditOutlined /></n-icon></template>
                     编辑
                   </n-button>
                   <span class="mc-action-divider">|</span>
@@ -150,6 +155,7 @@
                     type="error"
                     @click="handleDelete(m)"
                   >
+                    <template #icon><n-icon><DeleteOutlined /></n-icon></template>
                     删除
                   </n-button>
                 </div>
@@ -185,6 +191,7 @@
                     type="primary"
                     @click="openEdit(m)"
                   >
+                    <template #icon><n-icon><EditOutlined /></n-icon></template>
                     编辑
                   </n-button>
                   <span class="mc-action-divider">|</span>
@@ -195,6 +202,7 @@
                     type="error"
                     @click="handleDelete(m)"
                   >
+                    <template #icon><n-icon><DeleteOutlined /></n-icon></template>
                     删除
                   </n-button>
                 </div>
@@ -212,7 +220,7 @@
 <script setup lang="ts">
   import { ref, onMounted } from 'vue';
   import { useMessage, useDialog } from 'naive-ui';
-  import { PlusOutlined } from '@vicons/antd';
+  import { PlusOutlined, EditOutlined, DeleteOutlined } from '@vicons/antd';
   import { getModelList, delModel, setModelStatus, type AiModel } from '@/api/system/aiModel';
   import ModelEditModal from './components/ModelEditModal.vue';
 
@@ -381,10 +389,11 @@
   .mc-action-btn {
     flex: 1;
     text-align: center;
-    /* tiny text 按钮默认垂直对不齐，拉齐基线 */
+    /* tiny text 按钮默认垂直对不齐，拉齐基线；加图标后保证图标与文字水平居中不换行 */
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 4px;
   }
   .mc-action-divider {
     color: #e0e0e0;

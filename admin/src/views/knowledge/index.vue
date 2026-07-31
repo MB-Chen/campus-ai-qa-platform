@@ -47,9 +47,17 @@
             <div class="kb-head" @click="goDetail(kb)">
               <n-icon :size="22" color="#07c05f"><BookOutlined /></n-icon>
               <span class="kb-name">{{ kb.name || '未命名知识库' }}</span>
-              <n-tag :type="kb.status === 2 ? 'default' : 'success'" size="small" round>
-                {{ kb.status === 2 ? '禁用' : '正常' }}
-              </n-tag>
+              <span class="kb-status-switch" @click.stop>
+                <n-switch
+                  size="small"
+                  :value="kb.status === 1"
+                  :loading="switchingId === kb.id"
+                  @update:value="handleStatus(kb)"
+                >
+                  <template #checked>启用</template>
+                  <template #unchecked>禁用</template>
+                </n-switch>
+              </span>
             </div>
 
             <div class="kb-desc" @click="goDetail(kb)">
@@ -80,11 +88,25 @@
             </div>
 
             <div class="kb-actions">
-              <n-button size="tiny" quaternary type="primary" @click="goDetail(kb)">设置</n-button>
-              <n-button size="tiny" quaternary @click="handleHitTest(kb)">命中测试</n-button>
-              <n-button size="tiny" quaternary type="error" :disabled="deleting" @click="handleDelete(kb)"
-                >删除</n-button
+              <n-button class="kb-action-btn" size="tiny" quaternary type="primary" @click="goDetail(kb)">
+                <template #icon><n-icon><SettingOutlined /></n-icon></template>
+                设置
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary @click="handleHitTest(kb)">
+                <template #icon><n-icon><AimOutlined /></n-icon></template>
+                命中测试
+              </n-button>
+              <n-button
+                class="kb-action-btn"
+                size="tiny"
+                quaternary
+                type="error"
+                :disabled="deleting"
+                @click="handleDelete(kb)"
               >
+                <template #icon><n-icon><DeleteOutlined /></n-icon></template>
+                删除
+              </n-button>
             </div>
           </div>
         </div>
@@ -112,8 +134,8 @@
   import { ref, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { useMessage, useDialog } from 'naive-ui';
-  import { SearchOutlined, PlusOutlined, BookOutlined } from '@vicons/antd';
-  import { getKbList, delKb, type KnowledgeBase } from '@/api/system/knowledge';
+  import { SearchOutlined, PlusOutlined, BookOutlined, SettingOutlined, AimOutlined, DeleteOutlined } from '@vicons/antd';
+  import { getKbList, delKb, switchKbStatus, type KnowledgeBase } from '@/api/system/knowledge';
   import KbSaveModal from './components/KbSaveModal.vue';
 
   const router = useRouter();
@@ -122,6 +144,7 @@
 
   const loading = ref(false);
   const deleting = ref(false);
+  const switchingId = ref<string | null>(null);
   const list = ref<KnowledgeBase[]>([]);
   const keyword = ref('');
   const page = ref(1);
@@ -180,6 +203,27 @@
     const model = kb.embeddingModel;
     if (name && model && name !== model) return `${model} / ${name}`;
     return name || model || '-';
+  }
+
+  function handleStatus(kb: KnowledgeBase) {
+    if (switchingId.value) return;
+    const next = kb.status === 1 ? 2 : 1;
+    switchingId.value = kb.id;
+    switchKbStatus(kb.id, next)
+      .then((res: any) => {
+        if (res && res.code === 0) {
+          kb.status = next;
+          message.success(next === 1 ? '已启用' : '已禁用');
+        } else {
+          message.error(res?.message || '操作失败');
+        }
+      })
+      .catch(() => {
+        message.error('操作失败，请重试');
+      })
+      .finally(() => {
+        switchingId.value = null;
+      });
   }
 
   function handleHitTest(kb: KnowledgeBase) {
@@ -285,6 +329,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .kb-status-switch {
+    flex-shrink: 0;
+  }
   .kb-desc {
     font-size: 13px;
     color: #888;
@@ -326,7 +373,11 @@
   }
   .kb-actions {
     display: flex;
-    gap: 2px;
-    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+  .kb-action-btn {
+    flex: 1 1 0;
+    min-width: 0;
   }
 </style>

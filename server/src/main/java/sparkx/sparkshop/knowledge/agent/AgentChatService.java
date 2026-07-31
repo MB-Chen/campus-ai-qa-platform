@@ -310,6 +310,8 @@ public class AgentChatService {
         ov.setSystemPrompt(agent.getSystemPrompt());
         ov.setFallbackStrategy(agent.getFallbackStrategy());
         ov.setFallbackResponse(agent.getFallbackResponse());
+        ov.setSampleQueryEnabled(agent.getSampleQueryEnabled() != null && agent.getSampleQueryEnabled() == 1);
+        ov.setSampleQueryThreshold(agent.getSampleQueryThreshold());
         return ov;
     }
 

@@ -97,6 +97,12 @@ public class KnowledgeAgentValidate implements Serializable {
     @Schema(description = "兜底固定话术（strategy=fixed 时生效）")
     private String fallbackResponse;
 
+    @Schema(description = "是否启用样例查询优先匹配 1启用 2禁用")
+    private Integer sampleQueryEnabled;
+
+    @Schema(description = "样例匹配相似度阈值（0~1，空用全局配置）")
+    private Double sampleQueryThreshold;
+
     @Schema(description = "开场白")
     private String welcome;
 

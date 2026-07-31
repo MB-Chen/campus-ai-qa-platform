@@ -67,4 +67,15 @@ public interface SampleQueryService {
 
     /** 保存全局配置（upsert 到 id=1）。 */
     void saveConfig(SampleQueryConfigValidate validate);
+
+    /**
+     * 按用户 query 向量匹配最相似的「已向量化 + 启用」样例。
+     * <p>阈值优先级：{@code thresholdOverride} 非空用它，否则回退全局 {@code similarity_threshold}（默认 0.85）。
+     * <p>匹配失败/未命中返回 {@link java.util.Optional#empty()}，不抛异常，由调用方决定后续走向。
+     *
+     * @param query              用户原始 query
+     * @param thresholdOverride  智能体独立阈值覆盖（可空）
+     * @return 命中的样例（含 answer），或 empty
+     */
+    java.util.Optional<SampleQuery> match(String query, Double thresholdOverride);
 }

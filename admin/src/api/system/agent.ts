@@ -31,6 +31,8 @@ export interface Agent {
   rewriteModelName?: string;
   fallbackStrategy?: string; // model/fixed
   fallbackResponse?: string;
+  sampleQueryEnabled?: number; // 1启用 2禁用（样例查询优先匹配）
+  sampleQueryThreshold?: number; // 样例匹配相似度阈值，空用全局配置
   welcome?: string;
   suggestedQuestions?: string[];
   status?: number; // 1正常 2禁用
@@ -70,6 +72,8 @@ export interface AgentSave {
   rewriteModelKey?: string | null;
   fallbackStrategy?: string;
   fallbackResponse?: string;
+  sampleQueryEnabled?: number; // 1启用 2禁用（样例查询优先匹配）
+  sampleQueryThreshold?: number; // 样例匹配相似度阈值，空用全局配置
   welcome?: string;
   suggestedQuestions?: string[];
   status?: number;

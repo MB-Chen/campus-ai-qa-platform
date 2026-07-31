@@ -121,6 +121,9 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         agent.setRerankEnabled(validate.getRerankEnabled() != null ? validate.getRerankEnabled() : 1);
         agent.setRerankTopK(validate.getRerankTopK() != null ? validate.getRerankTopK() : 5);
         agent.setRerankThreshold(validate.getRerankThreshold() != null ? validate.getRerankThreshold() : 0.3);
+        // 样例查询优先匹配：默认关闭（2），避免没配样例库的智能体意外启用
+        agent.setSampleQueryEnabled(validate.getSampleQueryEnabled() != null ? validate.getSampleQueryEnabled() : 2);
+        agent.setSampleQueryThreshold(validate.getSampleQueryThreshold() != null ? validate.getSampleQueryThreshold() : 0.85);
         agent.setFallbackStrategy(validate.getFallbackStrategy() != null ? validate.getFallbackStrategy() : "model");
         agent.setFallbackResponse(validate.getFallbackResponse());
         agent.setWelcome(validate.getWelcome());
@@ -181,6 +184,8 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         if (validate.getRerankEnabled() != null) agent.setRerankEnabled(validate.getRerankEnabled());
         if (validate.getRerankTopK() != null) agent.setRerankTopK(validate.getRerankTopK());
         if (validate.getRerankThreshold() != null) agent.setRerankThreshold(validate.getRerankThreshold());
+        if (validate.getSampleQueryEnabled() != null) agent.setSampleQueryEnabled(validate.getSampleQueryEnabled());
+        if (validate.getSampleQueryThreshold() != null) agent.setSampleQueryThreshold(validate.getSampleQueryThreshold());
         if (validate.getFallbackStrategy() != null) agent.setFallbackStrategy(validate.getFallbackStrategy());
         agent.setFallbackResponse(validate.getFallbackResponse());
         agent.setWelcome(validate.getWelcome());
@@ -253,6 +258,8 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         vo.setRerankEnabled(agent.getRerankEnabled());
         vo.setRerankTopK(agent.getRerankTopK());
         vo.setRerankThreshold(agent.getRerankThreshold());
+        vo.setSampleQueryEnabled(agent.getSampleQueryEnabled());
+        vo.setSampleQueryThreshold(agent.getSampleQueryThreshold());
         vo.setRewriteModelId(agent.getRewriteModelId());
         vo.setRewriteModelName(agent.getRewriteModelName());
         vo.setFallbackStrategy(agent.getFallbackStrategy());

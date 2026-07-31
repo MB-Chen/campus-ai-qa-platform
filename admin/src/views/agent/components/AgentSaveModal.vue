@@ -193,6 +193,33 @@
           </template>
 
           <template v-if="menuKey === 'retrieval'">
+            <n-form-item label="样例查询">
+              <n-switch v-model:value="form.sampleQueryEnabled" :checked-value="1" :unchecked-value="2">
+                <template #checked>启用</template>
+                <template #unchecked>禁用</template>
+              </n-switch>
+              <n-text depth="3" style="margin-left: 8px; font-size: 12px; white-space: nowrap">
+                用户消息优先到样例库向量匹配
+              </n-text>
+            </n-form-item>
+            <n-form-item label="样例匹配阈值">
+              <n-input-number
+                v-model:value="form.sampleQueryThreshold"
+                :min="0"
+                :max="1"
+                :step="0.05"
+                :disabled="form.sampleQueryEnabled === 2"
+              />
+              <n-text depth="3" style="margin-left: 8px; font-size: 12px; white-space: nowrap">
+                达到阈值直接返回样例答案，LLM 不参与
+              </n-text>
+            </n-form-item>
+            <n-form-item label=" " style="margin-top: -16px">
+              <n-text depth="3" style="font-size: 12px"
+                >留空阈值则用全局配置（样例查询管理页）。样例需先在「样例查询」中向量化后才可被匹配。</n-text
+              >
+            </n-form-item>
+            <n-divider style="margin: 8px 0 16px" />
             <n-form-item label="向量召回 topK">
               <n-input-number v-model:value="form.embeddingTopK" :min="1" :max="50" />
             </n-form-item>
@@ -359,6 +386,9 @@
       rewriteModelName: '',
       fallbackStrategy: 'model',
       fallbackResponse: '',
+      // ★ 样例查询优先匹配：默认关闭（2），阈值默认 0.85（与全局配置一致）
+      sampleQueryEnabled: 2,
+      sampleQueryThreshold: 0.85,
       welcome: '',
       suggestedQuestions: [],
       status: 1,
@@ -567,6 +597,9 @@
       rewriteModelName: ag.rewriteModelName || '',
       fallbackStrategy: ag.fallbackStrategy || 'model',
       fallbackResponse: ag.fallbackResponse || '',
+      // ★ 回显：样例查询开关（默认关闭 2）+ 阈值（默认 0.85）
+      sampleQueryEnabled: ag.sampleQueryEnabled ?? 2,
+      sampleQueryThreshold: ag.sampleQueryThreshold ?? 0.85,
       welcome: ag.welcome || '',
       suggestedQuestions: Array.isArray(ag.suggestedQuestions) ? [...ag.suggestedQuestions] : [],
       status: ag.status || 1,

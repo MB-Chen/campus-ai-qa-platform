@@ -12,6 +12,9 @@ package sparkx.sparkshop.knowledge.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import dev.langchain4j.data.embedding.Embedding;
+import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.model.embedding.EmbeddingModel;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +36,7 @@ import sparkx.sparkshop.common.exception.BusinessException;
 import sparkx.sparkshop.knowledge.entity.SampleQuery;
 import sparkx.sparkshop.knowledge.entity.SampleQueryConfig;
 import sparkx.sparkshop.knowledge.ingest.SampleQueryIndexer;
+import sparkx.sparkshop.knowledge.infra.EmbeddingModelProvider;
 import sparkx.sparkshop.knowledge.mapper.SampleQueryConfigMapper;
 import sparkx.sparkshop.knowledge.mapper.SampleQueryMapper;
 import sparkx.sparkshop.knowledge.service.SampleQueryService;
@@ -54,6 +58,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * 样例查询业务实现。
@@ -91,6 +97,9 @@ public class SampleQueryServiceImpl implements SampleQueryService {
 
     @Resource
     private SampleQueryIndexer sampleQueryIndexer;
+
+    @Resource
+    private EmbeddingModelProvider embeddingModelProvider;
 
     @Resource
     private RedissonClient redisson;
@@ -394,6 +403,40 @@ public class SampleQueryServiceImpl implements SampleQueryService {
         }
         cfg.setUpdatedAt(LocalDateTime.now());
         sampleQueryConfigMapper.updateById(cfg);
+    }
+
+    @Override
+    public Optional<SampleQuery> match(String query, Double thresholdOverride) {
+        if (query == null || query.isBlank()) {
+            return Optional.empty();
+        }
+        // 阈值：智能体独立阈值优先，否则回退全局 sample_query_config.similarity_threshold（默认 0.85）
+        SampleQueryConfig cfg = getConfig();
+        double threshold = thresholdOverride != null ? thresholdOverride
+                : (cfg.getSimilarityThreshold() != null ? cfg.getSimilarityThreshold().doubleValue() : 0.85);
+        try {
+            // 用全局配置的 embedding 模型把 query 向量化（与样例入库用同一模型，向量空间一致）
+            EmbeddingModel embModel = embeddingModelProvider.resolveByModelId(
+                    cfg.getEmbeddingModelId(), cfg.getEmbeddingModelName());
+            Embedding emb = embModel.embed(TextSegment.from(query)).content();
+            String pgVec = SampleQueryIndexer.toPgVector(emb);
+            // 只查「已向量化 + 启用」的记录，score >= threshold 才返回，取最相似的一条
+            List<Map<String, Object>> rows = sampleQueryMapper.vectorSearch(pgVec, threshold, 1);
+            if (rows == null || rows.isEmpty()) {
+                return Optional.empty();
+            }
+            Map<String, Object> row = rows.get(0);
+            SampleQuery sq = new SampleQuery();
+            Object idVal = row.get("id");
+            sq.setId(idVal instanceof Number ? ((Number) idVal).longValue() : Long.valueOf(String.valueOf(idVal)));
+            sq.setQuestion((String) row.get("question"));
+            sq.setAnswer((String) row.get("answer"));
+            return Optional.of(sq);
+        } catch (Exception e) {
+            // 匹配失败不阻断主链路：返回 empty，SampleQueryStage 会 CONTINUE 走正常 RAG
+            log.warn("[SampleQuery] match 失败 q={} : {}", query, e.getMessage());
+            return Optional.empty();
+        }
     }
 
 

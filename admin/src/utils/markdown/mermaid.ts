@@ -12,7 +12,7 @@ import {
  *   其它语言正常高亮。流式期间只占位，不调 mermaid.render（避免半截代码块报错 + 性能）。
  * - renderMermaidInContainer：流式结束后调用，遍历占位块，动态 import('mermaid') 并 render 成 SVG。
  *
- * 移植自 WeKnora frontend，裁剪了暗色主题（xservice admin 当前为亮色）。
+ * 移植自 WeKnora frontend，裁剪了暗色主题（SparkX admin 当前为亮色）。
  */
 hljs.registerAliases('mermaid', { languageName: 'plaintext' });
 

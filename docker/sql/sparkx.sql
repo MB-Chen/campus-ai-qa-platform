@@ -476,7 +476,9 @@ CREATE TABLE "public"."knowledge_agent" (
   "kb_mode" varchar(20) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'selected'::character varying,
   "document_ids" varchar(2048) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "rewrite_model_id" int4,
-  "rewrite_model_name" varchar(128) COLLATE "pg_catalog"."default"
+  "rewrite_model_name" varchar(128) COLLATE "pg_catalog"."default",
+  "sample_query_enabled" int2 NOT NULL DEFAULT 2,
+  "sample_query_threshold" float8 NOT NULL DEFAULT 0.85
 )
 ;
 COMMENT ON COLUMN "public"."knowledge_agent"."id" IS '主键 UUID hex';
@@ -509,6 +511,8 @@ COMMENT ON COLUMN "public"."knowledge_agent"."kb_mode" IS '知识库模式 all�
 COMMENT ON COLUMN "public"."knowledge_agent"."document_ids" IS '限定文档 id，逗号分隔（kb_mode=selected 时可选，空=整库）';
 COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_id" IS '意图/改写专用模型 ai_model.id（type=1，对话模型），空用全局默认大模型';
 COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_name" IS '冗余：意图/改写专用模型显示名';
+COMMENT ON COLUMN "public"."knowledge_agent"."sample_query_enabled" IS '是否启用样例查询优先匹配 1启用 2禁用';
+COMMENT ON COLUMN "public"."knowledge_agent"."sample_query_threshold" IS '样例匹配相似度阈值（空时回退 sample_query_config.similarity_threshold）';
 COMMENT ON TABLE "public"."knowledge_agent" IS '知识库智能体表';
 
 -- ----------------------------

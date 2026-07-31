@@ -1,22 +1,29 @@
 <template>
   <div>
     <div class="n-layout-page-header">
-      <n-card :bordered="false" title="解析引擎">
-        管理 MinerU、Neo4j 等外部服务的接入配置
-      </n-card>
+      <n-card :bordered="false" title="解析引擎"> 管理 MinerU、Neo4j 等外部服务的接入配置 </n-card>
     </div>
 
     <n-card :bordered="false" class="mt-4 proCard">
       <n-spin :show="loading">
         <div class="model-grid">
-          <div v-for="item in renderList" :key="item.key" class="model-card" :class="{ 'mc-empty': !item.config }">
+          <div
+            v-for="item in renderList"
+            :key="item.key"
+            class="model-card"
+            :class="{ 'mc-empty': !item.config }"
+          >
             <div class="mc-tag">{{ categoryLabel(item.category) }}</div>
 
             <!-- 已配置 -->
             <template v-if="item.config">
               <div class="mc-head">
                 <span class="mc-name">{{ item.config.name || '未命名' }}</span>
-                <n-switch size="small" :value="item.config.status === 1" @update:value="handleStatus(item.config)">
+                <n-switch
+                  size="small"
+                  :value="item.config.status === 1"
+                  @update:value="handleStatus(item.config)"
+                >
                   <template #checked>启用</template>
                   <template #unchecked>禁用</template>
                 </n-switch>
@@ -30,15 +37,42 @@
                 <span class="mc-value mc-ellipsis">{{ item.config.remark }}</span>
               </div>
               <div class="mc-actions">
-                <n-button class="mc-action-btn" size="tiny" text type="primary" @click="openEdit(item.config)">
+                <n-button
+                  class="mc-action-btn"
+                  size="tiny"
+                  text
+                  type="primary"
+                  @click="openEdit(item.config)"
+                >
+                  <template #icon
+                    ><n-icon><EditOutlined /></n-icon
+                  ></template>
                   编辑
                 </n-button>
                 <span class="mc-action-divider">|</span>
-                <n-button class="mc-action-btn" size="tiny" text type="info" @click="handleTest(item.config)">
+                <n-button
+                  class="mc-action-btn"
+                  size="tiny"
+                  text
+                  type="info"
+                  @click="handleTest(item.config)"
+                >
+                  <template #icon
+                    ><n-icon><ApiOutlined /></n-icon
+                  ></template>
                   测试
                 </n-button>
                 <span class="mc-action-divider">|</span>
-                <n-button class="mc-action-btn" size="tiny" text type="error" @click="handleDelete(item.config)">
+                <n-button
+                  class="mc-action-btn"
+                  size="tiny"
+                  text
+                  type="error"
+                  @click="handleDelete(item.config)"
+                >
+                  <template #icon
+                    ><n-icon><DeleteOutlined /></n-icon
+                  ></template>
                   删除
                 </n-button>
               </div>
@@ -57,7 +91,16 @@
                 <span class="mc-value mc-muted">尚未接入</span>
               </div>
               <div class="mc-actions">
-                <n-button class="mc-action-btn" size="tiny" text type="primary" @click="openCreate(item.category)">
+                <n-button
+                  class="mc-action-btn"
+                  size="tiny"
+                  text
+                  type="primary"
+                  @click="openCreate(item.category)"
+                >
+                  <template #icon
+                    ><n-icon><PlusOutlined /></n-icon
+                  ></template>
                   配置
                 </n-button>
               </div>
@@ -74,6 +117,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue';
   import { useMessage, useDialog } from 'naive-ui';
+  import { EditOutlined, ApiOutlined, DeleteOutlined, PlusOutlined } from '@vicons/antd';
   import {
     getServiceList,
     delService,
@@ -112,9 +156,9 @@
    * - 无配置：一张「未配置」占位卡片
    */
   interface RenderItem {
-    key: string;            // v-for key（category + id / category + '__empty'）
+    key: string; // v-for key（category + id / category + '__empty'）
     category: string;
-    config: ExtServiceConfig | null;  // null = 占位
+    config: ExtServiceConfig | null; // null = 占位
   }
   const renderList = computed<RenderItem[]>(() => {
     const items: RenderItem[] = [];
@@ -364,6 +408,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    gap: 4px;
   }
   .mc-action-divider {
     color: #e0e0e0;

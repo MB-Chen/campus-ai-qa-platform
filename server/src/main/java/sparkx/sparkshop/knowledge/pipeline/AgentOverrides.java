@@ -75,6 +75,13 @@ public class AgentOverrides {
     private String fallbackStrategy;
     /** 兜底固定话术（strategy=fixed 时用） */
     private String fallbackResponse;
+    /**
+     * 是否启用样例查询短路（true 时 SampleQueryStage 用原始 query 向量匹配样例库，
+     * 命中阈值直接返回样例答案，跳过整条 RAG 链路）。
+     */
+    private Boolean sampleQueryEnabled;
+    /** 样例匹配相似度阈值覆盖（null 时回退全局 sample_query_config.similarity_threshold） */
+    private Double sampleQueryThreshold;
 
     public String getKbMode() { return kbMode; }
     public void setKbMode(String kbMode) { this.kbMode = kbMode; }
@@ -118,4 +125,8 @@ public class AgentOverrides {
     public void setFallbackStrategy(String fallbackStrategy) { this.fallbackStrategy = fallbackStrategy; }
     public String getFallbackResponse() { return fallbackResponse; }
     public void setFallbackResponse(String fallbackResponse) { this.fallbackResponse = fallbackResponse; }
+    public Boolean getSampleQueryEnabled() { return sampleQueryEnabled; }
+    public void setSampleQueryEnabled(Boolean sampleQueryEnabled) { this.sampleQueryEnabled = sampleQueryEnabled; }
+    public Double getSampleQueryThreshold() { return sampleQueryThreshold; }
+    public void setSampleQueryThreshold(Double sampleQueryThreshold) { this.sampleQueryThreshold = sampleQueryThreshold; }
 }

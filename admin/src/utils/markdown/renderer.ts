@@ -14,7 +14,7 @@ import type { Tokens } from 'marked';
  * 等更多字符到达后再揭示，从而让流式渲染平滑无跳变。
  *
  * 移植自 WeKnora frontend（chatMarkdownRenderer.ts），裁剪了 citation（<kb/>/<web/>/wiki）系统
- * 和 prepareMarkdown/cachedMermaidSvg 注入钩子（xservice 不需要 agent 模式的 mermaid 中途缓存）。
+ * 和 prepareMarkdown/cachedMermaidSvg 注入钩子（SparkX 不需要 agent 模式的 mermaid 中途缓存）。
  */
 
 const STREAMING_IMAGE_PLACEHOLDER =

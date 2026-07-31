@@ -45,6 +45,11 @@ public interface IKnowledgeService {
     void delete(String id);
 
     /**
+     * 切换知识库启停状态（1启用 / 2禁用）
+     */
+    void switchStatus(String id, Integer status);
+
+    /**
      * 命中测试
      */
     List<HitTestVo> hitTest(HitTestValidate validate);
