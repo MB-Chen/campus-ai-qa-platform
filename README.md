@@ -109,27 +109,7 @@ spark-x/
 
 > 实际项目代码中，逻辑比图表上更加复杂。下图仅展示核心流程。
 
-```
-用户提问
-   │
-   ▼
-┌─────────────────────────────────────────────────────────┐
-│  RagPipeline（按 @Order 自动编排的 Stage 流水线）         │
-│                                                         │
-│  [10] RewriteSplitStage   查询改写 + 多问拆分 + 指代消解   │
-│  [20] IntentStage         闲聊/问候短路，否则走检索        │
-│  [40] GuidanceStage       歧义引导（候选≥2 推澄清）       │
-│  [60] RetrieveStage       多路并行检索 + MCP 工具调用      │
-│  [70] RerankStage         Scoring 精排 + embedding-MMR    │
-│  [80] MergeStage          多变体合并去重 + 上下文预算截断  │
-│  [90] FallbackStage       兜底（fixed 固定话术 / model）  │
-│  [100] GenerateStage      流式生成 + 场景化提示词 + 记忆   │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-   │
-   ▼
-SSE 流式输出（answer / complete / error 帧）
-```
+![](screenshot/rag_pipeline.png)
 
 <details>
 <summary><b>检索引擎 / 模型容错 / 入库 Pipeline 详解</b>（点击展开）</summary>
