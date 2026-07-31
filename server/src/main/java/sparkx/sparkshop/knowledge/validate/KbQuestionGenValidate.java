@@ -35,6 +35,9 @@ public class KbQuestionGenValidate implements Serializable {
     @Schema(description = "使用的对话模型 id（可空，默认走候选链）")
     private Integer modelId;
 
+    @Schema(description = "具体子模型名（逗号列表内才采用，否则取首项；可空）")
+    private String modelName;
+
     @Schema(description = "每个原文分块生成的问题数（1-10，默认 3）")
     @Min(value = 1, message = "问题数至少为 1")
     @Max(value = 10, message = "问题数最多为 10")

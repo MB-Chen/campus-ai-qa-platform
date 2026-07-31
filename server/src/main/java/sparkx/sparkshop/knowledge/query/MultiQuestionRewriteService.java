@@ -109,16 +109,26 @@ public class MultiQuestionRewriteService {
      * @return 改写结果（主问题 + 子问题列表）
      */
     public RewriteResult rewriteWithSplit(String question, String conversationId, String userId) {
-        return rewriteWithSplit(question, conversationId, userId, null);
+        return rewriteWithSplit(question, conversationId, userId, null, null);
     }
 
     /**
-     * 改写+拆分（指定模型）。
+     * 改写+拆分（指定模型，向后兼容重载，modelName 透传为 null）。
      *
      * @param modelId ai_model.id（type=1，对话模型）。null = 走默认对话候选链；非空强制路由到该模型
      *                （智能体配了专用小快模型时用，降本提速）。RoutingLLMService 保证 modelId 不可用时回退默认链。
      */
     public RewriteResult rewriteWithSplit(String question, String conversationId, String userId, Integer modelId) {
+        return rewriteWithSplit(question, conversationId, userId, modelId, null);
+    }
+
+    /**
+     * 改写+拆分（指定模型 + 具体子模型名）。
+     *
+     * @param modelId   ai_model.id（type=1）；null = 默认对话候选链
+     * @param modelName 具体子模型名（逗号列表内才采用，否则回退首项）；null/空串取首项
+     */
+    public RewriteResult rewriteWithSplit(String question, String conversationId, String userId, Integer modelId, String modelName) {
         // (1) 规则归一化（改写前后都作为兜底）
         String normalized = termMappingService.normalize(question);
 
@@ -145,7 +155,7 @@ public class MultiQuestionRewriteService {
         try {
             LlmChatRequest req = LlmChatRequest.ofUser(
                     prompt + "\n\n用户问题：" + normalized, 0.1, 0.3);
-            String resp = llmService.chat(req, modelId);
+            String resp = llmService.chat(req, modelId, modelName);
             return parseRewriteAndSplit(resp, normalized);
         } catch (Exception e) {
             // LLM 失败降级为归一化结果

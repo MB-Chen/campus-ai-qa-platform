@@ -165,6 +165,7 @@ public class CommunityService {
 
         LlmChatRequest req = LlmChatRequest.of(systemPrompt, userPrompt, 0.3);
         Integer modelId = config == null ? null : config.getExtractModelId();
-        return llmService.chat(req, modelId);
+        String modelName = config == null ? null : config.getExtractModelName();
+        return llmService.chat(req, modelId, modelName);
     }
 }

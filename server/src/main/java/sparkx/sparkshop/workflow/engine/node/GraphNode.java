@@ -159,11 +159,12 @@ public class GraphNode implements IWorkflowNode {
         List<String> passageList = hits.stream().map(c -> c.textSegment().text()).collect(Collectors.toList());
         String rerankModelId = nodeObject.getStr("rerankModelId");
         Integer rerankModelIdInt = parseModelId(rerankModelId);
+        String rerankModelName = nodeObject.getStr("rerankModelName");
         List<String> finalPassages = passageList;
         boolean reranked = false;
         if (rerankModelIdInt != null && passageList.size() > 1) {
             try {
-                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt);
+                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt, rerankModelName);
                 if (scores != null && scores.size() == passageList.size()) {
                     finalPassages = IntStream.range(0, passageList.size())
                             .mapToObj(i -> new java.util.AbstractMap.SimpleEntry<>(passageList.get(i), scores.get(i)))

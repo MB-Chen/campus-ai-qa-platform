@@ -22,11 +22,10 @@
     <div class="set-content-box">
       <div class="section-title">模型</div>
       <n-select
-        v-model:value="form.modelInfo.modelId"
+        v-model:value="modelKey"
         :options="modelOptions"
         placeholder="选择对话模型"
         filterable
-        @update:value="onModelChange"
         style="width: 100%"
       />
       <div class="slider-row">
@@ -61,12 +60,11 @@
       <div class="slider-row">
         <span class="slider-label">重排模型</span>
         <n-select
-          v-model:value="form.rerankModelId"
+          v-model:value="rerankModelKey"
           :options="rerankOptions"
           placeholder="不使用重排"
           clearable
           :loading="rerankLoading"
-          @update:value="emitChange"
           style="flex: 1; margin-left: 12px"
         />
       </div>
@@ -129,7 +127,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { iconComponent } from '@/views/workflow/icons/index.js';
   import { getModelList, getRerankModelList, MODEL_TYPE } from '@/api/system/aiModel';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
@@ -163,23 +161,72 @@
     form.value.topRank = 3;
   }
 
-  // 模型选项：与知识图谱页一致，label 显示「配置名 / 首个具体模型」，
-  // 并把完整记录挂在 raw 上，便于选择时取真实模型名
-  function toModelOption(m) {
-    const firstModel =
-      String(m.models || '')
+  // ★ n-select 值用组合 key `${modelId}::${modelName}`（option 已拉平）；
+  //   modelInfo 仍存 modelId（number）+ modelName 两个字段供后端 LlmNode 读取，
+  //   这里用 computed 把它们双向同步成 key。
+  const modelKey = computed({
+    get() {
+      const mi = form.value.modelInfo || {};
+      return mi.modelId != null ? `${mi.modelId}::${mi.modelName || ''}` : null;
+    },
+    set(val) {
+      if (!form.value.modelInfo) form.value.modelInfo = {};
+      if (val == null || val === '') {
+        form.value.modelInfo.modelId = null;
+        form.value.modelInfo.modelName = '';
+      } else {
+        const sepIdx = String(val).indexOf('::');
+        const id = Number(String(val).substring(0, sepIdx));
+        form.value.modelInfo.modelId = isNaN(id) ? null : id;
+        form.value.modelInfo.modelName = String(val).substring(sepIdx + 2) || '';
+      }
+      emitChange();
+    },
+  });
+
+  // ★ rerank 同理：rerankModelId（number/string）+ rerankModelName 双向同步成 key
+  const rerankModelKey = computed({
+    get() {
+      const id = form.value.rerankModelId;
+      return id != null && id !== '' ? `${id}::${form.value.rerankModelName || ''}` : null;
+    },
+    set(val) {
+      if (val == null || val === '') {
+        form.value.rerankModelId = null;
+        form.value.rerankModelName = '';
+      } else {
+        const sepIdx = String(val).indexOf('::');
+        form.value.rerankModelId = String(val).substring(0, sepIdx);
+        form.value.rerankModelName = String(val).substring(sepIdx + 2) || '';
+      }
+      emitChange();
+    },
+  });
+
+  // ★ 模型选项拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
+  //   value 编码 `${modelId}::${modelName}`，与 AgentSaveModal/KbSaveModal 一致，
+  //   让用户能选到具体子模型（如 gpt-4o-mini,gpt-4o 拆成两条）。
+  function toModelOptions(models) {
+    const opts = [];
+    for (const m of models) {
+      const names = String(m.models || '')
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)[0] || '';
-    return {
-      label: `${m.name || `模型${m.id}`}${firstModel ? ' / ' + firstModel : ''}`,
-      value: m.id,
-      raw: m,
-    };
+        .filter((s) => s.length > 0);
+      if (names.length === 0) {
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
+        continue;
+      }
+      for (const n of names) {
+        opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
+      }
+    }
+    return opts;
   }
 
   // ★ 重排模型拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
-  //   与 datasetDialog/AgentSaveModal 的 toRerankModelOptions 一致，便于选择具体子模型。
+  //   value 编码 `${modelId}::${modelName}`，与对话模型一致，便于选择具体子模型
+  //   （修复旧版所有子模型 value 都是 String(m.id) 的重复 bug）。
   function toRerankModelOptions(models) {
     const opts = [];
     for (const m of models) {
@@ -188,11 +235,11 @@
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       if (names.length === 0) {
-        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: String(m.id) });
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
         continue;
       }
       for (const n of names) {
-        opts.push({ label: `${m.name || ''} / ${n}`, value: String(m.id) });
+        opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
       }
     }
     return opts;
@@ -202,7 +249,7 @@
     try {
       const res = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = res.data.filter((m) => m && m.id != null).map(toModelOption);
+        modelOptions.value = toModelOptions(res.data.filter((m) => m && m.id != null));
       }
     } catch (e) {
       // 忽略
@@ -220,21 +267,6 @@
       rerankLoading.value = false;
     }
   });
-
-  function onModelChange(val) {
-    form.value.modelInfo.modelId = val;
-    const opt = modelOptions.value.find((x) => x.value === val);
-    // modelName 取首个具体模型名（与知识图谱一致），而非配置显示名
-    const firstModel =
-      opt && opt.raw
-        ? String(opt.raw.models || '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)[0] || ''
-        : '';
-    form.value.modelInfo.modelName = firstModel;
-    emitChange();
-  }
 
   function insertVar(val) {
     // val 是 [{nodeId, field}]（picker 发出的数组）

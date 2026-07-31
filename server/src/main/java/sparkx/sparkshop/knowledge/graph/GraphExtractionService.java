@@ -355,7 +355,7 @@ public class GraphExtractionService {
 
         LlmChatRequest req = LlmChatRequest.of(EXTRACTION_SYSTEM_PROMPT,
                 "请从以下文本中抽取实体和关系：\n\n" + content, 0.2);
-        return llmService.chat(req, config.getExtractModelId());
+        return llmService.chat(req, config.getExtractModelId(), config.getExtractModelName());
     }
 
 

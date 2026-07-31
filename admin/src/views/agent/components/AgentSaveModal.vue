@@ -92,7 +92,7 @@
             </n-form-item>
             <n-form-item label="对话模型">
               <n-select
-                v-model:value="form.chatModelId"
+                v-model:value="form.chatModelKey"
                 :options="modelOptions"
                 filterable
                 clearable
@@ -175,7 +175,7 @@
             </n-form-item>
             <n-form-item label="意图/改写模型" :label-width="130">
               <n-select
-                v-model:value="form.rewriteModelId"
+                v-model:value="form.rewriteModelKey"
                 :options="modelOptions"
                 filterable
                 clearable
@@ -309,7 +309,8 @@
   const kbLoading = ref(false);
   const kbOptions = ref<{ label: string; value: string }[]>([]);
   const modelLoading = ref(false);
-  const modelOptions = ref<{ label: string; value: number; raw?: any }[]>([]);
+  // ★ value 为 `${modelId}::${modelName}`（一个 ai_model 多模型名时拉平成多条），与 rerankModelOptions 一致
+  const modelOptions = ref<{ label: string; value: string }[]>([]);
   const rerankModelLoading = ref(false);
   // ★ value 为 `${modelId}::${modelName}`（一个 ai_model 多模型名时拉平成多条），参照 KbSaveModal
   const rerankModelOptions = ref<{ label: string; value: string }[]>([]);
@@ -336,7 +337,8 @@
       kbMode: 'selected',
       knowledgeBaseIds: [],
       documentIds: [],
-      chatModelId: undefined,
+      // ★ 对话模型组合 key：`${modelId}::${modelName}`（一对多拉平，提交时拆成 id+name）
+      chatModelKey: null as string | null,
       chatModelName: '',
       systemPrompt: '',
       temperature: 0.3,
@@ -348,11 +350,12 @@
       rerankModelId: undefined,
       rerankModelName: '',
       // ★ 重排模型组合 key：`${modelId}::${modelName}`（一对多拉平，提交时拆成 id+name）
-      rerankModelKey: '' as string,
+      rerankModelKey: null as string | null,
       rerankEnabled: 1,
       rerankTopK: 5,
       rerankThreshold: 0.3,
-      rewriteModelId: undefined,
+      // ★ 改写模型组合 key：`${modelId}::${modelName}`（一对多拉平，提交时拆成 id+name）
+      rewriteModelKey: null as string | null,
       rewriteModelName: '',
       fallbackStrategy: 'model',
       fallbackResponse: '',
@@ -384,15 +387,27 @@
     }
   }
 
-  /** 把 ai_model 记录格式化成 n-select option：label = 名称 / models 首项 */
-  function toModelOption(m: AiModel): { label: string; value: number; raw: any } {
-    const firstModel =
-      (m.models || '')
+  /**
+   * ★ 对话模型拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
+   *   value 编码 `${modelId}::${modelName}`，与 rerankModelOptions / KbSaveModal 一致，
+   *   让用户能选到具体子模型（如 gpt-4o-mini,gpt-4o 拆成两条）。
+   */
+  function toModelOptions(models: AiModel[]): { label: string; value: string }[] {
+    const opts: { label: string; value: string }[] = [];
+    for (const m of models) {
+      const names = (m.models || '')
         .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean)[0] || '';
-    const label = `${m.name}${firstModel ? ' / ' + firstModel : ''}`;
-    return { label, value: m.id!, raw: m };
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (names.length === 0) {
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
+        continue;
+      }
+      for (const n of names) {
+        opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
+      }
+    }
+    return opts;
   }
 
   async function loadModelOptions() {
@@ -400,9 +415,7 @@
     try {
       const res: any = await getModelList({ type: 1, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = (res.data as AiModel[])
-          .filter((x) => x && x.id != null)
-          .map(toModelOption);
+        modelOptions.value = toModelOptions((res.data as AiModel[]).filter((x) => x && x.id != null));
       } else {
         modelOptions.value = [];
       }
@@ -455,34 +468,20 @@
     }
   }
 
-  /** 从 comma-separated models 字段取第一个具体模型名 */
-  function pickFirstModel(models?: string): string {
-    return (
-      (models || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)[0] || ''
-    );
+  /** 选中对话模型时，同步回填 chatModelName 快照（从组合 key 拆出具体子模型名） */
+  function handleChatModelChange(key: string | null) {
+    form.chatModelName = key ? decodeModelName(key) : '';
   }
 
-  /** 选中对话模型时，同步回填 chatModelName 快照 */
-  function handleChatModelChange(id: number | null) {
-    if (id == null) {
-      form.chatModelName = '';
-      return;
-    }
-    const opt = modelOptions.value.find((o) => o.value === id);
-    form.chatModelName = opt ? pickFirstModel(opt.raw?.models) : '';
+  /** 选中意图/改写模型时，同步回填 rewriteModelName 快照（从组合 key 拆出具体子模型名） */
+  function handleRewriteModelChange(key: string | null) {
+    form.rewriteModelName = key ? decodeModelName(key) : '';
   }
 
-  /** 选中意图/改写模型时，同步回填 rewriteModelName 快照 */
-  function handleRewriteModelChange(id: number | null) {
-    if (id == null) {
-      form.rewriteModelName = '';
-      return;
-    }
-    const opt = modelOptions.value.find((o) => o.value === id);
-    form.rewriteModelName = opt ? pickFirstModel(opt.raw?.models) : '';
+  /** 从 `${modelId}::${modelName}` 组合 key 拆出具体子模型名 */
+  function decodeModelName(key: string): string {
+    const sepIdx = key.indexOf('::');
+    return sepIdx >= 0 ? key.substring(sepIdx + 2) : '';
   }
 
   /** 知识库选择变化：清空已失效的文档选择 + 重新加载文档列表 */
@@ -545,7 +544,8 @@
       kbMode: ag.kbMode || 'selected',
       knowledgeBaseIds: Array.isArray(ag.knowledgeBaseIds) ? [...ag.knowledgeBaseIds] : [],
       documentIds: Array.isArray(ag.documentIds) ? [...ag.documentIds] : [],
-      chatModelId: ag.chatModelId,
+      // ★ 回显：把 id + name 拼成组合 key（与 option value 格式一致）
+      chatModelKey: ag.chatModelId != null ? `${ag.chatModelId}::${ag.chatModelName || ''}` : null,
       chatModelName: ag.chatModelName || '',
       systemPrompt: ag.systemPrompt || '',
       temperature: ag.temperature ?? 0.3,
@@ -558,11 +558,12 @@
       rerankModelName: ag.rerankModelName || '',
       // ★ 回显：把 id + name 拼成组合 key（与 option value 格式一致）
       rerankModelKey:
-        ag.rerankModelId != null ? `${ag.rerankModelId}::${ag.rerankModelName || ''}` : '',
+        ag.rerankModelId != null ? `${ag.rerankModelId}::${ag.rerankModelName || ''}` : null,
       rerankEnabled: ag.rerankEnabled ?? 1,
       rerankTopK: ag.rerankTopK ?? 5,
       rerankThreshold: ag.rerankThreshold ?? 0.3,
-      rewriteModelId: ag.rewriteModelId,
+      // ★ 回显：把 id + name 拼成组合 key（与 option value 格式一致）
+      rewriteModelKey: ag.rewriteModelId != null ? `${ag.rewriteModelId}::${ag.rewriteModelName || ''}` : null,
       rewriteModelName: ag.rewriteModelName || '',
       fallbackStrategy: ag.fallbackStrategy || 'model',
       fallbackResponse: ag.fallbackResponse || '',
@@ -603,9 +604,28 @@
     }
     saving.value = true;
     try {
-      // ★ 拆 rerankModelKey → rerankModelId + rerankModelName，与 KbSaveModal 一致
-      const { rerankModelKey, ...rest } = form;
+      // ★ 拆 chatModelKey / rewriteModelKey / rerankModelKey → id + name，与 KbSaveModal 一致
+      const { chatModelKey, rewriteModelKey, rerankModelKey, ...rest } = form;
       const payload: AgentSave = { ...rest } as AgentSave;
+
+      if (chatModelKey) {
+        const sepIdx = chatModelKey.indexOf('::');
+        payload.chatModelId = Number(chatModelKey.substring(0, sepIdx));
+        payload.chatModelName = chatModelKey.substring(sepIdx + 2) || undefined;
+      } else {
+        payload.chatModelId = undefined;
+        payload.chatModelName = undefined;
+      }
+
+      if (rewriteModelKey) {
+        const sepIdx = rewriteModelKey.indexOf('::');
+        payload.rewriteModelId = Number(rewriteModelKey.substring(0, sepIdx));
+        payload.rewriteModelName = rewriteModelKey.substring(sepIdx + 2) || undefined;
+      } else {
+        payload.rewriteModelId = undefined;
+        payload.rewriteModelName = undefined;
+      }
+
       if (rerankModelKey) {
         const sepIdx = rerankModelKey.indexOf('::');
         payload.rerankModelId = Number(rerankModelKey.substring(0, sepIdx));

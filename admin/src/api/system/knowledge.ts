@@ -302,6 +302,7 @@ export function embeddingDocument(documentIds: string) {
 export function generateKbQuestions(data: {
   documentIds: string[];
   modelId?: number;
+  modelName?: string;
   questionCount?: number;
 }) {
   return Alova.Post<any>('/knowledge/document/generateKbQuestions', data);

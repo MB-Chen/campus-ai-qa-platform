@@ -139,13 +139,24 @@ public class RoutingLLMService implements LLMService {
      */
     @Override
     public String chat(LlmChatRequest request, Integer modelId) {
+        return chat(request, modelId, null);
+    }
+
+    /**
+     * 同步对话（指定模型 id + 可选具体子模型名）。
+     *
+     * <p>与 {@link #chat(LlmChatRequest, Integer)} 一致，区别仅在于解析 ModelTarget 时
+     * 用 {@link IAiModelService#getChatTarget(Integer, String)} 覆盖为前端选定的子模型名。
+     */
+    @Override
+    public String chat(LlmChatRequest request, Integer modelId, String modelName) {
         if (modelId == null) {
             return chat(request);
         }
         if (clientsByProvider.isEmpty()) {
             return chatModelBridge.chat(request);
         }
-        ModelTarget target = aiModelService.getChatTarget(modelId);
+        ModelTarget target = aiModelService.getChatTarget(modelId, modelName);
         if (target == null) {
             log.warn("[Routing] 指定 modelId={} 解析失败，回退默认候选链", modelId);
             return chat(request);
@@ -176,13 +187,25 @@ public class RoutingLLMService implements LLMService {
      */
     @Override
     public StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking, Integer modelId) {
+        return streamChat(request, callback, deepThinking, modelId, null);
+    }
+
+    /**
+     * 流式对话（可指定模型 + 可选具体子模型名）。
+     *
+     * <p>★ modelId 非空时：解析出该模型作为<strong>首选</strong>排到候选链最前，其余默认候选跟后。
+     * 这样「用户/智能体指定的对话模型」真正生效，且该模型熔断/首包失败时仍能平滑降级到其他候选，
+     * 不牺牲可用性。modelName 用于覆盖为前端选定的具体子模型（逗号列表内才采用，否则回退首项）。
+     */
+    @Override
+    public StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking, Integer modelId, String modelName) {
         // 无注册 ChatClient 时降级用现有 StreamingChatModel
         if (clientsByProvider.isEmpty()) {
             return chatModelBridge.streamChat(request, callback);
         }
 
         // ★ 指定模型：解析成功则提到候选链首位（首选优先 + 默认候选兜底降级）
-        ModelTarget pinned = (modelId != null) ? aiModelService.getChatTarget(modelId) : null;
+        ModelTarget pinned = (modelId != null) ? aiModelService.getChatTarget(modelId, modelName) : null;
         if (modelId != null && pinned == null) {
             log.warn("[Routing] 指定 modelId={} 解析失败，回退默认候选链", modelId);
         } else if (pinned != null && resolveClientByProvider(pinned.provider()) == null) {
@@ -296,10 +319,15 @@ public class RoutingLLMService implements LLMService {
      */
     @Override
     public List<Float> rerank(String query, List<String> passages, Integer rerankModelId) {
-        // 1) 指定 rerank 模型 → 真实 rerank API（与智能体 RerankStage 一致）
+        return rerank(query, passages, rerankModelId, null);
+    }
+
+    @Override
+    public List<Float> rerank(String query, List<String> passages, Integer rerankModelId, String rerankModelName) {
+        // 1) 指定 rerank 模型 → 真实 rerank API（与智能体 RerankStage 一致），透传子模型名
         if (rerankModelId != null) {
             try {
-                List<Double> scores = agentRerankClient.rerank(rerankModelId, null, query, passages);
+                List<Double> scores = agentRerankClient.rerank(rerankModelId, rerankModelName, query, passages);
                 if (scores != null) {
                     return scores.stream().map(Double::floatValue).toList();
                 }

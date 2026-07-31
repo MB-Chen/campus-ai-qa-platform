@@ -63,6 +63,14 @@ public interface IAiModelService {
      */
     ModelTarget getChatTarget(Integer id);
 
+    /**
+     * 按 id 取对话模型的路由目标，并用 modelNameOverride 指定具体子模型。
+     * <p>ai_model.models 是逗号分隔的多模型（如 gpt-4o-mini,gpt-4o），默认只取首项；
+     * 本重载允许调用方（前端选了具体子模型时）覆盖为指定名称：
+     * 仅当 override 命中逗号列表内某项才采用，否则回退首项（与 AgentRerankClient.resolveModelName 一致）。
+     */
+    ModelTarget getChatTarget(Integer id, String modelNameOverride);
+
     /** 刷新缓存占位（页面编辑模型后调用） */
     void refresh();
 

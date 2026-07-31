@@ -115,6 +115,7 @@ public class DatasetNode implements IWorkflowNode {
         Double similarity = nodeObject.getDouble("similarity");
         String rerankModelId = nodeObject.getStr("rerankModelId");
         Integer rerankModelIdInt = parseModelId(rerankModelId);
+        String rerankModelName = nodeObject.getStr("rerankModelName");
 
         // 记录上下文（step 自增）——继承上游 outputData，本节点产出稍后写入分区
         WorkflowRuntimeContext contextEntity = new WorkflowRuntimeContext();
@@ -150,7 +151,7 @@ public class DatasetNode implements IWorkflowNode {
         boolean reranked = false;
         if (rerankModelIdInt != null && passageList.size() > 1) {
             try {
-                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt);
+                List<Float> scores = llmService.rerank(question, passageList, rerankModelIdInt, rerankModelName);
                 if (scores != null && scores.size() == passageList.size()) {
                     // 按分数降序取 topRank
                     finalPassages = IntStream.range(0, passageList.size())

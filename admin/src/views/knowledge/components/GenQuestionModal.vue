@@ -8,7 +8,7 @@
     <n-form label-placement="left" label-width="110px">
       <n-form-item label="对话模型">
         <n-select
-          v-model:value="form.modelId"
+          v-model:value="form.modelKey"
           :options="modelOptions"
           :loading="modelLoading"
           placeholder="不选则走候选链默认模型"
@@ -52,13 +52,15 @@
   const show = ref(false);
   const saving = ref(false);
   const modelLoading = ref(false);
-  const modelOptions = ref<{ label: string; value: number }[]>([]);
+  // ★ value 为 `${modelId}::${modelName}`（一个 ai_model 多模型名时拉平成多条）
+  const modelOptions = ref<{ label: string; value: string }[]>([]);
   // 当前要生成问题的文档 id 列表（由 open 传入）
   const documentIds = ref<string[]>([]);
   const docCount = computed(() => documentIds.value.length);
 
   const form = reactive({
-    modelId: undefined as number | undefined,
+    // ★ 对话模型组合 key：`${modelId}::${modelName}`（一对多拉平，提交时拆成 id+name）
+    modelKey: null as string | null,
     questionCount: 3,
   });
 
@@ -67,11 +69,22 @@
     try {
       const res: any = await getModelList({ type: 1, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        const models = res.data.filter((x: any) => x && x.id != null) as AiModel[];
-        modelOptions.value = models.map((m) => ({
-          label: `${m.name || ''}${m.models ? ' (' + m.models + ')' : ''}`,
-          value: m.id as number,
-        }));
+        const models = (res.data as AiModel[]).filter((x) => x && x.id != null);
+        const opts: { label: string; value: string }[] = [];
+        for (const m of models) {
+          const names = (m.models || '')
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter((s) => s.length > 0);
+          if (names.length === 0) {
+            opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
+            continue;
+          }
+          for (const n of names) {
+            opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
+          }
+        }
+        modelOptions.value = opts;
       } else {
         modelOptions.value = [];
       }
@@ -92,7 +105,7 @@
       return;
     }
     documentIds.value = [...ids];
-    Object.assign(form, { modelId: undefined, questionCount: 3 });
+    Object.assign(form, { modelKey: null, questionCount: 3 });
     show.value = true;
     loadModels();
   }
@@ -108,9 +121,18 @@
     }
     saving.value = true;
     try {
+      // ★ 拆组合 key → modelId + modelName，后端 KnowledgeDocumentServiceImpl 透传到 chat 调用
+      let modelId: number | undefined;
+      let modelName: string | undefined;
+      if (form.modelKey) {
+        const sepIdx = form.modelKey.indexOf('::');
+        modelId = Number(form.modelKey.substring(0, sepIdx));
+        modelName = form.modelKey.substring(sepIdx + 2) || undefined;
+      }
       const res: any = await generateKbQuestions({
         documentIds: documentIds.value,
-        modelId: form.modelId,
+        modelId,
+        modelName,
         questionCount: form.questionCount,
       });
       if (res && res.code === 0) {

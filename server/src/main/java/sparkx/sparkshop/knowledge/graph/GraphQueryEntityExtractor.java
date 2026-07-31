@@ -96,7 +96,7 @@ public class GraphQueryEntityExtractor {
         try {
             LlmChatRequest req = LlmChatRequest.of(EXTRACT_SYSTEM_PROMPT,
                     "请从以下问题中抽取实体：\n" + query, 0.1);
-            String output = llmService.chat(req, config.getExtractModelId());
+            String output = llmService.chat(req, config.getExtractModelId(), config.getExtractModelName());
             List<String> entities = parseEntityList(output);
 
             // 3. 写缓存

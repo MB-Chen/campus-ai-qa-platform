@@ -182,6 +182,20 @@ public class AiModelServiceImpl implements IAiModelService {
      */
     @Override
     public ModelTarget getChatTarget(Integer id) {
+        return getChatTarget(id, null);
+    }
+
+    /**
+     * 按 id 取对话模型路由目标，并以 modelNameOverride 指定具体子模型。
+     * <p>ai_model.models 逗号分隔，默认只取首项；override 命中列表内某项才采用，否则回退首项。
+     * ModelTarget 是 record，这里按覆盖后的 model 名重建一个。
+     *
+     * @param id ai_model.id
+     * @param modelNameOverride 前端选择的子模型名；null/空串/不在列表内 → 取首项
+     * @return 路由目标；id 为空 / 模型不存在 / 非对话类型 / model 名为空 时返回 null
+     */
+    @Override
+    public ModelTarget getChatTarget(Integer id, String modelNameOverride) {
         if (id == null) return null;
         AiModel row = aiModelMapper.selectById(id);
         if (row == null) return null;
@@ -189,7 +203,12 @@ public class AiModelServiceImpl implements IAiModelService {
         List<AiModelProperties.ModelCandidate> cs = convert(List.of(row), true, true);
         if (cs.isEmpty()) return null;
         AiModelProperties.ModelCandidate c = cs.get(0);
-        return new ModelTarget(c.resolveId(), c.getModel(), c.getProvider(), c.getUrl(), c.getApiKey(),
+        // override 命中逗号列表才采用，否则回退首项（与 AgentRerankClient.resolveModelName 一致）
+        String effectiveModel = resolveModelName(row.getModels(), modelNameOverride);
+        if (effectiveModel == null || effectiveModel.isBlank()) {
+            effectiveModel = c.getModel();
+        }
+        return new ModelTarget(c.resolveId(), effectiveModel, c.getProvider(), c.getUrl(), c.getApiKey(),
                 c.isSupportsThinking());
     }
 
@@ -529,6 +548,24 @@ public class AiModelServiceImpl implements IAiModelService {
             if (!p.isBlank()) return p.trim();
         }
         return "";
+    }
+
+    /**
+     * 校验子模型名是否在 models 逗号列表内。
+     * <p>override 非空且命中列表某项 → 返回该项；否则返回首项（null/空串 models 返回 null）。
+     * 与 AgentRerankClient.resolveModelName 行为一致，用于 getChatTarget 的子模型覆盖。
+     */
+    private String resolveModelName(String models, String override) {
+        if (models == null || models.isBlank()) return null;
+        if (override != null && !override.isBlank()) {
+            String trimmed = override.trim();
+            for (String part : models.split(",")) {
+                if (trimmed.equals(part.trim())) {
+                    return trimmed;
+                }
+            }
+        }
+        return firstModel(models);
     }
 
     /** null-safe 字符串相等比较（null 与空串视为相等，用于"是否变更"判定）。 */

@@ -79,8 +79,10 @@ public class RewriteSplitStage implements PipelineStage {
         // ★ 智能体配了专用改写模型（小快模型）则用它，降本提速；null = 默认对话模型
         Integer rewriteModelId = ctx.getAgentOverrides() == null
                 ? null : ctx.getAgentOverrides().getRewriteModelId();
+        String rewriteModelName = ctx.getAgentOverrides() == null
+                ? null : ctx.getAgentOverrides().getRewriteModelName();
         RewriteResult result = rewriteService.rewriteWithSplit(
-                ctx.getOriginalQuery(), ctx.getSessionId(), ctx.getUserId(), rewriteModelId);
+                ctx.getOriginalQuery(), ctx.getSessionId(), ctx.getUserId(), rewriteModelId, rewriteModelName);
         ctx.setRewriteResult(result);
         // 同步设置 rewriteQuery（向后兼容现有 GenerateStage/RerankStage 取 rewriteQuery）
         ctx.setRewriteQuery(result.rewrittenQuestion());

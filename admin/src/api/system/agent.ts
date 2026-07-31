@@ -48,6 +48,8 @@ export interface AgentSave {
   documentIds?: string[];
   chatModelId?: number;
   chatModelName?: string;
+  /** ★ 仅前端用：对话模型组合 key `${modelId}::${modelName}`，提交时拆成 id+name（不入库） */
+  chatModelKey?: string | null;
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
@@ -58,12 +60,14 @@ export interface AgentSave {
   rerankModelId?: number;
   rerankModelName?: string;
   /** ★ 仅前端用：重排模型组合 key `${modelId}::${modelName}`，提交时拆成 id+name（不入库） */
-  rerankModelKey?: string;
+  rerankModelKey?: string | null;
   rerankEnabled?: number;
   rerankTopK?: number;
   rerankThreshold?: number;
   rewriteModelId?: number; // 意图/改写专用模型 id，空用全局默认
   rewriteModelName?: string;
+  /** ★ 仅前端用：改写模型组合 key `${modelId}::${modelName}`，提交时拆成 id+name（不入库） */
+  rewriteModelKey?: string | null;
   fallbackStrategy?: string;
   fallbackResponse?: string;
   welcome?: string;

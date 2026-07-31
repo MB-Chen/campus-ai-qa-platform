@@ -70,13 +70,12 @@
             <n-gi>
               <n-form-item label="抽取 LLM 模型">
                 <n-select
-                  v-model:value="configForm.extractModelId"
+                  v-model:value="extractModelKey"
                   placeholder="选择对话模型（type=1）"
                   :options="extractModelOptions"
                   :loading="extractModelLoading"
                   filterable
                   style="width: 280px"
-                  @update:value="(val) => handleExtractModelChange(val)"
                 />
                 <n-text depth="3" style="margin-left: 8px; font-size: 12px">
                   {{ configForm.extractModelName || '未选择' }}
@@ -86,13 +85,12 @@
             <n-gi>
               <n-form-item label="向量化模型">
                 <n-select
-                  v-model:value="configForm.embeddingModelId"
+                  v-model:value="embeddingModelKey"
                   placeholder="选择向量模型（type=2）"
                   :options="embeddingModelOptions"
                   :loading="embeddingModelLoading"
                   filterable
                   style="width: 280px"
-                  @update:value="(val) => handleEmbeddingModelChange(val)"
                 />
                 <n-text depth="3" style="margin-left: 8px; font-size: 12px">
                   {{ configForm.embeddingModelName || '未选择' }}
@@ -218,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive, onMounted } from 'vue';
+  import { ref, reactive, computed, onMounted } from 'vue';
   import { useMessage } from 'naive-ui';
   import {
     getKgConfig,
@@ -250,28 +248,81 @@
   });
 
   // 抽取 LLM 用 type=1（对话），向量化用 type=2（向量），都只列启用的
-  const extractModelOptions = ref<{ label: string; value: number; raw?: any }[]>([]);
-  const embeddingModelOptions = ref<{ label: string; value: number; raw?: any }[]>([]);
+  // ★ value 为 `${modelId}::${modelName}`（一个 ai_model 多模型名时拉平成多条），与 AgentSaveModal/KbSaveModal 一致
+  const extractModelOptions = ref<{ label: string; value: string }[]>([]);
+  const embeddingModelOptions = ref<{ label: string; value: string }[]>([]);
   const extractModelLoading = ref(false);
   const embeddingModelLoading = ref(false);
 
-  /** 把 ai_model 记录格式化成 n-select option：label = 名称(provider) / models 首项 */
-  function toModelOption(m: any): { label: string; value: number; raw: any } {
-    const firstModel =
-      (m.models || '')
+  /**
+   * ★ 模型选项拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
+   *   value 编码 `${modelId}::${modelName}`，与 AgentSaveModal/KbSaveModal 一致，
+   *   让用户能选到具体子模型（如 bce-reranker-base,bge-m3 拆成两条）。
+   */
+  function toModelOptions(models: any[]): { label: string; value: string }[] {
+    const opts: { label: string; value: string }[] = [];
+    for (const m of models) {
+      const names = (m.models || '')
         .split(',')
         .map((s: string) => s.trim())
-        .filter(Boolean)[0] || '';
-    const label = `${m.name}${firstModel ? ' / ' + firstModel : ''}`;
-    return { label, value: m.id, raw: m };
+        .filter((s) => s.length > 0);
+      if (names.length === 0) {
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
+        continue;
+      }
+      for (const n of names) {
+        opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
+      }
+    }
+    return opts;
   }
+
+  // ★ n-select 组合 key computed：双向同步 configForm 的 modelId（number）+ modelName
+  //   n-select 显示/回显用 `${id}::${name}` 字符串；写入时拆回 id+modelName 存进 configForm
+  const extractModelKey = computed({
+    get() {
+      return configForm.extractModelId != null
+        ? `${configForm.extractModelId}::${configForm.extractModelName || ''}`
+        : null;
+    },
+    set(val: string | null) {
+      if (val == null || val === '') {
+        configForm.extractModelId = undefined;
+        configForm.extractModelName = '';
+      } else {
+        const sepIdx = val.indexOf('::');
+        const id = Number(val.substring(0, sepIdx));
+        configForm.extractModelId = isNaN(id) ? undefined : id;
+        configForm.extractModelName = val.substring(sepIdx + 2) || '';
+      }
+    },
+  });
+
+  const embeddingModelKey = computed({
+    get() {
+      return configForm.embeddingModelId != null
+        ? `${configForm.embeddingModelId}::${configForm.embeddingModelName || ''}`
+        : null;
+    },
+    set(val: string | null) {
+      if (val == null || val === '') {
+        configForm.embeddingModelId = undefined;
+        configForm.embeddingModelName = '';
+      } else {
+        const sepIdx = val.indexOf('::');
+        const id = Number(val.substring(0, sepIdx));
+        configForm.embeddingModelId = isNaN(id) ? undefined : id;
+        configForm.embeddingModelName = val.substring(sepIdx + 2) || '';
+      }
+    },
+  });
 
   async function loadExtractModelOptions() {
     extractModelLoading.value = true;
     try {
       const res: any = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        extractModelOptions.value = res.data.map(toModelOption);
+        extractModelOptions.value = toModelOptions(res.data);
       }
     } catch {
       // 静默
@@ -285,43 +336,13 @@
     try {
       const res: any = await getModelList({ type: MODEL_TYPE.EMBEDDING, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        embeddingModelOptions.value = res.data.map(toModelOption);
+        embeddingModelOptions.value = toModelOptions(res.data);
       }
     } catch {
       // 静默
     } finally {
       embeddingModelLoading.value = false;
     }
-  }
-
-  /** 选中抽取模型时，同步回填 modelName 快照（取 models 首项作为具体模型名） */
-  function handleExtractModelChange(id: number) {
-    const opt = extractModelOptions.value.find((o) => o.value === id);
-    if (!opt) {
-      configForm.extractModelName = '';
-      return;
-    }
-    const firstModel =
-      (opt.raw.models || '')
-        .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean)[0] || '';
-    configForm.extractModelName = firstModel;
-  }
-
-  /** 选中向量模型时，同步回填 modelName 快照 */
-  function handleEmbeddingModelChange(id: number) {
-    const opt = embeddingModelOptions.value.find((o) => o.value === id);
-    if (!opt) {
-      configForm.embeddingModelName = '';
-      return;
-    }
-    const firstModel =
-      (opt.raw.models || '')
-        .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean)[0] || '';
-    configForm.embeddingModelName = firstModel;
   }
 
   async function loadConfig() {

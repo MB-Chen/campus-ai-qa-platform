@@ -35,11 +35,10 @@
     <div class="set-content-box">
       <div class="section-title">模型</div>
       <n-select
-        v-model:value="form.modelInfo.modelId"
+        v-model:value="modelKey"
         :options="modelOptions"
         placeholder="选择对话模型"
         filterable
-        @update:value="onModelChange"
         style="width: 100%"
       />
       <div class="slider-row">
@@ -83,7 +82,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import { iconComponent } from '@/views/workflow/icons/index.js';
   import { getModelList, MODEL_TYPE } from '@/api/system/aiModel';
   import InputVarPicker from '@/views/workflow/components/InputVarPicker.vue';
@@ -104,42 +103,56 @@
     form.value.modelInfo.modelId = isNaN(id) ? null : id;
   }
 
-  // 模型选项：与知识图谱页一致，label 显示「配置名 / 首个具体模型」
-  function toModelOption(m) {
-    const firstModel =
-      String(m.models || '')
+  // ★ 模型选项拉平：一个 ai_model 的 models 逗号分隔时，拆成每个具体模型一条 option。
+  //   value 编码 `${modelId}::${modelName}`，与 AgentSaveModal/KbSaveModal 一致。
+  function toModelOptions(models) {
+    const opts = [];
+    for (const m of models) {
+      const names = String(m.models || '')
         .split(',')
         .map((s) => s.trim())
-        .filter(Boolean)[0] || '';
-    return {
-      label: `${m.name || `模型${m.id}`}${firstModel ? ' / ' + firstModel : ''}`,
-      value: m.id,
-      raw: m,
-    };
+        .filter((s) => s.length > 0);
+      if (names.length === 0) {
+        opts.push({ label: `${m.name || ''}（未配置模型名）`, value: `${m.id}::` });
+        continue;
+      }
+      for (const n of names) {
+        opts.push({ label: `${m.name || ''} / ${n}`, value: `${m.id}::${n}` });
+      }
+    }
+    return opts;
   }
+
+  // ★ n-select 值用组合 key；modelInfo 仍存 modelId（number）+ modelName 供后端 PurposeNode 读取
+  const modelKey = computed({
+    get() {
+      const mi = form.value.modelInfo || {};
+      return mi.modelId != null ? `${mi.modelId}::${mi.modelName || ''}` : null;
+    },
+    set(val) {
+      if (!form.value.modelInfo) form.value.modelInfo = {};
+      if (val == null || val === '') {
+        form.value.modelInfo.modelId = null;
+        form.value.modelInfo.modelName = '';
+      } else {
+        const sepIdx = String(val).indexOf('::');
+        const id = Number(String(val).substring(0, sepIdx));
+        form.value.modelInfo.modelId = isNaN(id) ? null : id;
+        form.value.modelInfo.modelName = String(val).substring(sepIdx + 2) || '';
+      }
+      emitChange();
+    },
+  });
 
   onMounted(async () => {
     try {
       const res = await getModelList({ type: MODEL_TYPE.CHAT, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = res.data.filter((m) => m && m.id != null).map(toModelOption);
+        modelOptions.value = toModelOptions(res.data.filter((m) => m && m.id != null));
       }
     } catch (e) {}
   });
 
-  function onModelChange(val) {
-    form.value.modelInfo.modelId = val;
-    const opt = modelOptions.value.find((x) => x.value === val);
-    const firstModel =
-      opt && opt.raw
-        ? String(opt.raw.models || '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean)[0] || ''
-        : '';
-    form.value.modelInfo.modelName = firstModel;
-    emitChange();
-  }
   function addCate() {
     form.value.cateList.push({ name: '' });
     emit('portAdd', form.value);

@@ -117,6 +117,7 @@ public class GenerateStage implements PipelineStage {
         //    ★ 智能体覆盖：chatModelId 非空时强制路由到该模型（仍走熔断降级骨架），让「配置的对话模型」生效
         LlmChatRequest request = new LlmChatRequest(messages, temp, topP, maxTokens, -1, false);
         Integer chatModelId = ctx.getAgentOverrides() != null ? ctx.getAgentOverrides().getChatModelId() : null;
+        String chatModelName = ctx.getAgentOverrides() != null ? ctx.getAgentOverrides().getChatModelName() : null;
         StringBuilder fullAnswer = new StringBuilder();
         final PipelineContext finalCtx = ctx;
         final long tStreamStart = System.currentTimeMillis();
@@ -171,7 +172,7 @@ public class GenerateStage implements PipelineStage {
                 // 这里仅 release 等待，让本阶段正常返回（话术经 collectResult 输出），不抛异常。
                 streamDone.complete(null);
             }
-        }, false, chatModelId);
+        }, false, chatModelId, chatModelName);
 
         // 阻塞等流结束（流式线程池内 doStream 会在末尾回调 onComplete/onError）
         streamDone.join();

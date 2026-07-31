@@ -675,6 +675,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
         int qCount = validate.getQuestionCount() != null && validate.getQuestionCount() > 0
                 ? Math.min(validate.getQuestionCount(), 10) : 3;
         Integer modelId = validate.getModelId();
+        String modelName = validate.getModelName();
 
         // kbId -> EmbeddingModel 缓存（同批文档多属同一 KB，避免重复解析）
         Map<String, EmbeddingModel> embModelCache = new HashMap<>();
@@ -702,7 +703,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                     String srcContent = src.getContent();
                     if (srcContent == null || srcContent.isBlank()) continue;
                     // 按原文分块逐个生成 N 个问题
-                    List<String> questions = generateQuestionsForChunk(srcContent, qCount, modelId);
+                    List<String> questions = generateQuestionsForChunk(srcContent, qCount, modelId, modelName);
                     for (String q : questions) {
                         if (q == null || q.isBlank()) continue;
                         String qChunkId = "c_" + UUID.randomUUID().toString().replace("-", "");
@@ -1378,7 +1379,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                             String t = seg.text();
                             if (t == null || t.isBlank()) continue;
                             PreviewChunkVo c = new PreviewChunkVo("", t.trim());
-                            if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null));
+                            if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null, null));
                             chunks.add(c);
                         }
                     }
@@ -1431,7 +1432,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                         if (pi != null) {
                             try { c.setParentIndex(Integer.parseInt(pi)); } catch (Exception ignore) {}
                         }
-                        if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null));
+                        if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null, null));
                         chunks.add(c);
                     }
                 } else {
@@ -1441,7 +1442,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                         String t = seg.text();
                         if (t == null || t.isBlank()) continue;
                         PreviewChunkVo c = new PreviewChunkVo("", t.trim());
-                        if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null));
+                        if (payload.isEnableQ()) c.setQuestions(generateQuestionsForChunk(t.trim(), payload.getQCount(), null, null));
                         chunks.add(c);
                     }
                 }
@@ -1480,15 +1481,16 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
     /**
      * 为单个切片调用 LLM 生成问题（试切预览用，不入库）。
      *
-     * @param modelId 指定 chat 模型 id；为 null 走默认候选链
+     * @param modelId   指定 chat 模型 id；为 null 走默认候选链
+     * @param modelName 具体子模型名（逗号列表内才采用，否则取首项）；为 null 取首项
      */
-    private List<String> generateQuestionsForChunk(String content, int count, Integer modelId) {
+    private List<String> generateQuestionsForChunk(String content, int count, Integer modelId, String modelName) {
         if (content == null || content.isBlank()) return List.of();
         try {
             String prompt = "请根据以下参考资料生成用户可能提出的 " + count + " 个问题。"
                     + "每个问题用 <question>问题</question> 标签包裹，只输出问题，不要其他内容。";
             String answer = llmService.chat(LlmChatRequest.of("你是问题生成助手",
-                    prompt + "\n\n参考资料：\n" + content, 0.3), modelId);
+                    prompt + "\n\n参考资料：\n" + content, 0.3), modelId, modelName);
             return extractQuestions(answer);
         } catch (Exception e) {
             log.warn("[Preview] 问题生成失败: {}", e.getMessage());
@@ -1669,7 +1671,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                 List<String> questions = chunk.getQuestions();
                 if (enableQ) {
                     if (questions == null || questions.isEmpty()) {
-                        questions = generateQuestionsForChunk(content, qCount, null);
+                        questions = generateQuestionsForChunk(content, qCount, null, null);
                     }
                     for (String q : questions) {
                         if (q == null || q.isBlank()) continue;

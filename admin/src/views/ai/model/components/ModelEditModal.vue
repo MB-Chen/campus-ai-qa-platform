@@ -181,7 +181,6 @@
   import {
     addModel,
     editModel,
-    testModel,
     testModelConnect,
     parseFieldJson,
     stringifyFieldJson,
@@ -380,6 +379,29 @@
     show.value = true;
   }
 
+  /**
+   * 收集当前表单为提交/测试用 payload。
+   * <p>保存与测试共用同一份构造逻辑，确保「测试通过的配置」与「保存下去的配置」严格一致，
+   * 避免两处各拼一份导致字段漏改、测试结果与实际生效配置不符。
+   *
+   * @param forTest 测试场景：name 允许兜底（后端 name 为必填，未填名称时不应阻塞连通性测试）
+   */
+  function buildPayload(forTest = false): Partial<AiModel> {
+    return {
+      id: form.id,
+      name: form.name.trim() || (forTest ? 'test' : ''),
+      type: form.type,
+      provider: form.provider,
+      models: form.models || undefined,
+      status: form.status,
+      priority: form.priority,
+      supportsThinking: form.type === 1 ? form.supportsThinking : 0,
+      // 序列化回 JSON 字符串（过滤掉 field 为空的项）
+      credential: stringifyFieldJson(credentialList.value.filter((c) => c.field && c.field.trim())),
+      options: stringifyFieldJson(optionsList.value.filter((o) => o.field && o.field.trim())),
+    };
+  }
+
   async function handleSave() {
     try {
       await formRef.value?.validate();
@@ -392,21 +414,7 @@
     }
     saving.value = true;
     try {
-      const payload: Partial<AiModel> = {
-        id: form.id,
-        name: form.name.trim(),
-        type: form.type,
-        provider: form.provider,
-        models: form.models || undefined,
-        status: form.status,
-        priority: form.priority,
-        supportsThinking: form.type === 1 ? form.supportsThinking : 0,
-        // 序列化回 JSON 字符串（过滤掉 field 为空的项）
-        credential: stringifyFieldJson(
-          credentialList.value.filter((c) => c.field && c.field.trim())
-        ),
-        options: stringifyFieldJson(optionsList.value.filter((o) => o.field && o.field.trim())),
-      };
+      const payload = buildPayload();
       const res: any = form.id ? await editModel(payload) : await addModel(payload);
       if (res && res.code === 0) {
         message.success('已保存');
@@ -425,23 +433,17 @@
   async function handleTest() {
     testing.value = true;
     try {
-      // 已保存（编辑态）按 id 测试；未保存（新建态）按当前表单参数直接测试，无需先保存
-      const res: any = form.id
-        ? await testModel(form.id)
-        : await testModelConnect({
-            name: form.name.trim() || 'test',
-            type: form.type,
-            provider: form.provider,
-            models: form.models || undefined,
-            credential: stringifyFieldJson(
-              credentialList.value.filter((c) => c.field && c.field.trim())
-            ),
-            options: stringifyFieldJson(optionsList.value.filter((o) => o.field && o.field.trim())),
-          });
+      // 新建/编辑一律按「当前表单参数」测试，不走按 id 查库的 /ai/model/test。
+      // 原因：编辑态改了 url / apiKey / 模型名但尚未保存时，按 id 测的是库里的旧配置，
+      // 会出现「表单已填对却报 401 / 404」的假失败，或「表单填错却测通」的假成功——
+      // 两者都会误导用户。所见即所测，测试结果必须对应屏幕上的配置。
+      const res: any = await testModelConnect(buildPayload(true));
       if (res && res.code === 0 && res.data) {
         const r = res.data;
         if (r.success) {
-          message.success(`${r.message || '连接成功'}（${r.latencyMs ?? 0} ms）`);
+          // 编辑态额外点明「测的是当前表单」，提醒改动仍需保存才会真正生效
+          const tip = form.id ? '，当前表单配置有效，保存后生效' : '';
+          message.success(`${r.message || '连接成功'}（${r.latencyMs ?? 0} ms）${tip}`);
         } else {
           message.error(`连接失败：${r.message || '未知错误'}（${r.latencyMs ?? 0} ms）`);
         }

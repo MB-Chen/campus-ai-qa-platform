@@ -573,7 +573,13 @@
     DeploymentUnitOutlined,
     CaretRightOutlined,
   } from '@vicons/antd';
-  import { createSessions } from '@/api/system/chat';
+  import {
+    createSessions,
+    getSessionsList,
+    getSessionMessages,
+    saveSessionMessage,
+    deleteSession,
+  } from '@/api/system/chat';
   import {
     getAgentEnabledList,
     streamAgentChat,
@@ -798,7 +804,6 @@
   }
 
   // ========== 会话管理 ==========
-  const CONV_LS_PREFIX = 'sparkx_chat_conv_';
   const conversations = ref<Conversation[]>([]);
   const activeSessionId = ref<string>('');
   const sidebarCollapsed = ref(false);
@@ -808,40 +813,6 @@
   // 当前活跃会话的目标类型（agent / workflow）
   const currentKind = ref<ChatKind>('agent');
 
-  function convLsKey(id: string) {
-    return `${CONV_LS_PREFIX}${id}`;
-  }
-
-  function loadConversationsFromStorage(): Conversation[] {
-    const result: Conversation[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(CONV_LS_PREFIX)) {
-        try {
-          const raw = JSON.parse(localStorage.getItem(key) || '');
-          if (raw && raw.id) result.push(raw);
-        } catch {
-          // ignore corrupt
-        }
-      }
-    }
-    // 按更新时间倒序
-    result.sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
-    return result;
-  }
-
-  function persistConv(c: Conversation) {
-    localStorage.setItem(convLsKey(c.id), JSON.stringify(c));
-  }
-
-  function removeConvStorage(id: string) {
-    localStorage.removeItem(convLsKey(id));
-  }
-
-  function genId(): string {
-    return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-
   function nowStr(): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -850,8 +821,87 @@
     )}`;
   }
 
-  function createLocalConv(agentId: string, title = '新会话', kind: ChatKind = 'agent'): Conversation {
-    return { id: genId(), title, agentId, kind, messages: [], updatedAt: nowStr() };
+  /** 后端时间字符串（yyyy-MM-dd HH:mm:ss）转侧边栏展示格式 MM-DD HH:mm */
+  function fmtTime(s?: string): string {
+    if (!s) return nowStr();
+    // 兼容 yyyy-MM-ddTHH:mm:ss / yyyy-MM-dd HH:mm:ss
+    const m = s.replace('T', ' ').match(/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/);
+    if (!m) return s;
+    return m[0].slice(5);
+  }
+
+  /** 把后端会话 VO 映射成本地 Conversation（messages 延迟加载） */
+  function voToConv(vo: any): Conversation {
+    return {
+      id: String(vo.id),
+      title: vo.title || '新会话',
+      agentId: String(vo.agent_id ?? vo.agentId ?? ''),
+      kind: (vo.kind as ChatKind) || 'agent',
+      messages: [],
+      updatedAt: fmtTime(vo.updated_at ?? vo.updatedAt),
+    };
+  }
+
+  /** 从后端拉取会话列表 */
+  async function loadConversations() {
+    try {
+      const resp: any = await getSessionsList(1, 100);
+      const body = resp ?? {};
+      const data = body.code === 0 ? body.data : body;
+      const arr: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      conversations.value = arr
+        .filter((x: any) => x && x.id != null)
+        .map((x: any) => voToConv(x))
+        .sort((a: Conversation, b: Conversation) => (b.updatedAt > a.updatedAt ? 1 : -1));
+    } catch {
+      conversations.value = [];
+    }
+  }
+
+  /** 激活会话时从后端拉消息列表填充 */
+  async function loadSessionMessages(id: string): Promise<void> {
+    const conv = conversations.value.find((x) => x.id === id);
+    if (!conv) return;
+    try {
+      const resp: any = await getSessionMessages(id);
+      const body = resp ?? {};
+      const data = body.code === 0 ? body.data : body;
+      const arr: any[] = Array.isArray(data) ? data : [];
+      conv.messages = arr.map((m: any) => ({
+        role: m.role,
+        content: m.content || '',
+        references: m.references ?? null,
+        stageData: m.stage_data ?? m.stageData,
+        stageTimings: {},
+        workflowSteps: m.workflow_steps ?? m.workflowSteps,
+        totalCost: m.total_cost ?? m.totalCost,
+        totalTokens: m.total_tokens ?? m.totalTokens,
+        streaming: false,
+      }));
+      conv.messages = [...conv.messages];
+      await nextTick();
+      scrollBottom();
+    } catch {
+      conv.messages = [];
+    }
+  }
+
+  /** 落库一条消息（user / assistant），失败仅告警，不阻塞流程 */
+  async function persistMessage(conv: Conversation, data: Record<string, any>): Promise<void> {
+    try {
+      // jsonb 列在后端是 String 入参：对象/数组先序列化，字符串/null 原样透传
+      const JSON_KEYS = ['references', 'stage_data', 'workflow_steps'];
+      const payload: Record<string, any> = { ...data };
+      for (const k of JSON_KEYS) {
+        const v = payload[k];
+        if (v != null && typeof v !== 'string') {
+          payload[k] = JSON.stringify(v);
+        }
+      }
+      await saveSessionMessage(conv.id, payload as any);
+    } catch {
+      // 落库失败不影响本地展示
+    }
   }
 
   function newConversation() {
@@ -867,7 +917,7 @@
     nextTick(() => inputRef.value?.focus());
   }
 
-  function activateSession(id: string) {
+  async function activateSession(id: string) {
     if (streaming.value) {
       message.warning('生成中，请先停止');
       return;
@@ -880,7 +930,8 @@
     }
     resetStream();
     chatInput.value = '';
-    nextTick(scrollBottom);
+    // 从后端拉取该会话的消息明细
+    await loadSessionMessages(id);
   }
 
   function goLanding() {
@@ -888,13 +939,17 @@
     chatInput.value = '';
   }
 
-  function deleteConversation(id: string) {
+  async function deleteConversation(id: string) {
     if (streaming.value) {
       message.warning('生成中，请先停止');
       return;
     }
     conversations.value = conversations.value.filter((c) => c.id !== id);
-    removeConvStorage(id);
+    try {
+      await deleteSession(id);
+    } catch {
+      // 删除接口失败不阻塞本地
+    }
     if (activeSessionId.value === id) {
       goLanding();
     }
@@ -1007,6 +1062,8 @@
       conv.title = query.length > 20 ? query.slice(0, 20) + '...' : query;
     }
     conv.updatedAt = nowStr();
+    // 用户消息落库
+    persistMessage(conv, { role: 'user', content: query });
 
     // 占位 assistant 消息
     resetStream();
@@ -1020,7 +1077,6 @@
     });
     streaming.value = true;
     conv.updatedAt = nowStr();
-    persistConv(conv);
 
     await scrollBottom();
 
@@ -1072,7 +1128,14 @@
               streamDone.value = true;
               conv.updatedAt = nowStr();
               conv.messages = [...conv.messages];
-              persistConv(conv);
+              // assistant 消息落库（编排步骤 / 耗时 / token）
+              persistMessage(conv, {
+                role: 'assistant',
+                content: roundMsg?.content || streamFullText.value,
+                workflow_steps: roundMsg?.workflowSteps,
+                total_cost: roundMsg?.totalCost,
+                total_tokens: roundMsg?.totalTokens,
+              });
             },
             onError: (errMsg) => {
               const msg = conv.messages[streamingIdx.value];
@@ -1106,7 +1169,14 @@
               streamDone.value = true;
               conv.updatedAt = nowStr();
               conv.messages = [...conv.messages]; // 触发响应式更新
-              persistConv(conv);
+              // assistant 消息落库（引用来源 / RAG 各阶段上下文 / 耗时）
+              persistMessage(conv, {
+                role: 'assistant',
+                content: msg?.content || payload.answer,
+                references: msg?.references,
+                stage_data: msg?.stageData,
+                total_cost: msg?.totalCost,
+              });
             },
             onError: (errMsg) => {
               const msg = conv.messages[streamingIdx.value];
@@ -1136,7 +1206,9 @@
         const msg = conv.messages[streamingIdx.value];
         if (msg) msg.content = streamFullText.value || msg.content;
         scrollBottom();
-        persistConv(conv);
+        // 把当前会话挪到列表顶部，刷新时间
+        conv.updatedAt = nowStr();
+        moveConvToTop(conv);
       });
     }
   }
@@ -1164,7 +1236,6 @@
     // 截断到该 user 消息
     const conv = conversations.value.find((c) => c.id === activeSessionId.value)!;
     conv.messages = msgs.slice(0, idx - 1);
-    persistConv(conv);
     chatInput.value = userMsg.content;
     nextTick(() => onChatSend());
   }
@@ -1292,7 +1363,6 @@
     if (conv) {
       conv.agentId = item.id;
       conv.kind = item.kind;
-      persistConv(conv);
     }
   }
 
@@ -1314,37 +1384,45 @@
         creating.value = false;
         return;
       }
-      // 先创建本地会话
-      const conv = createLocalConv(aid, q.length > 20 ? q.slice(0, 20) + '...' : q, kind);
-      conversations.value.unshift(conv);
-      persistConv(conv);
+      const title = q.length > 20 ? q.slice(0, 20) + '...' : q;
 
-      // 切换到聊天模式
-      activeSessionId.value = conv.id;
-      currentAgentId.value = aid;
-      currentKind.value = kind;
-
-      // 尝试同步到后端（失败不影响本地使用）
+      // 在后端创建会话，拿到持久化 id
+      let sessionId = '';
       try {
         const resp: any = await createSessions({
           agent_id: aid,
           query: q,
-          title: conv.title,
+          title,
+          kind,
           agent_config: { enabled: true },
         });
         const body = resp ?? {};
-        const data = body.data !== undefined ? body.data : body;
-        const remoteId = data?.id ?? body?.id;
-        if (remoteId && remoteId !== conv.id) {
-          // 后端返回了不同的 id，迁移数据
-          removeConvStorage(conv.id);
-          conv.id = remoteId;
-          activeSessionId.value = remoteId;
-          persistConv(conv);
-        }
-      } catch {
-        // 后端未就绪，纯本地模式继续
+        const data = body.code === 0 && body.data !== undefined ? body.data : body;
+        sessionId = String(data?.id ?? '');
+      } catch (e: any) {
+        message.error('创建会话失败：' + (e?.message || e));
+        return;
       }
+      if (!sessionId) {
+        message.error('创建会话失败');
+        return;
+      }
+
+      // 用后端 id 建本地会话壳（消息在 doSend 里落库）
+      const conv: Conversation = {
+        id: sessionId,
+        title,
+        agentId: aid,
+        kind,
+        messages: [],
+        updatedAt: nowStr(),
+      };
+      conversations.value.unshift(conv);
+
+      // 切换到聊天模式
+      activeSessionId.value = sessionId;
+      currentAgentId.value = aid;
+      currentKind.value = kind;
 
       // 发送消息
       chatInput.value = q;
@@ -1359,6 +1437,15 @@
     }
   }
 
+  /** 把指定会话挪到列表顶部（用于发送/收消息后排序靠前） */
+  function moveConvToTop(conv: Conversation) {
+    const idx = conversations.value.findIndex((c) => c.id === conv.id);
+    if (idx > 0) {
+      conversations.value.splice(idx, 1);
+      conversations.value.unshift(conv);
+    }
+  }
+
   // ========== 初始化 ==========
   onMounted(async () => {
     await loadAgents();
@@ -1366,36 +1453,33 @@
     restoreSelectedAgent();
     loadSuggested();
 
-    // 加载本地会话历史
-    conversations.value = loadConversationsFromStorage();
+    // 从后端加载会话历史
+    await loadConversations();
 
     // 如果路由带 :id 参数，激活对应会话
     const routeId = String(route.params.id || '');
     if (routeId) {
-      let conv = conversations.value.find((c) => c.id === routeId);
-      if (!conv) {
-        // 路由中的会话不在本地，创建空壳并尝试加载
-        conv = createLocalConv('', routeId.slice(0, 12));
-        conversations.value.unshift(conv);
-        persistConv(conv);
-      }
-      activeSessionId.value = conv.id;
-      // 从 query 取 agentId / kind 和初始问题
-      const qAgentId = (route.query.agentId as string) || '';
-      const qKind = (route.query.kind as ChatKind) || '';
-      if (qAgentId) {
-        currentAgentId.value = qAgentId;
-        currentKind.value = qKind || conv.kind || 'agent';
-      } else if (conv.agentId) {
-        currentAgentId.value = conv.agentId;
-        currentKind.value = conv.kind || 'agent';
-      } else if (selectedAgentId.value) {
-        currentAgentId.value = selectedAgentId.value;
-        currentKind.value = selectedKind.value;
+      const conv = conversations.value.find((c) => c.id === routeId);
+      if (conv) {
+        activeSessionId.value = conv.id;
+        // 从 query 取 agentId / kind 和初始问题
+        const qAgentId = (route.query.agentId as string) || '';
+        const qKind = (route.query.kind as ChatKind) || '';
+        if (qAgentId) {
+          currentAgentId.value = qAgentId;
+          currentKind.value = qKind || conv.kind || 'agent';
+        } else if (conv.agentId) {
+          currentAgentId.value = conv.agentId;
+          currentKind.value = conv.kind || 'agent';
+        } else if (selectedAgentId.value) {
+          currentAgentId.value = selectedAgentId.value;
+          currentKind.value = selectedKind.value;
+        }
+        await loadSessionMessages(conv.id);
       }
 
       const initQ = (route.query.q as string) || '';
-      if (initQ) {
+      if (initQ && activeSessionId.value) {
         await nextTick();
         chatInput.value = initQ;
         onChatSend();

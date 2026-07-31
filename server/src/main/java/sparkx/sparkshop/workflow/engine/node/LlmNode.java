@@ -162,6 +162,7 @@ public class LlmNode implements IWorkflowNode {
                               long startTime) {
         JSONObject modelInfo = modelObject.getJSONObject("modelInfo");
         Integer modelId = parseModelId(modelInfo == null ? null : modelInfo.getStr("modelId"));
+        String modelName = modelInfo == null ? null : modelInfo.getStr("modelName");
         double temperature = modelInfo != null && modelInfo.getDouble("temperature") != null
                 ? modelInfo.getDouble("temperature") : 0.3;
         int memory = modelObject.getInt("memory") != null ? modelObject.getInt("memory") : 0;
@@ -280,7 +281,7 @@ public class LlmNode implements IWorkflowNode {
 
         // streamChat 主调用阻塞到首包探测，剩余 token 异步推送，由 doneLatch 同步等整流结束
         try {
-            llmService.streamChat(req, callback, false, modelId);
+            llmService.streamChat(req, callback, false, modelId, modelName);
             // 上限 120s 防死等（流式 LLM 单次通常远低于此）
             if (!doneLatch.await(120, TimeUnit.SECONDS)) {
                 log.warn("[LlmNode] 流式生成等待超时（120s），已产出 {} 字符", full.length());
@@ -478,13 +479,14 @@ public class LlmNode implements IWorkflowNode {
         JSONObject nodeData = runtimeVo.getNodeInfo().getData();
         String rerankModelId = nodeData == null ? null : nodeData.getStr("rerankModelId");
         Integer rerankModelIdInt = parseModelId(rerankModelId);
+        String rerankModelName = nodeData == null ? null : nodeData.getStr("rerankModelName");
         int topK = nodeData != null && nodeData.getInt("topRank") != null
                 ? nodeData.getInt("topRank") : 3;
         List<String> finalPassages = passages;
         if (rerankModelIdInt != null && passages.size() > 1) {
             try {
                 String question = resolveQuestionForRerank(runtimeVo);
-                List<Float> scores = llmService.rerank(question, passages, rerankModelIdInt);
+                List<Float> scores = llmService.rerank(question, passages, rerankModelIdInt, rerankModelName);
                 if (scores != null && scores.size() == passages.size()) {
                     finalPassages = java.util.stream.IntStream.range(0, passages.size())
                             .mapToObj(i -> new java.util.AbstractMap.SimpleEntry<>(passages.get(i), scores.get(i)))

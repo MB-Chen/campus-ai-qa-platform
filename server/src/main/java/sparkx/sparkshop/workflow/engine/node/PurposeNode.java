@@ -55,6 +55,7 @@ public class PurposeNode implements IWorkflowNode {
         JSONObject nodeObject = runtimeVo.getNodeInfo().getData();
         JSONObject modelInfo = nodeObject.getJSONObject("modelInfo");
         Integer modelId = parseModelId(modelInfo == null ? null : modelInfo.getStr("modelId"));
+        String modelName = modelInfo == null ? null : modelInfo.getStr("modelName");
         double temperature = modelInfo != null && modelInfo.getDouble("temperature") != null
                 ? modelInfo.getDouble("temperature") : 0.0;
         long startTime = System.currentTimeMillis();
@@ -90,7 +91,7 @@ public class PurposeNode implements IWorkflowNode {
         // 非流式分类
         String answer;
         try {
-            answer = llmService.chat(LlmChatRequest.ofUser(prompt, temperature), modelId);
+            answer = llmService.chat(LlmChatRequest.ofUser(prompt, temperature), modelId, modelName);
         } catch (Exception e) {
             log.error("[PurposeNode] 分类调用失败: {}", e.getMessage(), e);
             throw new BusinessException("意图分类节点调用模型失败");

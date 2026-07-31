@@ -56,6 +56,20 @@ public interface LLMService {
     String chat(LlmChatRequest request, Integer modelId);
 
     /**
+     * 同步对话（指定模型 id + 具体子模型名）。
+     *
+     * <p>ai_model.models 是逗号分隔的多模型，默认只取首项。当调用方明确选了某个子模型
+     * （如前端把 gpt-4o-mini,gpt-4o 打平后选了 gpt-4o）时，用本重载把具体名透传给路由层：
+     * 仅当 modelName 命中逗号列表内某项才采用，否则回退首项（语义同 getChatTarget(id, modelName)）。
+     *
+     * @param request   调用请求（含消息列表）
+     * @param modelId   ai_model.id；为 null 时等同 {@link #chat(LlmChatRequest)}
+     * @param modelName 具体子模型名；null/空串/不命中列表 → 取首项
+     * @return 模型回复文本
+     */
+    String chat(LlmChatRequest request, Integer modelId, String modelName);
+
+    /**
      * 流式对话（经容错层首包探测 + 降级链）。
      *
      * @param request     调用请求
@@ -79,6 +93,22 @@ public interface LLMService {
      * @return 取消句柄
      */
     StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking, Integer modelId);
+
+    /**
+     * 流式对话（指定模型 id + 具体子模型名）。
+     *
+     * <p>与 {@link #chat(LlmChatRequest, Integer, String)} 对齐的子模型覆盖语义：
+     * ai_model.models 逗号分隔，modelName 命中列表内某项才采用，否则回退首项。
+     * 用于智能体/工作流等「明确选了某个对话子模型」的流式场景。
+     *
+     * @param request     调用请求
+     * @param callback    流式回调（SSE 推前端）
+     * @param deepThinking 是否深度思考
+     * @param modelId     ai_model.id；为 null 时等同三参重载
+     * @param modelName   具体子模型名；null/空串/不命中列表 → 取首项
+     * @return 取消句柄
+     */
+    StreamCancellationHandle streamChat(LlmChatRequest request, StreamCallback callback, boolean deepThinking, Integer modelId, String modelName);
 
     /**
      * 文本向量化（用默认兜底 embedding 模型）。
@@ -122,6 +152,20 @@ public interface LLMService {
      * @return 每个段落的相关性分数
      */
     List<Float> rerank(String query, List<String> passages, Integer rerankModelId);
+
+    /**
+     * 重排打分（指定 rerank 模型 id + 具体子模型名）。
+     *
+     * <p>与 {@link #rerank(String, List, Integer)} 一致，区别仅在于把 modelName 透传给真实 rerank API
+     * （命中逗号列表才采用，否则取首项），用于工作流/智能体「选了具体 rerank 子模型」的场景。
+     *
+     * @param query           查询
+     * @param passages        候选段落
+     * @param rerankModelId   ai_model.id（type=3）；为 null 时等同 {@link #rerank(String, List)}
+     * @param rerankModelName 具体子模型名；null/空串/不命中列表 → 取首项
+     * @return 每个段落的相关性分数
+     */
+    List<Float> rerank(String query, List<String> passages, Integer rerankModelId, String rerankModelName);
 
     /**
      * 视觉模型图生文（VLM）。

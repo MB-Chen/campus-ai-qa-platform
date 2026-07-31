@@ -250,9 +250,11 @@ COMMENT ON TABLE "public"."ai_model" IS 'AI 模型配置表';
 -- ----------------------------
 -- Records of ai_model
 -- ----------------------------
-INSERT INTO "public"."ai_model" VALUES (1, 'DeepSeek', 1, 'openai', '[{"field":"apiKey","value":""}]', 'deepseek-v4-pro,deepseek-v4-flash', NULL, '[{"field":"url","value":"https://api.deepseek.com"},{"field":"temperature","value":0.3,"range":[0,2]},{"field":"maxOutputTokens","value":2048,"range":[1,128000]}]', 1, 100, 1, '2026-07-22 03:56:53', '2026-07-22 03:56:53');
-INSERT INTO "public"."ai_model" VALUES (2, '通义千问', 2, 'openai', '[{"field":"apiKey","value":""}]', 'embedding-8b', NULL, '[{"field":"url","value":"https://dashscope.aliyuncs.com/compatible-mode/v1"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-22 03:56:53');
-INSERT INTO "public"."ai_model" VALUES (3, '通义千问', 3, 'openai', '[{"field":"apiKey","value":""}]', 'reranker-8b', NULL, '[{"field":"url","value":"https://dashscope.aliyuncs.com/api/v1/services/rerank"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-22 03:56:53');
+INSERT INTO "public"."ai_model" VALUES (1, 'DeepSeek', 1, 'openai', '[{"field":"apiKey","value":""}]', 'deepseek-v4-flash,deepseek-v4-pro', NULL, '[{"field":"url","value":"https://api.deepseek.com"},{"field":"temperature","value":0.3,"range":[0,2]},{"field":"maxOutputTokens","value":2048,"range":[1,128000]}]', 1, 100, 1, '2026-07-22 03:56:53', '2026-07-31 18:24:10.036183');
+-- 向量模型：百度千帆 v2 embeddings，url 已是完整 /embeddings 路径（系统检测到后缀会原样使用，不再拼接）
+INSERT INTO "public"."ai_model" VALUES (2, '百度千帆', 2, 'openai', '[{"field":"apiKey","value":""}]', 'qwen3-embedding-8b', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2/embeddings"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-31 18:16:21.959191');
+-- 重排模型：百度千帆 v2 rerank，url 已是完整 /rerank 路径（系统检测到后缀会原样使用，不再拼接）
+INSERT INTO "public"."ai_model" VALUES (3, '百度千帆', 3, 'openai', '[{"field":"apiKey","value":""}]', 'bce-reranker-base', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2/rerank"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-31 17:24:15.96754');
 INSERT INTO "public"."ai_model" VALUES (4, '智谱AI', 4, 'openai', '[{"field":"apiKey","value":""}]', 'glm-4.6v', NULL, '[{"field":"url","value":"https://open.bigmodel.cn/api/paas/v4"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-22 03:56:53');
 
 -- ----------------------------
@@ -373,7 +375,7 @@ COMMENT ON TABLE "public"."kg_config" IS '知识图谱全局配置表';
 -- ----------------------------
 -- Records of kg_config
 -- ----------------------------
-INSERT INTO "public"."kg_config" VALUES (1, 1, 'deepseek-v4-flash', 2, 'embedding-8b', 2, 0.650, 5, 2, 0.50, 0.880, 'local', 1, '2026-07-22 03:56:56.211211', '2026-07-22 03:56:56.211211');
+INSERT INTO "public"."kg_config" VALUES (1, 1, 'deepseek-v4-flash', 2, 'qwen3-embedding-8b', 2, 0.650, 5, 2, 0.50, 0.880, 'local', 1, '2026-07-22 03:56:56.211211', '2026-07-22 03:56:56.211211');
 
 -- ----------------------------
 -- Table structure for kg_entity
@@ -694,7 +696,7 @@ COMMENT ON TABLE "public"."sample_query_config" IS '样例查询全局配置表'
 -- ----------------------------
 -- Records of sample_query_config
 -- ----------------------------
-INSERT INTO "public"."sample_query_config" VALUES (1, 2, 'embedding-8b', 0.850, '2026-07-22 03:56:55.991679');
+INSERT INTO "public"."sample_query_config" VALUES (1, 2, 'qwen3-embedding-8b', 0.850, '2026-07-22 03:56:55.991679');
 
 -- ----------------------------
 -- Table structure for t_conversation_message
@@ -1130,112 +1132,112 @@ COMMENT ON TABLE "public"."workflow_runtime_context" IS '编排流程运行时�
 -- ----------------------------
 ALTER SEQUENCE "public"."admin_user_id_seq"
 OWNED BY "public"."admin_user"."id";
-SELECT setval('"public"."admin_user_id_seq"', 1, false);
+SELECT setval('"public"."admin_user_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM admin_user), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."ai_model_id_seq"
 OWNED BY "public"."ai_model"."id";
-SELECT setval('"public"."ai_model_id_seq"', 1, false);
+SELECT setval('"public"."ai_model_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM ai_model), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."ext_service_config_id_seq"
 OWNED BY "public"."ext_service_config"."id";
-SELECT setval('"public"."ext_service_config_id_seq"', 1, false);
+SELECT setval('"public"."ext_service_config_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM ext_service_config), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."kg_config_id_seq"
 OWNED BY "public"."kg_config"."id";
-SELECT setval('"public"."kg_config_id_seq"', 1, false);
+SELECT setval('"public"."kg_config_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM kg_config), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."kg_entity_id_seq"
 OWNED BY "public"."kg_entity"."id";
-SELECT setval('"public"."kg_entity_id_seq"', 1, false);
+SELECT setval('"public"."kg_entity_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM kg_entity), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."kg_extraction_record_id_seq"
 OWNED BY "public"."kg_extraction_record"."id";
-SELECT setval('"public"."kg_extraction_record_id_seq"', 1, false);
+SELECT setval('"public"."kg_extraction_record_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM kg_extraction_record), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."knowledge_question_id_seq"
 OWNED BY "public"."knowledge_question"."id";
-SELECT setval('"public"."knowledge_question_id_seq"', 1, false);
+SELECT setval('"public"."knowledge_question_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM knowledge_question), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."mcp_server_id_seq"
 OWNED BY "public"."mcp_server"."id";
-SELECT setval('"public"."mcp_server_id_seq"', 1, false);
+SELECT setval('"public"."mcp_server_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM mcp_server), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."mcp_tool_id_seq"
 OWNED BY "public"."mcp_tool"."id";
-SELECT setval('"public"."mcp_tool_id_seq"', 1, false);
+SELECT setval('"public"."mcp_tool_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM mcp_tool), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."sample_query_config_id_seq"
 OWNED BY "public"."sample_query_config"."id";
-SELECT setval('"public"."sample_query_config_id_seq"', 1, false);
+SELECT setval('"public"."sample_query_config_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM sample_query_config), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."sample_query_id_seq"
 OWNED BY "public"."sample_query"."id";
-SELECT setval('"public"."sample_query_id_seq"', 1, false);
+SELECT setval('"public"."sample_query_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM sample_query), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."t_conversation_message_id_seq"
 OWNED BY "public"."t_conversation_message"."id";
-SELECT setval('"public"."t_conversation_message_id_seq"', 1, false);
+SELECT setval('"public"."t_conversation_message_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM t_conversation_message), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."t_ingestion_pipeline_node_id_seq"
 OWNED BY "public"."t_ingestion_pipeline_node"."id";
-SELECT setval('"public"."t_ingestion_pipeline_node_id_seq"', 1, false);
+SELECT setval('"public"."t_ingestion_pipeline_node_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM t_ingestion_pipeline_node), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."t_ingestion_task_node_id_seq"
 OWNED BY "public"."t_ingestion_task_node"."id";
-SELECT setval('"public"."t_ingestion_task_node_id_seq"', 1, false);
+SELECT setval('"public"."t_ingestion_task_node_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM t_ingestion_task_node), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."workflow_runtime_context_id_seq"
 OWNED BY "public"."workflow_runtime_context"."id";
-SELECT setval('"public"."workflow_runtime_context_id_seq"', 1, false);
+SELECT setval('"public"."workflow_runtime_context_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM workflow_runtime_context), true);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."workflow_runtime_id_seq"
 OWNED BY "public"."workflow_runtime"."id";
-SELECT setval('"public"."workflow_runtime_id_seq"', 1, false);
+SELECT setval('"public"."workflow_runtime_id_seq"', (SELECT COALESCE(MAX(id), 1) FROM workflow_runtime), true);
 
 -- ----------------------------
 -- Indexes structure for table admin_user
@@ -1526,3 +1528,80 @@ ALTER TABLE "public"."workflow_runtime_context" ADD CONSTRAINT "workflow_runtime
 -- Foreign Keys structure for table mcp_tool
 -- ----------------------------
 ALTER TABLE "public"."mcp_tool" ADD CONSTRAINT "mcp_tool_server_id_fkey" FOREIGN KEY ("server_id") REFERENCES "public"."mcp_server" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Sequences structure for chat tables
+-- ----------------------------
+DROP SEQUENCE IF EXISTS "public"."t_chat_message_id_seq";
+CREATE SEQUENCE "public"."t_chat_message_id_seq"
+INCREMENT 1
+MINVALUE  1
+MAXVALUE 9223372036854775807
+START 1
+CACHE 1;
+
+-- ----------------------------
+-- Table structure for t_chat_session
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."t_chat_session";
+CREATE TABLE "public"."t_chat_session" (
+  "id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
+  "admin_id" int8 NOT NULL,
+  "title" varchar(255) COLLATE "pg_catalog"."default",
+  "description" varchar(500) COLLATE "pg_catalog"."default",
+  "source" varchar(32) COLLATE "pg_catalog"."default" DEFAULT 'chat',
+  "kind" varchar(16) COLLATE "pg_catalog"."default" DEFAULT 'agent',
+  "agent_id" varchar(64) COLLATE "pg_catalog"."default",
+  "agent_config" jsonb,
+  "created_at" timestamp(6) DEFAULT now(),
+  "updated_at" timestamp(6) DEFAULT now()
+)
+;
+COMMENT ON COLUMN "public"."t_chat_session"."id" IS '会话 id（UUID hex）';
+COMMENT ON COLUMN "public"."t_chat_session"."admin_id" IS '所属管理员 id（登录用户）';
+COMMENT ON COLUMN "public"."t_chat_session"."title" IS '会话标题';
+COMMENT ON COLUMN "public"."t_chat_session"."description" IS '会话描述';
+COMMENT ON COLUMN "public"."t_chat_session"."source" IS '来源场景：chat 等';
+COMMENT ON COLUMN "public"."t_chat_session"."kind" IS '目标类型：agent 智能体 / workflow 编排智能体';
+COMMENT ON COLUMN "public"."t_chat_session"."agent_id" IS '绑定的智能体/编排 id';
+COMMENT ON COLUMN "public"."t_chat_session"."agent_config" IS '智能体配置 JSON';
+COMMENT ON COLUMN "public"."t_chat_session"."created_at" IS '创建时间';
+COMMENT ON COLUMN "public"."t_chat_session"."updated_at" IS '更新时间';
+COMMENT ON TABLE "public"."t_chat_session" IS '聊天会话表';
+ALTER TABLE "public"."t_chat_session" ADD CONSTRAINT "t_chat_session_pkey" PRIMARY KEY ("id");
+CREATE INDEX "idx_chat_session_admin_updated" ON "public"."t_chat_session" USING btree (
+  "admin_id" ASC NULLS LAST,
+  "updated_at" DESC NULLS LAST
+);
+
+-- ----------------------------
+-- Table structure for t_chat_message
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."t_chat_message";
+CREATE TABLE "public"."t_chat_message" (
+  "id" int8 NOT NULL DEFAULT nextval('t_chat_message_id_seq'::regclass),
+  "session_id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
+  "role" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
+  "content" text COLLATE "pg_catalog"."default",
+  "references" jsonb,
+  "stage_data" jsonb,
+  "workflow_steps" jsonb,
+  "total_cost" int8,
+  "total_tokens" int4,
+  "created_at" timestamp(6) DEFAULT now()
+)
+;
+COMMENT ON COLUMN "public"."t_chat_message"."session_id" IS '所属会话 id';
+COMMENT ON COLUMN "public"."t_chat_message"."role" IS '角色：user / assistant';
+COMMENT ON COLUMN "public"."t_chat_message"."content" IS '消息内容';
+COMMENT ON COLUMN "public"."t_chat_message"."references" IS '引用来源 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_chat_message"."stage_data" IS 'RAG 各阶段上下文 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_chat_message"."workflow_steps" IS '编排智能体步骤 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_chat_message"."total_cost" IS '总耗时（毫秒）';
+COMMENT ON COLUMN "public"."t_chat_message"."total_tokens" IS '总 token 数';
+COMMENT ON COLUMN "public"."t_chat_message"."created_at" IS '创建时间';
+COMMENT ON TABLE "public"."t_chat_message" IS '聊天消息表';
+ALTER TABLE "public"."t_chat_message" ADD CONSTRAINT "t_chat_message_pkey" PRIMARY KEY ("id");
+CREATE INDEX "idx_chat_message_session" ON "public"."t_chat_message" USING btree (
+  "session_id" COLLATE "pg_catalog"."default" "text_ops" ASC NULLS LAST
+);
