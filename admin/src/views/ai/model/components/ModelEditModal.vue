@@ -6,7 +6,7 @@
         :model="form"
         :rules="rules"
         label-placement="left"
-        label-width="100px"
+        label-width="160px"
         autocomplete="off"
       >
         <!-- 假输入框：吸收浏览器对密码/账号的自动回填 -->
@@ -39,13 +39,14 @@
 
         <!-- 凭证（动态字段） -->
         <n-divider title-placement="left" style="margin-top: 8px">凭证配置</n-divider>
-        <n-space vertical>
-          <div v-for="(c, idx) in credentialList" :key="'c' + idx" class="kv-row">
-            <span v-if="isPresetCredentialField(c.field)" class="preset-field-name">{{
-              fieldLabel(c.field)
-            }}</span>
+        <n-form-item
+          v-for="(c, idx) in credentialList"
+          :key="'c' + idx"
+          :label="isPresetCredentialField(c.field) ? fieldLabel(c.field) : ''"
+        >
+          <div style="display: flex; align-items: center; gap: 8px; width: 100%">
             <n-input
-              v-else
+              v-if="!isPresetCredentialField(c.field)"
               v-model:value="c.field"
               placeholder="字段名"
               size="small"
@@ -59,7 +60,7 @@
               :autocomplete="isPresetCredentialField(c.field) ? 'new-password' : 'off'"
             />
           </div>
-        </n-space>
+        </n-form-item>
 
         <!-- 模型名 -->
         <n-divider title-placement="left">模型列表</n-divider>
@@ -76,12 +77,14 @@
 
         <!-- options 动态字段：url / temperature / maxOutputTokens 等 -->
         <n-divider title-placement="left">调用选项</n-divider>
-        <n-space vertical>
-          <div v-for="(o, idx) in optionsList" :key="'o' + idx" class="kv-row">
-            <!-- 预设字段名只读文本，自定义字段才用输入框 -->
-            <span v-if="isPresetOptionField(o.field)" class="preset-field-name">{{ fieldLabel(o.field) }}</span>
+        <n-form-item
+          v-for="(o, idx) in optionsList"
+          :key="'o' + idx"
+          :label="isPresetOptionField(o.field) ? fieldLabel(o.field) : ''"
+        >
+          <div style="display: flex; align-items: center; gap: 8px; width: 100%">
             <n-input
-              v-else
+              v-if="!isPresetOptionField(o.field)"
               v-model:value="o.field"
               placeholder="字段名"
               size="small"
@@ -117,10 +120,11 @@
               style="flex: 1"
             />
           </div>
-        </n-space>
+        </n-form-item>
 
         <!-- 能力配置（仅对话模型） -->
-        <template v-if="form.type === 1">
+        <!-- 暂时隐藏「深度思考」开关：页面暂未输出思考过程，用不到。置 v-if=false 便于后续恢复 -->
+        <template v-if="false && form.type === 1">
           <n-divider title-placement="left">能力配置</n-divider>
           <n-form-item label="深度思考">
             <n-switch v-model:value="form.supportsThinking" :checked-value="1" :unchecked-value="0">
@@ -472,18 +476,4 @@
 </script>
 
 <style lang="less" scoped>
-  .kv-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-  }
-  .preset-field-name {
-    display: inline-flex;
-    align-items: center;
-    width: 160px;
-    flex-shrink: 0;
-    font-size: 14px;
-    color: #333;
-  }
 </style>

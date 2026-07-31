@@ -7,13 +7,13 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>3.4.13</version>
         <relativePath/>
     </parent>
 
     <groupId>cn.sparkshop.ai</groupId>
     <artifactId>sparkx-server</artifactId>
-    <version>2.0.0</version>
+    <version>2.0</version>
     <name>sparkx-server</name>
     <description>SparkX 智能体开发平台后端</description>
 
@@ -21,26 +21,20 @@
         <java.version>17</java.version>
         <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <hutool.version>5.8.27</hutool.version>
-        <springdoc.version>2.2.0</springdoc.version>
+        <springdoc.version>2.8.17</springdoc.version>
         <minio.version>8.5.12</minio.version>
-        <!-- ===== RAG 知识库 ===== -->
-        <langchain4j.version>1.17.0</langchain4j.version>
+        <langchain4j.version>1.18.1</langchain4j.version>
         <okhttp.version>4.12.0</okhttp.version>
         <ttl.version>2.14.5</ttl.version>
         <redisson.version>3.31.0</redisson.version>
-        <!-- langchain4j 官方 MCP 集成（与 langchain4j 1.17.x 同节奏的 beta 版本，会传递拉入原生 io.modelcontextprotocol.sdk:mcp） -->
-        <langchain4j-mcp.version>1.17.0-beta27</langchain4j-mcp.version>
-        <!-- 中文分词（关键词检索 tsv 由 Java 预分词，绕开 PG 中文分词扩展） -->
+        <langchain4j-mcp.version>1.18.1-beta28</langchain4j-mcp.version>
+        <langchain4j-neo4j.version>1.18.0-beta28</langchain4j-neo4j.version>
         <hanlp.version>portable-1.8.6</hanlp.version>
-        <!-- POI 5.5.x 需要 commons-io 2.16+（BoundedInputStream.builder()），
-             Spring Boot 3.3.5 父 POM 默认 2.15.1 会导致 NoSuchMethodError，
-             这里覆盖升级。 -->
         <commons-io.version>2.16.1</commons-io.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- LangChain4j BOM 统一管理版本 -->
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
@@ -152,11 +146,11 @@
 
         <!-- Neo4j 知识图谱集成（langchain4j-community-neo4j，官方文档：https://docs.langchain4j.dev/integrations/embedding-stores/neo4j） -->
         <!-- 包含 Neo4jEmbeddingStore + Neo4jGraph，传递依赖 neo4j-java-driver -->
-        <!-- 社区模块目前为 beta 状态（API 已稳定），版本对齐 langchain4j 1.17.x -->
+        <!-- 社区模块目前为 beta 状态（API 已稳定），版本对齐 langchain4j 1.18.x -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-neo4j</artifactId>
-            <version>1.17.0-beta27</version>
+            <version>${langchain4j-neo4j.version}</version>
         </dependency>
 
         <!-- 文档解析 -->
@@ -235,7 +229,7 @@
 
         <!-- MCP 协议：用 langchain4j 官方集成模块（含 HttpMcpTransport / StreamableHttpMcpTransport /
              DefaultMcpClient / McpToolProvider），底层传递依赖 io.modelcontextprotocol.sdk:mcp，无需手写协议握手。
-             与 langchain4j 1.17.0 对齐的 beta 版本节奏（同 langchain4j-community-neo4j）。 -->
+             与 langchain4j 1.18.x 对齐的 beta 版本节奏（同 langchain4j-community-neo4j）。 -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-mcp</artifactId>
