@@ -1,23 +1,16 @@
 <template>
   <div class="logo">
-    <!--<img :src="websiteConfig.logo" alt="" :class="{ 'mr-2': !collapsed }" />-->
-    <h2 v-show="!collapsed" class="title">{{ websiteConfig.title }}</h2>
+    <h2 v-show="!collapsed" class="title">SparkX</h2>
   </div>
 </template>
 
 <script lang="ts">
-  import { websiteConfig } from '@/config/website.config';
   export default {
     name: 'Index',
     props: {
       collapsed: {
         type: Boolean,
       },
-    },
-    data() {
-      return {
-        websiteConfig,
-      };
     },
   };
 </script>

@@ -7,7 +7,7 @@
     >
       <div class="logo" v-if="navMode === 'horizontal'">
         <img :src="websiteConfig.logo" alt="" />
-        <h2 v-show="!collapsed" class="title">{{ websiteConfig.title }}</h2>
+        <h2 v-show="!collapsed" class="title">SparkX</h2>
       </div>
       <AsideMenu
         :collapsed="collapsed"
