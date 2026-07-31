@@ -188,21 +188,23 @@
               </n-text>
             </n-form-item>
             <n-text depth="3" style="font-size: 12px; display: block; margin-top: -8px">
-              可选一个小快模型（如 qwen-turbo ）用于意图分类与查询改写，降本提速；主回答仍用对话默认模型。
+              可选一个小快模型（如 qwen-turbo
+              ）用于意图分类与查询改写，降本提速；主回答仍用对话默认模型。
             </n-text>
           </template>
 
-          <template v-if="menuKey === 'retrieval'">
+          <template v-if="menuKey === 'sampleQuery'">
             <n-form-item label="样例查询">
-              <n-switch v-model:value="form.sampleQueryEnabled" :checked-value="1" :unchecked-value="2">
+              <n-switch
+                v-model:value="form.sampleQueryEnabled"
+                :checked-value="1"
+                :unchecked-value="2"
+              >
                 <template #checked>启用</template>
                 <template #unchecked>禁用</template>
               </n-switch>
-              <n-text depth="3" style="margin-left: 8px; font-size: 12px; white-space: nowrap">
-                用户消息优先到样例库向量匹配
-              </n-text>
             </n-form-item>
-            <n-form-item label="样例匹配阈值">
+            <n-form-item label="匹配阈值">
               <n-input-number
                 v-model:value="form.sampleQueryThreshold"
                 :min="0"
@@ -211,15 +213,18 @@
                 :disabled="form.sampleQueryEnabled === 2"
               />
               <n-text depth="3" style="margin-left: 8px; font-size: 12px; white-space: nowrap">
-                达到阈值直接返回样例答案，LLM 不参与
+                相似度 ≥ 此值才命中
               </n-text>
             </n-form-item>
             <n-form-item label=" " style="margin-top: -16px">
               <n-text depth="3" style="font-size: 12px"
-                >留空阈值则用全局配置（样例查询管理页）。样例需先在「样例查询」中向量化后才可被匹配。</n-text
+                >阈值越高匹配越严格。留空则回退全局配置（样例查询管理页，默认
+                0.85）。样例需先在「样例查询」中向量化后才可被匹配。</n-text
               >
             </n-form-item>
-            <n-divider style="margin: 8px 0 16px" />
+          </template>
+
+          <template v-if="menuKey === 'retrieval'">
             <n-form-item label="向量召回 topK">
               <n-input-number v-model:value="form.embeddingTopK" :min="1" :max="50" />
             </n-form-item>
@@ -320,6 +325,7 @@
     SettingOutlined,
     CommentOutlined,
     DeploymentUnitOutlined,
+    FileSearchOutlined,
     SearchOutlined,
     SafetyCertificateOutlined,
   } from '@vicons/antd';
@@ -349,6 +355,7 @@
     { key: 'basic', icon: SettingOutlined, label: '基础' },
     { key: 'prompt', icon: CommentOutlined, label: '提示词' },
     { key: 'model', icon: DeploymentUnitOutlined, label: '模型参数' },
+    { key: 'sampleQuery', icon: FileSearchOutlined, label: '样例查询' },
     { key: 'retrieval', icon: SearchOutlined, label: '检索' },
     { key: 'fallback', icon: SafetyCertificateOutlined, label: '兜底' },
   ];
@@ -445,7 +452,9 @@
     try {
       const res: any = await getModelList({ type: 1, status: 1 });
       if (res && res.code === 0 && Array.isArray(res.data)) {
-        modelOptions.value = toModelOptions((res.data as AiModel[]).filter((x) => x && x.id != null));
+        modelOptions.value = toModelOptions(
+          (res.data as AiModel[]).filter((x) => x && x.id != null)
+        );
       } else {
         modelOptions.value = [];
       }
@@ -486,7 +495,7 @@
       const res: any = await getRerankModelList();
       if (res && res.code === 0 && Array.isArray(res.data)) {
         rerankModelOptions.value = toRerankModelOptions(
-          (res.data as AiModel[]).filter((x) => x && x.id != null),
+          (res.data as AiModel[]).filter((x) => x && x.id != null)
         );
       } else {
         rerankModelOptions.value = [];
@@ -593,7 +602,8 @@
       rerankTopK: ag.rerankTopK ?? 5,
       rerankThreshold: ag.rerankThreshold ?? 0.3,
       // ★ 回显：把 id + name 拼成组合 key（与 option value 格式一致）
-      rewriteModelKey: ag.rewriteModelId != null ? `${ag.rewriteModelId}::${ag.rewriteModelName || ''}` : null,
+      rewriteModelKey:
+        ag.rewriteModelId != null ? `${ag.rewriteModelId}::${ag.rewriteModelName || ''}` : null,
       rewriteModelName: ag.rewriteModelName || '',
       fallbackStrategy: ag.fallbackStrategy || 'model',
       fallbackResponse: ag.fallbackResponse || '',
