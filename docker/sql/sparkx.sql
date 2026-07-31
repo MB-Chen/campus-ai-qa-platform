@@ -252,7 +252,7 @@ COMMENT ON TABLE "public"."ai_model" IS 'AI 模型配置表';
 -- ----------------------------
 INSERT INTO "public"."ai_model" VALUES (1, 'DeepSeek', 1, 'openai', '[{"field":"apiKey","value":""}]', 'deepseek-v4-flash,deepseek-v4-pro', NULL, '[{"field":"url","value":"https://api.deepseek.com/v1/chat/completions"},{"field":"temperature","value":0.1,"range":[0,2]},{"field":"maxOutputTokens","value":2048,"range":[1,128000]}]', 1, 100, 1, '2026-07-22 03:56:53', '2026-07-31 18:24:10.036183');
 -- 向量模型：百度千帆 v2 embeddings（请直接填完整 /embeddings 路径，系统不再自动补全）
-INSERT INTO "public"."ai_model" VALUES (2, '百度千帆', 2, 'openai', '[{"field":"apiKey","value":""}]', 'embedding-v1', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2/embeddings"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-31 18:16:21.959191');
+INSERT INTO "public"."ai_model" VALUES (2, '百度千帆', 2, 'openai', '[{"field":"apiKey","value":""}]', 'qwen3-embedding-8b', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2/embeddings"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-31 18:16:21.959191');
 -- 重排模型：百度千帆 v2 rerank（请直接填完整 /rerank 路径，系统不再自动补全）
 INSERT INTO "public"."ai_model" VALUES (3, '百度千帆', 3, 'openai', '[{"field":"apiKey","value":""}]', 'bce-reranker-base', NULL, '[{"field":"url","value":"https://qianfan.baidubce.com/v2/rerank"}]', 1, 100, 0, '2026-07-22 03:56:53', '2026-07-31 17:24:15.96754');
 -- 视觉模型：智谱AI，url 为完整 /chat/completions 路径（多模态走 chat completions 协议）
