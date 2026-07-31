@@ -164,4 +164,44 @@ public interface KgEntityMapper extends BaseMapper<KgEntity> {
     List<Map<String, Object>> selectByType(@Param("kbId") String kbId,
                                            @Param("entityType") String entityType,
                                            @Param("limit") int limit);
+
+    /**
+     * 原子 upsert（并发安全）：INSERT，冲突时更新来源 + 时间。
+     *
+     * <p>解决并发抽取下 {@code upsertKgEntities} 的 TOCTOU 竞争（两线程同时判「不存在」→ 重复插入）
+     * 与 {@code appendSource} 的 lost-update（read-modify-write JSON 数组）。
+     * 依赖唯一约束 {@code uk_kg_entity_kb_doc_canonical (kb_id, doc_id, canonical_name)} 兜底。
+     *
+     * <p>冲突时把新来源 doc_id / parent_id 用 jsonb {@code ||} 原子并入现有数组（列是 text 类型，
+     * 需 {@code ::jsonb} 转换后再 {@code ::text} 存回）。jsonb {@code ||} 合并不去重，
+     * 重复来源元素可接受（仅来源标注多一项，不影响检索）。
+     *
+     * <p>{@code RETURNING id, (xmax = 0) AS inserted}：{@code xmax = 0} 是 PG 惯用法，
+     * 区分本次是 INSERT（新增，需向量化）还是 UPDATE（冲突，原行可能已向量化，跳过）。
+     * 无论哪种都返回行 id，供调用方判断。
+     *
+     * @return Map，含 {@code id}(Long) 与 {@code inserted}(Boolean：true=本次新增)
+     */
+    @org.apache.ibatis.annotations.Select("INSERT INTO kg_entity (" +
+            "kb_id, doc_id, name, canonical_name, entity_type, description, " +
+            "aliases, source_doc_ids, source_parent_ids, neo4j_element_id, " +
+            "vectorized, status, created_at, updated_at" +
+            ") VALUES (" +
+            "#{kbId}, #{docId}, #{name}, #{canonicalName}, #{entityType}, #{description}, " +
+            "#{aliases}, #{sourceDocIds}, #{sourceParentIds}, NULL, " +
+            "0, 1, now(), now()" +
+            ") ON CONFLICT (kb_id, doc_id, canonical_name) DO UPDATE SET " +
+            "source_doc_ids = (COALESCE(source_doc_ids::jsonb, '[]'::jsonb) || #{sourceDocIds}::jsonb)::text, " +
+            "source_parent_ids = (COALESCE(source_parent_ids::jsonb, '[]'::jsonb) || #{sourceParentIds}::jsonb)::text, " +
+            "updated_at = now() " +
+            "RETURNING id, (xmax = 0) AS inserted")
+    Map<String, Object> upsertOnConflict(@Param("kbId") String kbId,
+                          @Param("docId") String docId,
+                          @Param("name") String name,
+                          @Param("canonicalName") String canonicalName,
+                          @Param("entityType") String entityType,
+                          @Param("description") String description,
+                          @Param("aliases") String aliases,
+                          @Param("sourceDocIds") String sourceDocIds,
+                          @Param("sourceParentIds") String sourceParentIds);
 }

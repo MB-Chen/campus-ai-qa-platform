@@ -17,11 +17,11 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import sparkx.sparkshop.knowledge.entity.KgConfig;
-import sparkx.sparkshop.knowledge.entity.KgEntity;
 import sparkx.sparkshop.knowledge.entity.KgExtractionRecord;
 import sparkx.sparkshop.knowledge.entity.ParentChunkEntity;
 import sparkx.sparkshop.knowledge.ingest.KgEntityIndexer;
@@ -43,6 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 知识图谱文档级抽取服务（自研 prompt + LLMService.chat + Neo4jGraphRepository 写图）。
@@ -111,6 +115,21 @@ public class GraphExtractionService {
 
     /** JSON 解析（项目约定：不声明 Bean，用字段实例） */
     private final ObjectMapper mapper = new ObjectMapper();
+
+    /**
+     * 父块抽取并发度：对齐 embedding 的 EMBED_PARALLELISM=2 限流策略。
+     * 抽取模型往往是 chat 接口，QPS 限制比 embedding 更严，保守取 2 最不易触发 429。
+     * 父块间相互独立（跨块合并靠 Neo4j MERGE + kg_entity 唯一约束兜底），可安全并发。
+     */
+    private static final int KG_EXTRACT_PARALLELISM = 2;
+
+    /** 进度上报锁：保护从 AtomicInteger 计数器构建 VO 快照写 Redis 的临界区，避免整对象覆盖 */
+    private final Object progressLock = new Object();
+
+    /** ★ 并发扇出用线程池（AsyncConfig 的 ragTaskExecutor，pool=CPU*8，足够） */
+    @Qualifier("ragTaskExecutor")
+    @Resource
+    private ExecutorService ragTaskExecutor;
 
     /** 图谱仓库（始终非 null：已配置 Neo4j 为真实实现，未配置为 NoopGraphRepository 兜底） */
     @Resource
@@ -278,71 +297,108 @@ public class GraphExtractionService {
         // 更新记录 parent_total
         updateRecordParentTotal(kbId, docId, parents.size());
 
-        int parentDone = 0, parentSuccess = 0, parentFailed = 0;
-        int totalEntities = 0, totalRelations = 0;
+        // ★ 并发扇出：父块间相互独立，KG_EXTRACT_PARALLELISM 路并发抽取。
+        // 计数器用 AtomicInteger（多线程累加安全），进度上报用 progressLock 保护快照构建。
+        AtomicInteger parentDone = new AtomicInteger(0);
+        AtomicInteger parentSuccess = new AtomicInteger(0);
+        AtomicInteger parentFailed = new AtomicInteger(0);
+        AtomicInteger totalEntities = new AtomicInteger(0);
+        AtomicInteger totalRelations = new AtomicInteger(0);
+        Semaphore sem = new Semaphore(KG_EXTRACT_PARALLELISM);
 
+        List<CompletableFuture<Void>> futures = new ArrayList<>(parents.size());
         for (ParentChunkEntity parent : parents) {
-            try {
-                // 查该父块下子块 id（Entity.chunk_ids 用于回溯原文）
-                List<String> chunkIds = chunkMapper.selectIdsByParentId(parent.getId());
-
-                // LLM 抽取
-                String llmOutput = callLlmForExtraction(parent.getContent(), config, kbId);
-                GraphExtractionResult result = parseExtractionJson(llmOutput);
-
-                if (result.entities().isEmpty() && result.relations().isEmpty()) {
-                    log.debug("[KgExtract] 父块无实体/关系 parentId={}", parent.getId());
-                } else {
-                    // ★ 消歧第一步：字符串 canonical_name 合并（同 key 取并集 aliases、最长 description）
-                    List<GraphExtractionResult.Entity> disambiguated = disambiguate(result.entities());
-
-                    // ★ 第三期：消歧第二步——embedding 余弦相似度合并。
-                    // 解决 LLM 在同一父块内对同一实体输出不同 canonical_name（"北京"vs"北京市"）的问题。
-                    // 跨父块的合并靠 Neo4j MERGE + kg_entity (kb_id, canonical_name) 查重兜底。
-                    // 失败（模型不可达/阈值异常）降级为仅字符串消歧，不阻断抽取。
-                    List<GraphExtractionResult.Relation> relations = result.relations();
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    sem.acquire();
                     try {
-                        var mergeResult = entityDisambiguator.mergeByEmbedding(kbId, disambiguated, config);
-                        if (!mergeResult.nameRemap().isEmpty()) {
-                            relations = entityDisambiguator.remapRelations(relations, mergeResult.nameRemap());
-                        }
-                        disambiguated = mergeResult.entities();
-                    } catch (Exception embEx) {
-                        log.debug("[KgExtract] embedding 消歧失败，降级为字符串消歧: {}", embEx.getMessage());
+                        int[] counts = extractOneParent(parent, kbId, docId, config);
+                        totalEntities.addAndGet(counts[0]);
+                        totalRelations.addAndGet(counts[1]);
+                        parentSuccess.incrementAndGet();
+                    } finally {
+                        sem.release();
                     }
-
-                    // 写 Neo4j
-                    int eCount = graphRepository.mergeEntities(kbId, disambiguated, docId, parent.getId(), chunkIds);
-                    int rCount = graphRepository.mergeRelations(kbId, docId, relations);
-
-                    // 写 kg_entity（实体向量索引，只对"本次新增"的 canonical_name 插入，已存在则跳过）
-                    int newEntities = upsertKgEntities(kbId, disambiguated, docId, parent.getId(), config);
-
-                    totalEntities += eCount;
-                    totalRelations += rCount;
-                    log.debug("[KgExtract] parentId={} entities={} relations={} newKgEntities={}",
-                            parent.getId(), eCount, rCount, newEntities);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    parentFailed.incrementAndGet();
+                    log.warn("[KgExtract] 父块抽取被中断 parentId={}", parent.getId());
+                } catch (Exception e) {
+                    parentFailed.incrementAndGet();
+                    log.warn("[KgExtract] 父块抽取失败 parentId={}: {}", parent.getId(), e.getMessage());
+                } finally {
+                    // 进度上报：从原子计数器构建快照写 Redis（加锁防整对象覆盖）
+                    int done = parentDone.incrementAndGet();
+                    synchronized (progressLock) {
+                        progress.setDone(done);
+                        progress.setSuccess(parentSuccess.get());
+                        progress.setFailed(parentFailed.get());
+                        progress.setEntityCount(totalEntities.get());
+                        progress.setRelationCount(totalRelations.get());
+                        bucket.set(progress, PROGRESS_TTL);
+                    }
                 }
-
-                parentSuccess++;
-            } catch (Exception e) {
-                parentFailed++;
-                log.warn("[KgExtract] 父块抽取失败 parentId={}: {}", parent.getId(), e.getMessage());
-            }
-
-            // 更新进度
-            parentDone++;
-            progress.setDone(parentDone);
-            progress.setSuccess(parentSuccess);
-            progress.setFailed(parentFailed);
-            progress.setEntityCount(totalEntities);
-            progress.setRelationCount(totalRelations);
-            bucket.set(progress, PROGRESS_TTL);
+            }, ragTaskExecutor));
         }
+        // 阻塞等全部完成（本方法在 @Async 线程跑，阻塞不影响主线程/HTTP 请求）
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         // 更新记录状态
-        updateRecordResult(kbId, docId, parentDone, totalEntities, totalRelations,
-                parentFailed > 0 ? "部分失败(" + parentFailed + "/" + parents.size() + ")" : null);
+        updateRecordResult(kbId, docId, parentDone.get(), totalEntities.get(), totalRelations.get(),
+                parentFailed.get() > 0 ? "部分失败(" + parentFailed.get() + "/" + parents.size() + ")" : null);
+    }
+
+    /**
+     * 单个父块的抽取执行体（从原 for 循环体抽出，便于并发扇出复用）。
+     *
+     * <p>线程安全：依赖的 EntityDisambiguator / Neo4jGraphRepository / KgEntityIndexer /
+     * RoutingLLMService 均为无共享状态单例，可被多父块并发调用；upsertKgEntities 已改为
+     * ON CONFLICT 原子 upsert，并发安全。
+     *
+     * @return [实体数, 关系数]；空结果返回 [0,0]
+     */
+    private int[] extractOneParent(ParentChunkEntity parent, String kbId, String docId, KgConfig config) {
+        // 查该父块下子块 id（Entity.chunk_ids 用于回溯原文）
+        List<String> chunkIds = chunkMapper.selectIdsByParentId(parent.getId());
+
+        // LLM 抽取
+        String llmOutput = callLlmForExtraction(parent.getContent(), config, kbId);
+        GraphExtractionResult result = parseExtractionJson(llmOutput);
+
+        if (result.entities().isEmpty() && result.relations().isEmpty()) {
+            log.debug("[KgExtract] 父块无实体/关系 parentId={}", parent.getId());
+            return new int[]{0, 0};
+        }
+        // ★ 消歧第一步：字符串 canonical_name 合并（同 key 取并集 aliases、最长 description）
+        List<GraphExtractionResult.Entity> disambiguated = disambiguate(result.entities());
+
+        // ★ 第三期：消歧第二步——embedding 余弦相似度合并。
+        // 解决 LLM 在同一父块内对同一实体输出不同 canonical_name（"北京"vs"北京市"）的问题。
+        // 跨父块的合并靠 Neo4j MERGE + kg_entity 唯一约束兜底。
+        // 失败（模型不可达/阈值异常）降级为仅字符串消歧，不阻断抽取。
+        List<GraphExtractionResult.Relation> relations = result.relations();
+        if (entityDisambiguator != null) {
+            try {
+                var mergeResult = entityDisambiguator.mergeByEmbedding(kbId, disambiguated, config);
+                if (!mergeResult.nameRemap().isEmpty()) {
+                    relations = entityDisambiguator.remapRelations(relations, mergeResult.nameRemap());
+                }
+                disambiguated = mergeResult.entities();
+            } catch (Exception embEx) {
+                log.debug("[KgExtract] embedding 消歧失败，降级为字符串消歧: {}", embEx.getMessage());
+            }
+        }
+
+        // 写 Neo4j
+        int eCount = graphRepository.mergeEntities(kbId, disambiguated, docId, parent.getId(), chunkIds);
+        int rCount = graphRepository.mergeRelations(kbId, docId, relations);
+
+        // 写 kg_entity（ON CONFLICT 原子 upsert，并发安全）
+        int newEntities = upsertKgEntities(kbId, disambiguated, docId, parent.getId(), config);
+
+        log.debug("[KgExtract] parentId={} entities={} relations={} newKgEntities={}",
+                parent.getId(), eCount, rCount, newEntities);
+        return new int[]{eCount, rCount};
     }
 
 
@@ -492,78 +548,34 @@ public class GraphExtractionService {
             String canonical = (e.canonicalName() == null || e.canonicalName().isBlank()) ? e.name() : e.canonicalName();
             if (canonical == null || canonical.isBlank()) continue;
 
-            // 文档级隔离：查是否已存在（同 kb_id + doc_id + canonical_name）
-            KgEntity existing = kgEntityMapper.selectOne(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KgEntity>()
-                            .eq(KgEntity::getKbId, kbId)
-                            .eq(KgEntity::getDocId, docId)
-                            .eq(KgEntity::getCanonicalName, canonical)
-                            .last("LIMIT 1"));
-
-            if (existing != null) {
-                // 已存在（同文档内重复抽取）：追加来源 parent_id（doc_id 不变，文档隔离下恒定）
-                appendSource(existing, docId, parentId);
-                kgEntityMapper.updateById(existing);
-                continue;
-            }
-
-            // 新增：INSERT（含 embedding/tsv 由 indexer 后续回填）
+            // ★ 并发安全 upsert：单条 INSERT ... ON CONFLICT 原子完成「新增 or 追加来源」，
+            // 依赖唯一约束 uk_kg_entity_kb_doc_canonical 兜底，杜绝并发下重复插入与 lost-update。
+            // inserted=true 表示本次是真正新增（需向量化）；false 表示冲突命中已有行（跳过向量化，
+            // 与原 SELECT-then-INSERT 路径下「已存在则 continue」语义一致）。
             String aliasesJson = toJson(e.aliases());
             String docIdsJson = toJson(List.of(docId));
             String parentIdsJson = toJson(List.of(parentId));
 
-            KgEntity entity = new KgEntity();
-            entity.setKbId(kbId);
-            entity.setDocId(docId);
-            entity.setName(e.name());
-            entity.setCanonicalName(canonical);
-            entity.setEntityType(e.type());
-            entity.setDescription(e.description());
-            entity.setAliases(aliasesJson);
-            entity.setSourceDocIds(docIdsJson);
-            entity.setSourceParentIds(parentIdsJson);
-            entity.setNeo4jElementId(null);  // Neo4j elementId 后续回填
-            entity.setVectorized(0);
-            entity.setStatus(1);
-            entity.setCreatedAt(LocalDateTime.now());
-            entity.setUpdatedAt(LocalDateTime.now());
-            kgEntityMapper.insert(entity);
+            Map<String, Object> row = kgEntityMapper.upsertOnConflict(
+                    kbId, docId, e.name(), canonical, e.type(), e.description(),
+                    aliasesJson, docIdsJson, parentIdsJson);
 
-            // 向量化（异步逐条，失败不阻断）
-            try {
-                kgEntityIndexer.index(entity.getId(), canonical, e.description(),
-                        config.getEmbeddingModelId(), config.getEmbeddingModelName());
-            } catch (Exception ex) {
-                log.warn("[KgExtract] 实体向量化失败 id={} name={}: {}", entity.getId(), canonical, ex.getMessage());
+            boolean inserted = row != null && Boolean.TRUE.equals(row.get("inserted"));
+            if (inserted) {
+                Long newId = row != null ? ((Number) row.get("id")).longValue() : null;
+                if (newId != null) {
+                    // 新增实体向量化（失败不阻断，与原逻辑一致）
+                    try {
+                        kgEntityIndexer.index(newId, canonical, e.description(),
+                                config.getEmbeddingModelId(), config.getEmbeddingModelName());
+                    } catch (Exception ex) {
+                        log.warn("[KgExtract] 实体向量化失败 id={} name={}: {}", newId, canonical, ex.getMessage());
+                    }
+                }
+                count++;
             }
-
-            count++;
         }
         return count;
-    }
-
-    /** 已有实体追加来源 doc_id/parent_id（JSON 数组合并） */
-    private void appendSource(KgEntity existing, String docId, String parentId) {
-        existing.setSourceDocIds(appendToJsonArray(existing.getSourceDocIds(), docId));
-        existing.setSourceParentIds(appendToJsonArray(existing.getSourceParentIds(), parentId));
-        existing.setUpdatedAt(LocalDateTime.now());
-    }
-
-    /** 向 JSON 数组追加一个元素（去重），空/null 输入返回新数组 */
-    @SuppressWarnings("unchecked")
-    private String appendToJsonArray(String json, String value) {
-        if (value == null) return json;
-        try {
-            List<String> list = (json == null || json.isBlank())
-                    ? new ArrayList<>()
-                    : new ArrayList<>(mapper.readValue(json, List.class));
-            if (!list.contains(value)) {
-                list.add(value);
-            }
-            return mapper.writeValueAsString(list);
-        } catch (Exception e) {
-            return json;
-        }
     }
 
     private String toJson(Object obj) {

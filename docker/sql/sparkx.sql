@@ -1336,6 +1336,20 @@ CREATE INDEX "idx_kg_entity_tsv" ON "public"."kg_entity" USING gin (
 ALTER TABLE "public"."kg_entity" ADD CONSTRAINT "kg_entity_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Unique constraint for table kg_entity
+-- 并发抽取时同一 (kb_id, doc_id, canonical_name) 可能被多个线程同时判定「不存在」而重复插入，
+-- 此唯一约束作为兜底，配合 KgEntityMapper.upsertOnConflict 的 ON CONFLICT 实现原子 upsert。
+-- canonical_name 可空，PG 中多个 NULL 不冲突，故可空列加唯一约束安全。
+-- ★ 存量库若已有重复数据，加约束会失败，需先执行去重清理（保留每组 created_at 最早的一行）：
+--   DELETE FROM kg_entity a USING kg_entity b
+--   WHERE a.id > b.id AND a.kb_id = b.kb_id AND a.doc_id = b.doc_id
+--     AND COALESCE(a.canonical_name,'') = COALESCE(b.canonical_name,'');
+-- ----------------------------
+ALTER TABLE "public"."kg_entity"
+  ADD CONSTRAINT "uk_kg_entity_kb_doc_canonical"
+  UNIQUE ("kb_id", "doc_id", "canonical_name");
+
+-- ----------------------------
 -- Indexes structure for table kg_extraction_record
 -- ----------------------------
 CREATE INDEX "idx_kg_record_kb" ON "public"."kg_extraction_record" USING btree (

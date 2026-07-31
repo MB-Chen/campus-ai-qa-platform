@@ -137,10 +137,27 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
 
     /**
      * 批量向量化文档级并发上限（写死 2，防止打爆 embedding 服务器 QPS 上限）。
-     * 注意：切片级向量化仍是串行（{@link #embedExistingChunks} 内的 for 循环），
-     * 真正容易瞬时打爆 QPS 的是切片并发，文档级 2 路并发是吞吐与限流的平衡点。
+     * 注意：切片级向量化用 {@link #EMBED_BATCH_SIZE} 分批 embedAll（单次 HTTP 请求处理多条），
+     * 既大幅降低对三方接口的请求次数（N → N/32），又比切片并发更不易触发限流。
      */
     private static final int EMBED_PARALLELISM = 2;
+
+    /**
+     * 切片 embedding 批大小：单次 embedAll 调用处理的切片数。
+     * 32 是保守值——远低于各 provider 的批次上限（OpenAI 按 token 计、Bedrock 128 条），
+     * 单批 HTTP 请求处理 32 条，请求次数相比逐条降一个数量级，对三方接口更友好。
+     * embedAll 默认 fail-fast（整批抛异常），与「一票否决」失败判定契合。
+     */
+    private static final int EMBED_BATCH_SIZE = 32;
+
+    /**
+     * 问题生成分块并发度。
+     * 问题生成走 chat 接口（llmService.chat），其 QPS 限制通常比 embedding 更严（推理慢、并发上限低），
+     * 故与 {@link #EMBED_PARALLELISM} 同取 2，保守不触发限流。仅对「同文档内的分块」做并发，
+     * 文档间仍串行（避免并发度 = 文档数 × 内层并发度 瞬时打爆 chat 模型）。
+     * 问题切片为全新 UUID 插入、无查重逻辑，天然无 TOCTOU 竞争，可安全并发。
+     */
+    private static final int QUESTION_GEN_PARALLELISM = 2;
 
     /** 局部 ObjectMapper（不暴露为 Bean，避免破坏全局自动配置） */
     private final ObjectMapper mapper = new ObjectMapper();
@@ -415,7 +432,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
      * <p>单文档失败 try-catch 不中断其他文档（与原语义一致）：失败仅记 warn/error +
      * 置 doc.status=failed + 进度追踪器 markFinished(failed)，不抛异常外泄。
      *
-     * <p>线程安全保证：依赖的 {@link EmbeddingProgressTracker}（ConcurrentHashMap）、
+     * <p>线程安全保证：依赖的（ConcurrentHashMap）、
      * {@link EmbeddingModelProvider#resolve}（ConcurrentHashMap.computeIfAbsent 缓存）、
      * MyBatis mapper 均为线程安全单例，可被多文档并发调用。
      */
@@ -570,17 +587,46 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
 
         EmbeddingModel model = embeddingModelProvider.resolve(kbId);
         List<ChunkEntity> chunks = chunkMapper.selectByDocumentId(docId, 0, Integer.MAX_VALUE);
-        int success = 0;
-        for (ChunkEntity c : chunks) {
-            String content = c.getContent();
+        // 仅保留有内容的切片（空内容无意义且会让批次含无效项），记录其在 chunks 中的原始位置便于回填
+        List<Integer> indexed = new ArrayList<>();   // 每个有效切片在 chunks 中的下标
+        List<TextSegment> segments = new ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) {
+            String content = chunks.get(i).getContent();
             if (content == null || content.isBlank()) continue;
+            indexed.add(i);
+            segments.add(TextSegment.from(content));
+        }
+
+        int success = 0;
+        int failed = 0;
+        String lastErr = null;
+        // 分批 embedAll：单次 HTTP 请求处理 EMBED_BATCH_SIZE 条，请求次数 N → N/32。
+        // embedAll 默认 fail-fast（整批抛异常，不返回部分结果），与「一票否决」契合：
+        // 一批失败则该批全部计入 failed，继续下一批让能成功的批先回填，最后统一判定。
+        // 结果顺序与输入顺序一致（langchain4j EmbeddingModel 契约保证），按下标对位回填。
+        for (int start = 0; start < segments.size(); start += EMBED_BATCH_SIZE) {
+            int end = Math.min(start + EMBED_BATCH_SIZE, segments.size());
+            List<TextSegment> batch = segments.subList(start, end);
             try {
-                Embedding emb = model.embed(TextSegment.from(content)).content();
-                chunkMapper.updateEmbedding(c.getId(), toPgVector(emb));
-                success++;
+                List<Embedding> embeddings = model.embedAll(batch).content();
+                for (int j = 0; j < embeddings.size(); j++) {
+                    ChunkEntity c = chunks.get(indexed.get(start + j));
+                    chunkMapper.updateEmbedding(c.getId(), toPgVector(embeddings.get(j)));
+                    success++;
+                }
             } catch (Exception e) {
-                log.warn("[ReEmbed] 切片补向量失败 chunk={} : {}", c.getId(), e.getMessage());
+                failed += batch.size();
+                lastErr = e.getMessage();
+                log.warn("[ReEmbed] 批次 embedAll 失败 start={} size={} : {}", start, batch.size(), e.getMessage());
             }
+        }
+        // 一票否决：有切片失败就抛业务异常，复用 embedOneDocument 的 catch(BusinessException)
+        // 分支标记 doc.status=failed + 写进度明细，前端轮询据此停止并提示用户重试
+        if (failed > 0) {
+            int total = success + failed;
+            throw new BusinessException("向量化失败 " + failed + "/" + total + " 切片"
+                    + (lastErr != null ? "（最近错误：" + lastErr + "）" : "")
+                    + "，请检查嵌入模型配置或重试");
         }
         return success;
     }
@@ -684,7 +730,7 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
             KnowledgeDocument doc = knowledgeDocumentMapper.selectById(docId);
             if (doc == null) continue;
             String kbId = doc.getKbId();
-            int qTotal = 0;
+            AtomicInteger qTotal = new AtomicInteger(0);
             try {
                 // 解析该文档所属 KB 的 embedding 模型（带维度校验，失败回退该文档状态）
                 EmbeddingModel embModel = embModelCache.get(kbId);
@@ -699,49 +745,35 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
                 }
                 // 该文档的所有原文切片（已排除问题切片）
                 List<ChunkEntity> contentChunks = chunkMapper.selectContentByDocument(doc.getId());
+                // ★ 内层分块循环并发扇出：每个分块一次 LLM（chat 接口）是耗时大头，并发提速。
+                // 仅同文档内分块并发（文档间仍串行），并发度受 QUESTION_GEN_PARALLELISM 限流，
+                // 避免 chat 模型瞬时 QPS 打爆。问题切片全新 UUID 插入无查重，天然无竞争。
+                // finalEmbModel：把已解析的 embModel 钉成 effectively final，供 lambda 安全捕获。
+                final EmbeddingModel finalEmbModel = embModel;
+                Semaphore sem = new Semaphore(QUESTION_GEN_PARALLELISM);
+                List<CompletableFuture<Void>> futures = new ArrayList<>(contentChunks.size());
                 for (ChunkEntity src : contentChunks) {
-                    String srcContent = src.getContent();
-                    if (srcContent == null || srcContent.isBlank()) continue;
-                    // 按原文分块逐个生成 N 个问题
-                    List<String> questions = generateQuestionsForChunk(srcContent, qCount, modelId, modelName);
-                    for (String q : questions) {
-                        if (q == null || q.isBlank()) continue;
-                        String qChunkId = "c_" + UUID.randomUUID().toString().replace("-", "");
-                        // 问题向量：用 KB 绑定模型，维度与原文一致
-                        String embPg = null;
+                    final ChunkEntity srcChunk = src;
+                    futures.add(CompletableFuture.runAsync(() -> {
                         try {
-                            Embedding emb = embModel.embed(TextSegment.from(q)).content();
-                            embPg = toPgVector(emb);
-                        } catch (Exception ee) {
-                            log.warn("[GenKbQuestion] 问题向量生成失败 chunk={} : {}", qChunkId, ee.getMessage());
+                            sem.acquire();
+                            try {
+                                int n = generateQuestionsForOneChunk(srcChunk, qCount, modelId, modelName,
+                                        finalEmbModel, kbId, doc);
+                                qTotal.addAndGet(n);
+                            } finally {
+                                sem.release();
+                            }
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.warn("[GenKbQuestion] 分块问题生成被中断 chunk={}", srcChunk.getId());
                         }
-                        Map<String, Object> metaMap = new LinkedHashMap<>();
-                        metaMap.put("type", "question");
-                        metaMap.put("source_chunk_id", src.getId());
-                        metaMap.put("document_id", doc.getId());
-                        metaMap.put("kb_id", kbId);
-                        metaMap.put("file_name", doc.getFileName() == null ? "" : doc.getFileName());
-                        String meta = metadataToJson(metaMap);
-                        // 入库问题切片（含向量 + tsv，保证向量和关键词检索都能命中）
-                        chunkMapper.insertWithEmbedding(qChunkId, kbId, q, embPg,
-                                TsVectorGenerator.toTsVector(q), meta);
-                        // 同步写 knowledge_question 记录，chunk_id 指向问题 chunk（修复历史 bug）
-                        KnowledgeQuestion kq = new KnowledgeQuestion();
-                        kq.setKbId(kbId);
-                        kq.setDocumentId(doc.getId());
-                        kq.setChunkId(qChunkId);
-                        kq.setContent(q);
-                        kq.setSource("ai");
-                        kq.setStatus(1);
-                        LocalDateTime now = LocalDateTime.now();
-                        kq.setCreatedAt(now);
-                        kq.setUpdatedAt(now);
-                        knowledgeQuestionMapper.insert(kq);
-                        qTotal++;
-                    }
+                    }, ragTaskExecutor));
                 }
+                // 阻塞等该文档全部分块完成（外层文档循环在 @Async 线程，阻塞不影响主线程）
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
                 doc.setQuestionStatus(3);  // 走完即视为已生成（无原文切片/无问题也归入已生成）
-                log.info("[GenKbQuestion] 文档 {} 生成问题 {} 条", doc.getId(), qTotal);
+                log.info("[GenKbQuestion] 文档 {} 生成问题 {} 条", doc.getId(), qTotal.get());
             } catch (Exception e) {
                 log.error("[GenKbQuestion] 文档 {} 问题生成失败: {}", doc.getId(), e.getMessage(), e);
                 doc.setQuestionStatus(1);
@@ -1496,6 +1528,67 @@ public class KnowledgeDocumentServiceImpl implements IKnowledgeDocumentService {
             log.warn("[Preview] 问题生成失败: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    /**
+     * 单个分块的问题生成 + 入库执行体（从 doGenerateKbQuestions 内层循环抽出，供并发扇出复用）。
+     *
+     * <p>线程安全：llmService.chat（无状态单例）、embModel.embed（HTTP 客户端）、
+     * chunkMapper/knowledgeQuestionMapper（每次独立连接、写不同行）均安全并发。
+     * 问题切片用全新 UUID 插入、无查重，天然无 TOCTOU 竞争。
+     *
+     * @param src      原文分块（空内容直接返回 0）
+     * @param qCount   每块生成问题数
+     * @param modelId  chat 模型 id
+     * @param modelName chat 模型名
+     * @param embModel 问题向量化模型（KB 绑定，维度与原文一致）
+     * @param kbId     知识库 id
+     * @param doc      所属文档（取 fileName 等元数据）
+     * @return 本次成功入库的问题条数
+     */
+    private int generateQuestionsForOneChunk(ChunkEntity src, int qCount, Integer modelId, String modelName,
+                                              EmbeddingModel embModel, String kbId, KnowledgeDocument doc) {
+        String srcContent = src.getContent();
+        if (srcContent == null || srcContent.isBlank()) return 0;
+        // 按原文分块逐个生成 N 个问题
+        List<String> questions = generateQuestionsForChunk(srcContent, qCount, modelId, modelName);
+        int count = 0;
+        for (String q : questions) {
+            if (q == null || q.isBlank()) continue;
+            String qChunkId = "c_" + UUID.randomUUID().toString().replace("-", "");
+            // 问题向量：用 KB 绑定模型，维度与原文一致
+            String embPg = null;
+            try {
+                Embedding emb = embModel.embed(TextSegment.from(q)).content();
+                embPg = toPgVector(emb);
+            } catch (Exception ee) {
+                log.warn("[GenKbQuestion] 问题向量生成失败 chunk={} : {}", qChunkId, ee.getMessage());
+            }
+            Map<String, Object> metaMap = new LinkedHashMap<>();
+            metaMap.put("type", "question");
+            metaMap.put("source_chunk_id", src.getId());
+            metaMap.put("document_id", doc.getId());
+            metaMap.put("kb_id", kbId);
+            metaMap.put("file_name", doc.getFileName() == null ? "" : doc.getFileName());
+            String meta = metadataToJson(metaMap);
+            // 入库问题切片（含向量 + tsv，保证向量和关键词检索都能命中）
+            chunkMapper.insertWithEmbedding(qChunkId, kbId, q, embPg,
+                    TsVectorGenerator.toTsVector(q), meta);
+            // 同步写 knowledge_question 记录，chunk_id 指向问题 chunk（修复历史 bug）
+            KnowledgeQuestion kq = new KnowledgeQuestion();
+            kq.setKbId(kbId);
+            kq.setDocumentId(doc.getId());
+            kq.setChunkId(qChunkId);
+            kq.setContent(q);
+            kq.setSource("ai");
+            kq.setStatus(1);
+            LocalDateTime now = LocalDateTime.now();
+            kq.setCreatedAt(now);
+            kq.setUpdatedAt(now);
+            knowledgeQuestionMapper.insert(kq);
+            count++;
+        }
+        return count;
     }
 
     /**
