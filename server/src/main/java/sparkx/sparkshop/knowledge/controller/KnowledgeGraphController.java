@@ -49,7 +49,6 @@ public class KnowledgeGraphController {
     @Resource
     private KnowledgeGraphService knowledgeGraphService;
 
-
     @Operation(summary = "读取全局配置")
     @GetMapping("/config")
     public AjaxResult<KgConfig> getConfig() {
@@ -63,13 +62,11 @@ public class KnowledgeGraphController {
         return AjaxResult.success();
     }
 
-
     @Operation(summary = "测试 Neo4j 连通性")
     @GetMapping("/testConnect")
     public AjaxResult<String> testConnect() {
         return AjaxResult.success(knowledgeGraphService.testConnect());
     }
-
 
     @Operation(summary = "查询知识库级 KG 开关")
     @GetMapping("/kbSetting")
@@ -84,7 +81,6 @@ public class KnowledgeGraphController {
         return AjaxResult.success();
     }
 
-
     @Operation(summary = "触发抽取（异步，返回 taskId）")
     @PostMapping("/extract")
     public AjaxResult<TaskIdVo> extract(@RequestBody @Valid KgExtractValidate validate) {
@@ -97,20 +93,17 @@ public class KnowledgeGraphController {
         return AjaxResult.success(knowledgeGraphService.getExtractProgress(taskId));
     }
 
-
     @Operation(summary = "抽取记录列表")
     @GetMapping("/records")
     public AjaxResult<PageResult<KgExtractionRecord>> records(KgRecordListValidate query) {
         return AjaxResult.success(knowledgeGraphService.getRecords(query));
     }
 
-
     @Operation(summary = "检索测试（hitTest）")
     @PostMapping("/hitTest")
     public AjaxResult<Map<String, Object>> hitTest(@RequestBody @Valid KgHitTestValidate validate) {
         return AjaxResult.success(knowledgeGraphService.hitTest(validate));
     }
-
 
     @Operation(summary = "图谱可视化数据（nodes/edges，可选 documentId 过滤单文档子图）")
     @GetMapping("/visualization")
@@ -119,14 +112,12 @@ public class KnowledgeGraphController {
         return AjaxResult.success(knowledgeGraphService.visualization(kbId, documentId));
     }
 
-
     @Operation(summary = "删除某文档的图谱数据")
     @GetMapping("/delete")
     public AjaxResult<Object> delete(@RequestParam String kbId, @RequestParam String documentId) {
         knowledgeGraphService.deleteByDocument(kbId, documentId);
         return AjaxResult.success();
     }
-
 
     @Operation(summary = "运行社区检测 + 生成社区摘要（异步，global/hybrid 模式前置）")
     @PostMapping("/community/detect")

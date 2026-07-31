@@ -46,6 +46,18 @@ public class AdminContextUtils {
     }
 
     /**
+     * 获取当前登录管理员 id（Long 形式）。
+     *
+     * <p>供实体 / 字段为 {@code Long} 的链路使用（如聊天会话），避免在 controller 里
+     * 重复透传 {@link HttpServletRequest} 再手动转换。
+     *
+     * @return 管理员 id；未登录时返回 null
+     */
+    public static Long getAdminIdAsLong() {
+        return Convert.toLong(currentRequest().getAttribute("adminId"));
+    }
+
+    /**
      * 获取当前登录管理员的角色 id
      *
      * @return 角色 id
