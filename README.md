@@ -375,7 +375,7 @@ SparkX 提供完整的可视化管理后台，覆盖智能体开发的全生命�
 
 基于 AntV X6 的流程编排引擎，让多个 Agent 按节点图协同工作。
 
-![编排](screenshot/6.png)
+![编排](screenshot/8.png)
 
 #### 对话调试
 
