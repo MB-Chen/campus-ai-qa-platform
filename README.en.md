@@ -12,6 +12,17 @@ Software architecture description
 2.  xxxx
 3.  xxxx
 
+#### Quick Start
+
+After starting the services, visit:
+
+```
+http://localhost:8189
+```
+
+Account `admin`
+Password `123456`
+
 #### Instructions
 
 1.  xxxx
