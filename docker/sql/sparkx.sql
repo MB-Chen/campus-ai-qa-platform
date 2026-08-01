@@ -1645,7 +1645,7 @@ COMMENT ON COLUMN "public"."t_persistent_memory"."version" IS '版本号（每�
 COMMENT ON COLUMN "public"."t_persistent_memory"."last_extracted_message_id" IS '增量抽取下界：已抽取的最后一条消息 id';
 COMMENT ON COLUMN "public"."t_persistent_memory"."message_count" IS '该会话族累计用户消息数（闸门用）';
 COMMENT ON COLUMN "public"."t_persistent_memory"."updated_at" IS '更新时间';
-COMMENT ON TABLE "public"."t_persistent_memory" IS '跨会话持久记忆表（每个 agentId+adminId 一份）';
+COMMENT ON TABLE "public"."t_persistent_memory" IS '跨会话持久记忆表';
 ALTER TABLE "public"."t_persistent_memory" ADD CONSTRAINT "t_persistent_memory_pkey" PRIMARY KEY ("memory_key");
 
 -- ----------------------------
