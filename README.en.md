@@ -1,5 +1,9 @@
 # SparkAI
 
+<p align="center">
+  <a href="./README.md">🇨🇳 中文</a> &nbsp;|&nbsp; <a href="./README.en.md">🇬🇧 English</a>
+</p>
+
 #### Description
 🚀 Springboot开发的 基于大语言模型和 RAG 的知识库问答系统。开箱即用、模型中立、灵活编排，支持快速嵌入到第三方业务系统。
 

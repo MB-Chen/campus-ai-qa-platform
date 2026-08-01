@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="./README.md">🇨🇳 中文</a> &nbsp;|&nbsp; <a href="./README.en.md">🇬🇧 English</a>
+</p>
+
+<p align="center">
   <a href="https://gitee.com/shop-sparker/spark-x/stargazers"><img alt="Gitee stars" src="https://gitee.com/shop-sparker/spark-x/badge/star.svg?theme=gvp" /></a>&nbsp;
   <a href="https://gitee.com/shop-sparker/spark-x/members"><img alt="Gitee forks" src="https://gitee.com/shop-sparker/spark-x/badge/fork.svg?theme=gvp" /></a>&nbsp;
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-4a9b8f?style=flat-square" /></a>
@@ -297,10 +301,9 @@ messages = [
 
 ### 1. 工程规范
 
-- **分层架构**：`knowledge` 子系统内部按 pipeline / retrieval / ingest / infra / mcp / intent / graph / memory / fallback / tenant 分包，职责清晰，不存在基础设施代码和业务代码混在一起。
+- **分层架构**：`knowledge` 子系统内部按 pipeline / retrieval / ingest / infra / mcp / intent / graph / memory / fallback 分包，职责清晰，不存在基础设施代码和业务代码混在一起。
 - **设计模式实战**：策略、模板方法、责任链、装饰器、注册表——每个都解决实际的扩展性或解耦问题。
 - **配置即数据**：模型配置走 `ai_model` 表（页面可编辑，运行时动态读取覆盖 yml 默认值），而不是写死在配置文件里。
-- **多租户隔离**：`TenantContext` + `TenantInterceptor`，向量查询自动按租户元数据过滤，不同租户看到的知识库互不干扰。
 
 ### 2. 可扩展性
 
@@ -321,7 +324,6 @@ messages = [
 | **流式输出** | SSE 实时推送，首包探测保证模型切换时用户无感知 |
 | **可观测性** | 基于 AOP 的全链路 Trace（`@RagTraceNode`），每个环节耗时、输入输出都有记录 |
 | **会话管理** | 对话记忆（历史轮次 + 摘要压缩），不会因为轮次多了就 OOM 或 Token 爆炸 |
-| **多租户** | 向量查询元数据过滤，租户间知识库隔离 |
 | **认证鉴权** | 基于 JWT 的用户认证体系，不是裸奔的 API |
 | **对象存储** | MinIO 企业云盘，bucket `sparkx-drive` |
 
