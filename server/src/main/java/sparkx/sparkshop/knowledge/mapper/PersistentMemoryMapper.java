@@ -23,6 +23,7 @@ import java.util.List;
  * 持久记忆实体本身按 memoryKey（pmem:{agentId}:{adminId}）单表 CRUD；
  * 增量抽取时需跨多个 conversationId 拉取该会话族的消息（conversation_id 以 agent:{agentId}: 开头，
  * user_id 固定为 agent:operator）。
+ * 注意：所有查询均显式排除 conversation_id LIKE '%:eval:%' 的评估探针会话，防止评估数据污染正式记忆。
  */
 public interface PersistentMemoryMapper extends BaseMapper<PersistentMemoryEntity> {
 
@@ -32,7 +33,8 @@ public interface PersistentMemoryMapper extends BaseMapper<PersistentMemoryEntit
      * 用 LIKE 前缀匹配该智能体下所有会话。
      */
     @Select("SELECT COUNT(*) FROM t_conversation_message " +
-            "WHERE conversation_id LIKE #{convPrefix} AND user_id = #{userId} AND role = 'user'")
+            "WHERE conversation_id LIKE #{convPrefix} AND user_id = #{userId} " +
+            "  AND conversation_id NOT LIKE '%:eval:%' AND role = 'user'")
     long countUserMessagesByAgent(@Param("convPrefix") String conversationIdPrefix,
                                   @Param("userId") String userId);
 
@@ -42,6 +44,7 @@ public interface PersistentMemoryMapper extends BaseMapper<PersistentMemoryEntit
      */
     @Select("SELECT * FROM t_conversation_message " +
             "WHERE conversation_id LIKE #{convPrefix} AND user_id = #{userId} " +
+            "  AND conversation_id NOT LIKE '%:eval:%' " +
             "ORDER BY id DESC LIMIT #{limit}")
     List<ConversationMessageEntity> findRecentByAgent(@Param("convPrefix") String conversationIdPrefix,
                                                       @Param("userId") String userId,
@@ -53,7 +56,8 @@ public interface PersistentMemoryMapper extends BaseMapper<PersistentMemoryEntit
      */
     @Select("SELECT * FROM t_conversation_message " +
             "WHERE conversation_id LIKE #{convPrefix} AND user_id = #{userId} " +
-            "  AND id > #{afterId} ORDER BY id ASC LIMIT #{limit}")
+            "  AND conversation_id NOT LIKE '%:eval:%' AND id > #{afterId} " +
+            "ORDER BY id ASC LIMIT #{limit}")
     List<ConversationMessageEntity> findIncrementalByAgent(@Param("convPrefix") String conversationIdPrefix,
                                                            @Param("userId") String userId,
                                                            @Param("afterId") long afterId,
