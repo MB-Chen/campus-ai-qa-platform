@@ -164,7 +164,7 @@
           </n-tooltip>
           <n-space>
             <n-button @click="show = false">取消</n-button>
-            <n-button type="primary" strong secondary :loading="saving" @click="handleSave"
+            <n-button type="primary" secondary :loading="saving" @click="handleSave"
               >保存</n-button
             >
           </n-space>

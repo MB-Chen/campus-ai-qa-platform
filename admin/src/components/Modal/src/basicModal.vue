@@ -17,7 +17,7 @@
       <slot name="action">
         <n-space>
           <n-button @click="closeModal">取消</n-button>
-          <n-button type="primary" strong secondary :loading="subLoading" @click="handleSubmit">{{
+          <n-button type="primary" secondary :loading="subLoading" @click="handleSubmit">{{
             subBtuText
           }}</n-button>
         </n-space>

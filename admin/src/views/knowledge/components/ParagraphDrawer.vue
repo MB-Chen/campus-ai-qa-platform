@@ -4,7 +4,7 @@
       <n-spin :show="loading">
         <div class="drawer-toolbar">
           <n-space>
-            <n-button type="primary" size="small" strong secondary @click="handleAdd">
+            <n-button type="primary" size="small" secondary @click="handleAdd">
               <template #icon
                 ><n-icon><PlusOutlined /></n-icon
               ></template>
@@ -181,7 +181,7 @@
     <template #footer>
       <n-space justify="end">
         <n-button @click="editVisible = false">取消</n-button>
-        <n-button type="primary" strong secondary :loading="saving" @click="saveEdit">
+        <n-button type="primary" secondary :loading="saving" @click="saveEdit">
           保存
         </n-button>
       </n-space>

@@ -309,7 +309,7 @@
     <template #footer>
       <n-space justify="end">
         <n-button @click="show = false">取消</n-button>
-        <n-button type="primary" strong secondary :loading="saving" @click="handleSave"
+        <n-button type="primary" secondary :loading="saving" @click="handleSave"
           >确定</n-button
         >
       </n-space>

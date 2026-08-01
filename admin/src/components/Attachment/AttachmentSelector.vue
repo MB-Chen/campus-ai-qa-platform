@@ -9,7 +9,6 @@
           <n-button
             v-if="needSelect"
             type="success"
-            strong
             secondary
             :disabled="selectedImages.length === 0"
             @click="handleConfirmUse"
@@ -29,7 +28,7 @@
           @before-upload="handleBeforeUpload"
           @finish="handleUploadFinish"
         >
-          <n-button type="primary" strong secondary>
+          <n-button type="primary" secondary>
             <template #icon>
               <n-icon><UploadOutlined /></n-icon>
             </template>
@@ -38,7 +37,6 @@
         </n-upload>
 
         <n-button
-          strong
           secondary
           type="error"
           :disabled="selectedImages.length === 0"

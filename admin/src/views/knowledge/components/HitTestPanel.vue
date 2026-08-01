@@ -39,7 +39,7 @@
         />
       </n-form-item>
       <n-form-item label=" ">
-        <n-button type="primary" strong secondary :loading="loading" @click="handleTest">
+        <n-button type="primary" secondary :loading="loading" @click="handleTest">
           <template #icon
             ><n-icon><ThunderboltOutlined /></n-icon
           ></template>

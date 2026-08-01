@@ -1,0 +1,130 @@
+// ============================================================
+// SparkX 现代化全局样式（Apple 风格）
+// 统一字体、滚动条、过渡曲线、卡片层级，与 Naive UI 主题协同
+// 所有规则用 :root 变量 + 全局选择器，不侵入 scoped 组件
+// ============================================================
+
+:root {
+  // 统一弹性过渡曲线（Apple 风：进出都柔和）
+  --ease-apple: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-apple-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+// 全局字体栈：Apple 系统字体优先，中文 PingFang/微软雅黑兜底
+html,
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern';
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+
+// Apple 风自定义滚动条：细、圆角、半透明
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.18);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.2s var(--ease-apple);
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.32);
+    background-clip: content-box;
+  }
+}
+
+// 选中文本：翡翠绿半透明背景
+::selection {
+  background: rgba(5, 150, 105, 0.2);
+  color: inherit;
+}
+::-moz-selection {
+  background: rgba(5, 150, 105, 0.2);
+  color: inherit;
+}
+
+// ============================================================
+// Naive UI 组件柔化：全局覆盖（非 scoped，作用于 .n-* 类）
+// 用 :where() 零优先级，可被组件级 scoped 样式覆盖
+// ============================================================
+
+// 卡片：默认弱化边框，靠柔和阴影与背景区分层级
+.n-card {
+  border-radius: 12px !important;
+  transition: box-shadow 0.3s var(--ease-apple),
+    transform 0.3s var(--ease-apple), border-color 0.2s var(--ease-apple);
+}
+
+// 按钮：字重统一 500，圆角继承主题
+.n-button {
+  font-weight: 500;
+  transition: all 0.2s var(--ease-apple);
+}
+
+// 输入框聚焦：柔和翡翠绿光环（强化主题一致性）
+.n-input--focus {
+  // box-shadow 由 themeOverrides 控制，这里仅补过渡
+  transition: box-shadow 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple);
+}
+
+// 弹窗 / 抽屉：圆角 + 淡入更柔和
+.n-modal-mask,
+.n-drawer-mask {
+  backdrop-filter: blur(2px);
+}
+
+// 模态卡片圆角
+.n-modal.n-card {
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+// 表格表头：柔和底色由 themeOverrides 控制，这里补过渡
+.n-data-table-th {
+  transition: background-color 0.2s var(--ease-apple);
+}
+
+// 标签 pill 化
+.n-tag {
+  border-radius: 6px;
+}
+
+// 消息 / 通知：圆角 + 柔和阴影
+.n-message,
+.n-notification {
+  border-radius: 12px !important;
+}
+
+// 菜单项选中态过渡
+.n-menu-item-content {
+  transition: color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple);
+}
+
+// 全局聚焦轮廓：替代浏览器默认蓝框，统一为柔和翡翠绿光环
+// 仅作用于键盘聚焦（鼠标点击不触发），兼顾无障碍
+:focus-visible {
+  outline: 2px solid rgba(5, 150, 105, 0.5);
+  outline-offset: 2px;
+}

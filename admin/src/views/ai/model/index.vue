@@ -8,7 +8,7 @@
 
     <n-card :bordered="false" class="mt-4 proCard">
       <div class="model-toolbar">
-        <n-button type="primary" strong secondary @click="openCreate">
+        <n-button type="primary" secondary @click="openCreate">
           <template #icon
             ><n-icon><PlusOutlined /></n-icon
           ></template>

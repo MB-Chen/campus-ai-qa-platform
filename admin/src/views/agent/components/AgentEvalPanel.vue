@@ -19,7 +19,6 @@
                 size="small"
                 type="primary"
                 secondary
-                strong
                 :loading="running"
                 :disabled="cases.length === 0"
                 @click="onRunEval"
@@ -134,14 +133,12 @@
   } from '@/api/system/agent';
 
   const message = useMessage();
-
   const show = ref(false);
   const agent = ref<Agent | null>(null);
   const cases = ref<AgentEvalCase[]>([]);
   const report = ref<AgentEvalReport | null>(null);
   const running = ref(false);
   const seeding = ref(false);
-
   const radarChartRef = ref<HTMLElement | null>(null);
   const barChartRef = ref<HTMLElement | null>(null);
   let radarChart: echarts.ECharts | null = null;
@@ -149,7 +146,6 @@
 
   // localStorage 持久化测试集
   const LS_KEY_PREFIX = 'agent_eval_cases_';
-
   const caseColumns: DataTableColumns<AgentEvalCase> = [
     {
       title: '问题',

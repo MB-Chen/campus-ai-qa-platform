@@ -19,7 +19,7 @@
                 style="width: 200px"
                 placeholder="选择类型新建"
               />
-              <n-button type="primary" strong secondary @click="handleCreate">
+              <n-button type="primary" secondary @click="handleCreate">
                 <template #icon
                   ><n-icon><PlusOutlined /></n-icon
                 ></template>

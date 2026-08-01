@@ -74,7 +74,6 @@
           text: actionText,
           type: actionType,
           size: 'small',
-          strong: true,
           secondary: true,
         };
       });
@@ -122,7 +121,6 @@
             //需要展示什么风格，自己修改一下参数
             return {
               size: 'small',
-              strong: true,
               secondary: true,
               text: actionText,
               type: action.type || actionType,

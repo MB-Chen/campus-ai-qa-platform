@@ -15,7 +15,7 @@
           :show-file-list="false"
           accept="image/*"
         >
-          <n-button strong secondary type="primary">
+          <n-button secondary type="primary">
             <template #icon>
               <n-icon><UploadOutlined /></n-icon>
             </template>
@@ -40,7 +40,6 @@
                 circle
                 size="small"
                 type="error"
-                strong
                 secondary
                 @click.stop="handleDelete(item)"
               >
@@ -71,8 +70,8 @@
           已选择: {{ selectedImages.length }} / {{ maxSelect }}
         </span>
         <n-space>
-          <n-button strong secondary @click="handleClose">取消</n-button>
-          <n-button strong secondary type="primary" :disabled="selectedImages.length === 0" @click="handleConfirm">
+          <n-button secondary @click="handleClose">取消</n-button>
+          <n-button secondary type="primary" :disabled="selectedImages.length === 0" @click="handleConfirm">
             确定
           </n-button>
         </n-space>
@@ -92,7 +91,6 @@
   import { NModal, NButton, NSpace, NSpin, NEmpty, NIcon, NUpload, useMessage } from 'naive-ui';
   import { CheckOutlined, UploadOutlined, DeleteOutlined } from '@vicons/antd';
   import { getAttachmentList, uploadAttachment, delAttachment } from '@/api/system/attachment';
-
   interface ImageItem {
     url: string;
     name?: string;
@@ -113,15 +111,12 @@
 
   const emit = defineEmits(['select']);
   const message = useMessage();
-
   const showModal = ref(false);
   const loading = ref(false);
   const imageList = ref<ImageItem[]>([]);
   const selectedImages = ref<ImageItem[]>([]);
   const uploading = ref(false);
-
   const maxSelect = computed(() => props.maxSelect);
-
   function isSelected(item: ImageItem): boolean {
     return selectedImages.value.some((selected) => selected.url === item.url);
   }
@@ -188,7 +183,6 @@
       const formData = new FormData();
       formData.append('file', file.file);
       formData.append('merchant_id', '0');
-
       const response = await uploadAttachment(formData);
       if (response.code === 0) {
         message.success('上传成功');
@@ -216,7 +210,6 @@
     // 使用确认对话框
     const confirmed = window.confirm('确定要删除这张图片吗？');
     if (!confirmed) return;
-
     try {
       const response = await delAttachment([item.id as number]);
       if (response.code === 0) {

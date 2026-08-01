@@ -1,5 +1,6 @@
 import './styles/tailwind.css';
 import './styles/index.less';
+import './styles/modern.less';
 import '@file-viewer/vue3/dist/file-viewer3.css';
 import '@/assets/styles/chat-markdown.less';
 import { createApp } from 'vue';

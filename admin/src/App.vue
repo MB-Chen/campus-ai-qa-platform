@@ -24,30 +24,14 @@
   import { AppProvider } from '@/components/Application';
   import { useScreenLockStore } from '@/store/modules/screenLock.js';
   import { useDesignSettingStore } from '@/store/modules/designSetting';
-  import { lighten } from '@/utils/index';
+  import { buildThemeOverrides } from '@/settings/theme';
 
   const useScreenLock = useScreenLockStore();
   const designStore = useDesignSettingStore();
   const isLock = computed(() => useScreenLock.isLocked);
 
-  /**
-   * @type import('naive-ui').GlobalThemeOverrides
-   */
-  const getThemeOverrides = computed(() => {
-    const appTheme = designStore.appTheme;
-    const lightenStr = lighten(designStore.appTheme, 6);
-    return {
-      common: {
-        primaryColor: appTheme,
-        primaryColorHover: lightenStr,
-        primaryColorPressed: lightenStr,
-        primaryColorSuppl: appTheme,
-      },
-      LoadingBar: {
-        colorLoading: appTheme,
-      },
-    };
-  });
+  // 全局主题覆盖：翡翠绿 Apple 风（圆角/阴影/字重/过渡曲线 + 逐组件精修）
+  const getThemeOverrides = computed(() => buildThemeOverrides(designStore.appTheme));
 
   const getDarkTheme = computed(() => (designStore.darkTheme ? darkTheme : undefined));
 

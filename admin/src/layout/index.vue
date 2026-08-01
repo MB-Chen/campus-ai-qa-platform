@@ -604,7 +604,7 @@
   //   - 亮色：内容区浅灰 #f5f7f9（与 .layout-default-background 一致）
   //   - 暗色：跟随 naive-ui 真实页面背景色（黑色系）
   const footerBg = computed(() => {
-    return isDarkTheme.value ? themeVars.value.bodyColor : '#f5f7f9';
+    return isDarkTheme.value ? themeVars.value.bodyColor : '#f7f8fa';
   });
 
   // 头像背景色：跟随系统主题色，避免硬编码绿色
@@ -663,10 +663,10 @@
 
     .layout-sider {
       min-height: 100vh;
-      box-shadow: 2px 0 8px 0 rgb(29 35 41 / 5%);
+      box-shadow: none;
       position: relative;
       z-index: 13;
-      transition: all 0.2s ease-in-out;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
   }
 </style>
@@ -677,15 +677,16 @@
     flex: auto;
 
     &-default-background {
-      background: #f5f7f9;
+      background: #f7f8fa;
     }
 
     .layout-sider {
       min-height: 100vh;
-      box-shadow: 2px 0 8px 0 rgb(29 35 41 / 5%);
+      box-shadow: none;
+      border-right: 1px solid v-bind('themeVars.dividerColor');
       position: relative;
       z-index: 13;
-      transition: all 0.2s ease-in-out;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
       // 给底部固定区（用户信息 + 操作按钮）留出空间，避免菜单最后一项被遮挡
       .n-layout-sider-scroll-container {
@@ -753,7 +754,7 @@
   }
 
   .layout-content-main {
-    margin: 10px;
+    margin: 16px;
     padding-bottom: 36px;
     flex: 1;
 

@@ -23,7 +23,7 @@
             ></template>
             搜索
           </n-button>
-          <n-button type="primary" strong secondary @click="openCreate">
+          <n-button type="primary" secondary @click="openCreate">
             <template #icon
               ><n-icon><PlusOutlined /></n-icon
             ></template>

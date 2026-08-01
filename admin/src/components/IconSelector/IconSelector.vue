@@ -52,8 +52,8 @@
 
       <template #footer>
         <div class="modal-footer">
-          <n-button strong secondary @click="showModal = false">取消</n-button>
-          <n-button strong secondary type="primary" @click="confirmIcon">确定</n-button>
+          <n-button secondary @click="showModal = false">取消</n-button>
+          <n-button secondary type="primary" @click="confirmIcon">确定</n-button>
         </div>
       </template>
     </n-modal>

@@ -67,12 +67,22 @@
               >
             </div>
             <div class="kb-actions">
-              <n-button size="tiny" quaternary type="primary" @click="openEdit(ag)">配置</n-button>
-              <n-button size="tiny" quaternary @click="openTest(ag)">测试对话</n-button>
-              <n-button size="tiny" quaternary @click="openEval(ag)">评估</n-button>
-              <n-button size="tiny" quaternary type="error" @click="handleDelete(ag)"
-                >删除</n-button
-              >
+              <n-button class="kb-action-btn" size="tiny" quaternary type="primary" @click="openEdit(ag)">
+                <template #icon><n-icon><SettingOutlined /></n-icon></template>
+                配置
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary @click="openTest(ag)">
+                <template #icon><n-icon><MessageOutlined /></n-icon></template>
+                测试对话
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary @click="openEval(ag)">
+                <template #icon><n-icon><BarChartOutlined /></n-icon></template>
+                评估
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary type="error" @click="handleDelete(ag)">
+                <template #icon><n-icon><DeleteOutlined /></n-icon></template>
+                删除
+              </n-button>
             </div>
           </div>
         </div>
@@ -101,7 +111,13 @@
 <script setup lang="ts">
   import { ref, onMounted } from 'vue';
   import { useMessage, useDialog } from 'naive-ui';
-  import { SearchOutlined } from '@vicons/antd';
+  import {
+    SearchOutlined,
+    SettingOutlined,
+    MessageOutlined,
+    BarChartOutlined,
+    DeleteOutlined,
+  } from '@vicons/antd';
   import { getAgentList, delAgent, type Agent } from '@/api/system/agent';
   import AgentSaveModal from './components/AgentSaveModal.vue';
   import AgentTestChat from './components/AgentTestChat.vue';
@@ -267,9 +283,9 @@
     -webkit-box-orient: vertical;
   }
   .kb-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
     padding: 8px 0;
     border-top: 1px dashed #eee;
     border-bottom: 1px dashed #eee;
@@ -279,6 +295,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
   }
   .meta-label {
     font-size: 11px;
@@ -287,10 +304,16 @@
   .meta-value {
     font-size: 13px;
     color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .kb-actions {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .kb-action-btn {
+    min-width: 0;
   }
 </style>

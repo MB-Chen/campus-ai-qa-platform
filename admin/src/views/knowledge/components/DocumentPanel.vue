@@ -2,7 +2,7 @@
   <div>
     <div class="toolbar">
       <n-space>
-        <n-button type="primary" size="small" strong secondary @click="handleUpload">
+        <n-button type="primary" size="small" secondary @click="handleUpload">
           <template #icon
             ><n-icon><UploadOutlined /></n-icon
           ></template>
@@ -10,7 +10,6 @@
         </n-button>
         <n-button
           size="small"
-          strong
           secondary
           :disabled="checkedIds.length === 0"
           @click="handleEmbedding"
@@ -22,7 +21,6 @@
         </n-button>
         <n-button
           size="small"
-          strong
           secondary
           :disabled="checkedIds.length === 0"
           @click="handleGenQuestion"
@@ -34,7 +32,6 @@
         </n-button>
         <n-button
           size="small"
-          strong
           secondary
           type="error"
           :disabled="checkedIds.length === 0"
@@ -137,7 +134,6 @@
   import ParagraphDrawer from './ParagraphDrawer.vue';
   import GenQuestionModal from './GenQuestionModal.vue';
   import KgGraphDrawer from '../graph/components/KgGraphDrawer.vue';
-
   const props = defineProps<{
     kbId: string;
   }>();
@@ -209,7 +205,6 @@
   }
 
   const progressTaskMap: Record<string, string> = {};
-
   function pollAllProgress() {
     const poll = async () => {
       const activeDocIds = Object.keys(progressTaskMap);
@@ -287,15 +282,11 @@
   const size = ref(10);
   const total = ref(0);
   const checkedKeys = ref<string[]>([]);
-
   const uploadModalRef = ref<InstanceType<typeof UploadModal> | null>(null);
   const paragraphDrawerRef = ref<InstanceType<typeof ParagraphDrawer> | null>(null);
   const genModalRef = ref<InstanceType<typeof GenQuestionModal> | null>(null);
-
   const checkedIds = computed(() => checkedKeys.value);
-
   let pollTimer: any = null;
-
   function formatSize(size?: number) {
     if (!size) return '-';
     if (size < 1024) return size + ' B';
@@ -321,7 +312,6 @@
   const smoothElapsed: Record<string, number> = {};
   const tick = ref(0);
   let smoothTimer: ReturnType<typeof setInterval> | null = null;
-
   function syncAnchors(docs: KnowledgeDocument[]) {
     const activeIds = new Set<string>();
     for (const d of docs) {
@@ -497,7 +487,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'info',
                   onClick: () => openParagraphs(row),
@@ -511,7 +500,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'primary',
                   onClick: () => embeddingOne(row),
@@ -526,7 +514,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'warning',
                   disabled: !kgOn || extracting,
@@ -543,7 +530,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'success',
                   disabled: !kgOn,

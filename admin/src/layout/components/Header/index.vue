@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-header">
+  <div class="layout-header" :style="headerVars">
     <!--顶部菜单-->
     <div
       class="layout-header-left"
@@ -171,7 +171,7 @@
   import { useScreenLockStore } from '@/store/modules/screenLock';
   import { useUserStore } from '@/store/modules/user';
   import { TABS_ROUTES } from '@/store/mutation-types';
-  import { NDialogProvider, useDialog, useMessage, FormInst } from 'naive-ui';
+  import { NDialogProvider, useDialog, useMessage, FormInst, useThemeVars } from 'naive-ui';
   import { computed, defineComponent, reactive, ref, toRefs, unref } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import components from './components';
@@ -195,7 +195,16 @@
       const useLockscreen = useScreenLockStore();
       const message = useMessage();
       const dialog = useDialog();
+      const themeVars = useThemeVars();
       const { navMode, navTheme, headerSetting, menuSetting, crumbsSetting } = useProjectSetting();
+
+      // 顶栏主题变量（毛玻璃背景 + 分隔线 + 文字色，跟随亮暗主题）
+      const headerVars = computed(() => ({
+        '--header-bg': themeVars.value.cardColor,
+        '--header-border': themeVars.value.dividerColor,
+        '--header-text': themeVars.value.textColor2,
+        '--header-hover': themeVars.value.hoverColor,
+      }));
 
       const drawerSetting = ref();
       const passwordFormRef = ref<FormInst | null>(null);
@@ -438,7 +447,8 @@
         passwordForm,
         passwordRules,
         passwordLoading,
-        handlePasswordSubmit
+        handlePasswordSubmit,
+        headerVars,
       };
     },
   });
@@ -450,11 +460,12 @@
     justify-content: space-between;
     align-items: center;
     padding: 0;
-    height: 64px;
-    box-shadow: 0 1px 4px rgb(0 21 41 / 8%);
-    transition: all 0.2s ease-in-out;
+    height: 56px;
+    border-bottom: 1px solid var(--header-border);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     z-index: 11;
+    background: var(--header-bg);
 
     &-left {
       display: flex;
@@ -464,15 +475,15 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 64px;
-        line-height: 64px;
+        height: 56px;
+        line-height: 56px;
         overflow: hidden;
         white-space: nowrap;
         padding-left: 10px;
 
         img {
           width: auto;
-          height: 32px;
+          height: 28px;
           margin-right: 10px;
         }
 
@@ -482,7 +493,7 @@
       }
 
       ::v-deep(.ant-breadcrumb span:last-child .link-text) {
-        color: #515a6e;
+        color: var(--header-text);
       }
 
       .n-breadcrumb {
@@ -490,7 +501,7 @@
       }
 
       &-menu {
-        color: var(--text-color);
+        color: var(--header-text);
       }
     }
 
@@ -502,7 +513,7 @@
       .avatar {
         display: flex;
         align-items: center;
-        height: 64px;
+        height: 56px;
       }
 
       > * {
@@ -512,26 +523,27 @@
 
     &-trigger {
       display: inline-block;
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
       text-align: center;
       cursor: pointer;
-      transition: all 0.2s ease-in-out;
+      border-radius: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
       .n-icon {
         display: flex;
         align-items: center;
-        height: 64px;
-        line-height: 64px;
+        height: 56px;
+        line-height: 56px;
       }
 
       &:hover {
-        background: hsla(0, 0%, 100%, 0.08);
+        background: var(--header-hover);
       }
 
       .anticon {
         font-size: 16px;
-        color: #515a6e;
+        color: var(--header-text);
       }
     }
 
@@ -541,27 +553,27 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 64px;
+      height: 56px;
     }
   }
 
   .layout-header-light {
-    background: #fff;
-    color: #515a6e;
+    background: var(--header-bg);
+    color: var(--header-text);
 
     .n-icon {
-      color: #515a6e;
+      color: var(--header-text);
     }
 
     .layout-header-left {
       ::v-deep(.n-breadcrumb .n-breadcrumb-item:last-child .n-breadcrumb-item__link) {
-        color: #515a6e;
+        color: var(--header-text);
       }
     }
 
     .layout-header-trigger {
       &:hover {
-        background: #f8f8f9;
+        background: var(--header-hover);
       }
     }
   }

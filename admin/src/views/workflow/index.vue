@@ -112,7 +112,7 @@
       <template #footer>
         <n-space justify="end">
           <n-button @click="showCreate = false">取消</n-button>
-          <n-button type="primary" strong secondary :loading="creating" @click="handleCreateConfirm"
+          <n-button type="primary" secondary :loading="creating" @click="handleCreateConfirm"
             >确定</n-button
           >
         </n-space>

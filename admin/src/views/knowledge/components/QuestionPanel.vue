@@ -2,19 +2,19 @@
   <div>
     <div class="toolbar">
       <n-space>
-        <n-button type="primary" size="small" strong secondary @click="openAdd">
+        <n-button type="primary" size="small" secondary @click="openAdd">
           <template #icon
             ><n-icon><PlusOutlined /></n-icon
           ></template>
           新增问题
         </n-button>
-        <n-button size="small" strong secondary @click="openImport">
+        <n-button size="small" secondary @click="openImport">
           <template #icon>
             <n-icon><UploadOutlined /></n-icon>
           </template>
           批量导入
         </n-button>
-        <n-button size="small" strong secondary @click="downloadTemplate">
+        <n-button size="small" secondary @click="downloadTemplate">
           <template #icon>
             <n-icon><DownloadOutlined /></n-icon>
           </template>
@@ -261,7 +261,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'primary',
                   onClick: () => openEdit(row),
@@ -272,7 +271,6 @@
                 NButton,
                 {
                   size: 'tiny',
-                  strong: true,
                   secondary: true,
                   type: 'error',
                   onClick: () => handleDelete(row),

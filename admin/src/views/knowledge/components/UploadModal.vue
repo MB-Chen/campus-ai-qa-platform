@@ -348,7 +348,7 @@
         <template #footer>
           <n-space justify="end">
             <n-button @click="editVisible = false">取消</n-button>
-            <n-button type="primary" strong secondary @click="saveEdit">保存</n-button>
+            <n-button type="primary" secondary @click="saveEdit">保存</n-button>
           </n-space>
         </template>
       </n-modal>
@@ -380,7 +380,6 @@
             <n-button
               v-if="current === 2 && enablePreview"
               type="primary"
-              strong
               secondary
               :loading="previewing"
               @click="doPreview"
@@ -390,7 +389,6 @@
             <n-button
               v-if="current === 2 && !enablePreview"
               type="primary"
-              strong
               secondary
               :loading="previewing"
               @click="doDirectSave"
@@ -401,7 +399,6 @@
             <n-button
               v-if="current === 3 && !previewing"
               type="primary"
-              strong
               secondary
               :loading="saving"
               @click="doSave"
@@ -465,12 +462,10 @@
   import ProcessingStatus from './ProcessingStatus.vue';
   import IngestionTimelineModal from './IngestionTimelineModal.vue';
   import type { ChunkingConfig } from './chunkingConfig';
-
   const props = defineProps<{ kbId: string }>();
   const emit = defineEmits<{ (e: 'uploaded'): void }>();
   const message = useMessage();
   const router = useRouter();
-
   const show = ref(false);
   const current = ref(1);
   const fileList = ref<UploadFileInfo[]>([]);
@@ -500,7 +495,6 @@
   const previewElapsedMs = ref(0);
   let previewElapsedTimer: ReturnType<typeof setInterval> | null = null;
   let previewStartedAt = 0;
-
   function startPreviewElapsed() {
     stopPreviewElapsed();
     previewStartedAt = Date.now();
@@ -535,7 +529,6 @@
   const saveElapsedMs = ref(0);
   let saveElapsedTimer: ReturnType<typeof setInterval> | null = null;
   let saveStartedAt = 0;
-
   function startSaveElapsed() {
     stopSaveElapsed();
     saveStartedAt = Date.now();
@@ -685,7 +678,6 @@
   // 预览结果
   const previewDocs = ref<PreviewDocItem[]>([]);
   const activeDoc = ref(0);
-
   const currentDoc = computed(() => previewDocs.value[activeDoc.value]);
   const currentChunks = computed(() => currentDoc.value?.chunks || []);
 
@@ -717,7 +709,6 @@
   // 重新 patch，其余切片连同 v-html 完全跳过，彻底解决性能卡顿和
   // 「Maximum recursive updates exceeded」。
   const expandedFlags = ref<boolean[]>([]);
-
   function toggleParent(idx: number) {
     const arr = expandedFlags.value.slice();
     arr[idx] = !arr[idx];
@@ -753,7 +744,6 @@
   const editVisible = ref(false);
   const editIndex = ref(-1);
   const editForm = ref<PreviewChunkItem>({ title: '', content: '' });
-
   interface FileTypeGroup {
     label: string;
     extensions: string[];

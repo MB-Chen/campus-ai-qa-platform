@@ -38,13 +38,13 @@
         </n-form-item>
         <n-form-item>
           <n-space>
-            <n-button strong secondary type="primary" @click="handleSearch">
+            <n-button secondary type="primary" @click="handleSearch">
               <template #icon>
                 <n-icon><SearchOutlined /></n-icon>
               </template>
               搜索
             </n-button>
-            <n-button strong secondary @click="handleReset">
+            <n-button secondary @click="handleReset">
               <template #icon>
                 <n-icon><ReloadOutlined /></n-icon>
               </template>
@@ -64,26 +64,25 @@
       >
         <template #tableTitle>
           <n-space size="small">
-            <n-button strong secondary type="primary" @click="openCreate">
+            <n-button secondary type="primary" @click="openCreate">
               <template #icon>
                 <n-icon><PlusOutlined /></n-icon>
               </template>
               新增
             </n-button>
-            <n-button strong secondary @click="openImport">
+            <n-button secondary @click="openImport">
               <template #icon>
                 <n-icon><UploadOutlined /></n-icon>
               </template>
               导入
             </n-button>
-            <n-button strong secondary :loading="exporting" @click="handleExport">
+            <n-button secondary :loading="exporting" @click="handleExport">
               <template #icon>
                 <n-icon><DownloadOutlined /></n-icon>
               </template>
               导出
             </n-button>
             <n-button
-              strong
               secondary
               type="warning"
               :loading="batchVectorizing"
@@ -95,7 +94,7 @@
               </template>
               批量向量化
             </n-button>
-            <n-button strong secondary @click="openConfig">
+            <n-button secondary @click="openConfig">
               <template #icon>
                 <n-icon><SettingOutlined /></n-icon>
               </template>
@@ -244,11 +243,9 @@
   } from '@/api/system/sampleQuery';
   import EditModal from './components/EditModal.vue';
   import ConfigModal from './components/ConfigModal.vue';
-
   const message = useMessage();
   const dialog = useDialog();
   const actionRef = ref();
-
   const searchForm = reactive({
     keyword: '',
     status: null as number | null,
@@ -283,7 +280,6 @@
     if (searchForm.keyword) params.keyword = searchForm.keyword;
     if (searchForm.status != null) params.status = searchForm.status;
     if (searchForm.vectorized != null) params.vectorized = searchForm.vectorized;
-
     try {
       const response: any = await getSampleQueryList(params);
       // 拦截器非 0 code 不 reject，列表渲染前必须校验数组 + 过滤 null
@@ -303,7 +299,6 @@
   };
 
   const editModalRef = ref<InstanceType<typeof EditModal> | null>(null);
-
   function openCreate() {
     editModalRef.value?.openCreate();
   }
@@ -338,7 +333,6 @@
   const importing = ref(false);
   const importFileList = ref<UploadFileInfo[]>([]);
   const importResult = ref<SampleQueryImportResult | null>(null);
-
   function openImport() {
     importFileList.value = [];
     importResult.value = null;
@@ -385,7 +379,6 @@
   }
 
   const exporting = ref(false);
-
   async function handleExport() {
     exporting.value = true;
     try {
@@ -422,7 +415,6 @@
   const batchVectorizing = ref(false);
   const vectorizeProgress = ref<SampleQueryVectorizeProgress | null>(null);
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
-
   const progressPercent = computed(() => {
     if (!vectorizeProgress.value || !vectorizeProgress.value.total) return 0;
     return Math.round((vectorizeProgress.value.done / vectorizeProgress.value.total) * 100);
@@ -516,7 +508,6 @@
   }
 
   const configModalRef = ref<InstanceType<typeof ConfigModal> | null>(null);
-
   function openConfig() {
     configModalRef.value?.open();
   }
