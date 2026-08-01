@@ -73,7 +73,7 @@ public class HybridContentRetriever implements ContentRetriever {
     @Override
     public List<Content> retrieve(Query query) {
         // langchain4j 接口契约：无 kbId 时用默认兜底模型（向后兼容）
-        return doRetrieve(query, null, null, null, null, null);
+        return doRetrieve(query, null, null, null, null, null, null);
     }
 
     /**
@@ -83,7 +83,7 @@ public class HybridContentRetriever implements ContentRetriever {
      * @param kbId  知识库 id；为空回退默认模型
      */
     public List<Content> retrieve(Query query, String kbId) {
-        return doRetrieve(query, kbId, null, null, null, null);
+        return doRetrieve(query, kbId, null, null, null, null, null);
     }
 
     /**
@@ -94,7 +94,7 @@ public class HybridContentRetriever implements ContentRetriever {
      * @param docIds 限定文档 id 列表；为 null 或空则检索整库
      */
     public List<Content> retrieve(Query query, String kbId, List<String> docIds) {
-        return doRetrieve(query, kbId, docIds, null, null, null);
+        return doRetrieve(query, kbId, docIds, null, null, null, null);
     }
 
     /**
@@ -110,24 +110,36 @@ public class HybridContentRetriever implements ContentRetriever {
     public List<Content> retrieve(Query query, String kbId, List<String> docIds,
                                   Integer topKOverride, Double vectorThresholdOverride,
                                   Double keywordThresholdOverride) {
-        return doRetrieve(query, kbId, docIds, topKOverride, vectorThresholdOverride, keywordThresholdOverride);
+        return doRetrieve(query, kbId, docIds, topKOverride, vectorThresholdOverride, keywordThresholdOverride, null);
+    }
+
+    /**
+     * 按知识库 + 限定文档检索，支持请求级覆盖检索参数 + 检索方式（智能体用）。
+     *
+     * @param modeOverride 检索方式覆盖 embedding纯向量/mix混合/text纯关键词；null/空 走 mix 默认
+     */
+    public List<Content> retrieve(Query query, String kbId, List<String> docIds,
+                                  Integer topKOverride, Double vectorThresholdOverride,
+                                  Double keywordThresholdOverride, String modeOverride) {
+        return doRetrieve(query, kbId, docIds, topKOverride, vectorThresholdOverride, keywordThresholdOverride, modeOverride);
     }
 
     private List<Content> doRetrieve(Query query, String kbId, List<String> docIds,
                                      Integer topKOverride, Double vectorThresholdOverride,
-                                     Double keywordThresholdOverride) {
+                                     Double keywordThresholdOverride, String modeOverride) {
         String qText = query.text();
         int topK = topKOverride != null ? topKOverride : props.getRetrieval().getEmbeddingTopK();
         double vectorThreshold = vectorThresholdOverride != null
                 ? vectorThresholdOverride : props.getRetrieval().getVectorThreshold();
         int overFetch = Math.max(topK * 5, 50);
+        // 检索方式归一化：null/空/非法值 都按 mix（向后兼容，与改造前行为一致）
+        String mode = (modeOverride == null || modeOverride.isBlank())
+                ? "mix" : modeOverride.toLowerCase().trim();
+        if (!"embedding".equals(mode) && !"text".equals(mode)) {
+            mode = "mix";   // 兜底未知值
+        }
 
-        EmbeddingModel embeddingModel = embeddingModelProvider.resolve(kbId);
-
-        // 1. 向量检索：5x 过度召回
-        Embedding qEmb = embeddingModel.embed(qText).content();
-        String vec = embToArray(qEmb);
-        // ★ 过滤条件：kb_id 隔离 + 可选文档限定。
+        // ★ kb_id / doc_id 过滤条件（向量路、关键词路共用）。
         // kbId/docId 均为业务生成的 UUID hex，不含特殊字符，额外 strip 单引号防注入。
         // 不用占位符是因为「有/无 kb_id」「有/无 doc_ids」组合导致参数数量不固定，拼接更简单。
         StringBuilder filter = new StringBuilder();
@@ -147,57 +159,79 @@ public class HybridContentRetriever implements ContentRetriever {
         }
         String kbFilter = filter.toString();
 
-        // ★ 向量直接嵌入 SQL 字符串（embToArray 产出的格式安全，无注入风险），
-        //   而非走 JDBC ? 参数绑定 —— PostgreSQL JDBC 驱动对 CAST(? AS vector) 的参数绑定
-        //   会把 ? 误解析为 JSON 操作符，导致 bad SQL grammar。
-        //   kg_entity 的 MyBatis #{emb} 走的是不同绑定路径所以没问题，JdbcTemplate 的 ? 不行。
-        String vecLiteral = "'" + vec + "'::vector";
-        String vectorSql = "SELECT id, content, 1 - (embedding <=> " + vecLiteral + ") AS score, metadata "
-                + "FROM chunks "
-                + "WHERE " + kbFilter + " "
-                + "AND 1 - (embedding <=> " + vecLiteral + ") >= ? "
-                + "ORDER BY embedding <=> " + vecLiteral + " "
-                + "LIMIT ?";
-        List<Map<String, Object>> vectorHits;
-        try {
-            vectorHits = jdbc.queryForList(vectorSql, vectorThreshold, overFetch);
-        } catch (Exception e) {
-            log.warn("[HybridRetrieve] 向量检索失败（库未就绪?）: {}", e.getMessage());
-            vectorHits = List.of();
+        // 1. 向量检索（mode=embedding 或 mix 时执行；text 模式跳过省一次 embedding 调用）
+        List<Map<String, Object>> vectorHits = List.of();
+        if (!"text".equals(mode)) {
+            EmbeddingModel embeddingModel = embeddingModelProvider.resolve(kbId);
+            // 5x 过度召回
+            Embedding qEmb = embeddingModel.embed(qText).content();
+            String vec = embToArray(qEmb);
+            // ★ 向量直接嵌入 SQL 字符串（embToArray 产出的格式安全，无注入风险），
+            //   而非走 JDBC ? 参数绑定 —— PostgreSQL JDBC 驱动对 CAST(? AS vector) 的参数绑定
+            //   会把 ? 误解析为 JSON 操作符，导致 bad SQL grammar。
+            //   kg_entity 的 MyBatis #{emb} 走的是不同绑定路径所以没问题，JdbcTemplate 的 ? 不行。
+            String vecLiteral = "'" + vec + "'::vector";
+            String vectorSql = "SELECT id, content, 1 - (embedding <=> " + vecLiteral + ") AS score, metadata "
+                    + "FROM chunks "
+                    + "WHERE " + kbFilter + " "
+                    + "AND 1 - (embedding <=> " + vecLiteral + ") >= ? "
+                    + "ORDER BY embedding <=> " + vecLiteral + " "
+                    + "LIMIT ?";
+            try {
+                vectorHits = jdbc.queryForList(vectorSql, vectorThreshold, overFetch);
+            } catch (Exception e) {
+                log.warn("[HybridRetrieve] 向量检索失败（库未就绪?）: {}", e.getMessage());
+                vectorHits = List.of();
+            }
         }
 
-        // 2. 关键词检索（PostgreSQL FTS）
+        // 2. 关键词检索（mode=text 或 mix 时执行；embedding 模式跳过）
         //    query 先用 HanLP 在 Java 端预分词，再交 websearch_to_tsquery('simple', ?)。
         //    simple config 不做语干还原，靠「Java 已切好词 + 整词等值」命中中文。
-        String tsQuery = TsVectorGenerator.toTsQuery(qText);
-        String kwSql = "SELECT id, content, "
-                + "ts_rank_cd(tsv, websearch_to_tsquery('simple', ?)) AS score, metadata "
-                + "FROM chunks "
-                + "WHERE " + kbFilter + " "
-                + "AND tsv @@ websearch_to_tsquery('simple', ?) "
-                + "ORDER BY score DESC "
-                + "LIMIT ?";
-        List<Map<String, Object>> kwHits;
-        try {
-            // ★ 关键词路按 keywordThreshold 过滤弱命中：ts_rank_cd 没有分数下限，高频词
-            // （公司/员工）反复出现的长 chunk 会刷出虚高分，混入融合会污染排序
-            // （与 Milvus BM25 的 drop_ratio_search 同思路：弱命中直接砍掉）。
-            double kwThreshold = keywordThresholdOverride != null
-                    ? keywordThresholdOverride : props.getRetrieval().getKeywordThreshold();
-            List<Map<String, Object>> kwRaw = jdbc.queryForList(kwSql, tsQuery, tsQuery, overFetch);
-            kwHits = filterByScore(kwRaw, kwThreshold);
-        } catch (Exception e) {
-            log.warn("[HybridRetrieve] 关键词检索失败（库未就绪?）: {}", e.getMessage());
-            kwHits = List.of();
+        List<Map<String, Object>> kwHits = List.of();
+        if (!"embedding".equals(mode)) {
+            String tsQuery = TsVectorGenerator.toTsQuery(qText);
+            String kwSql = "SELECT id, content, "
+                    + "ts_rank_cd(tsv, websearch_to_tsquery('simple', ?)) AS score, metadata "
+                    + "FROM chunks "
+                    + "WHERE " + kbFilter + " "
+                    + "AND tsv @@ websearch_to_tsquery('simple', ?) "
+                    + "ORDER BY score DESC "
+                    + "LIMIT ?";
+            try {
+                // ★ mix 模式下关键词路按 keywordThreshold 过滤弱命中：ts_rank_cd 没有分数下限，高频词
+                // （公司/员工）反复出现的长 chunk 会刷出虚高分，混入融合会污染排序
+                // （与 Milvus BM25 的 drop_ratio_search 同思路：弱命中直接砍掉）。
+                // text 单路模式不过滤，保持「全文检索不使用相似度阈值，按返回条数截断」的语义，
+                // 与 KnowledgeServiceImpl.hitTest 的 text 语义对齐。
+                List<Map<String, Object>> kwRaw = jdbc.queryForList(kwSql, tsQuery, tsQuery, overFetch);
+                if ("mix".equals(mode)) {
+                    double kwThreshold = keywordThresholdOverride != null
+                            ? keywordThresholdOverride : props.getRetrieval().getKeywordThreshold();
+                    kwHits = filterByScore(kwRaw, kwThreshold);
+                } else {
+                    kwHits = kwRaw;
+                }
+            } catch (Exception e) {
+                log.warn("[HybridRetrieve] 关键词检索失败（库未就绪?）: {}", e.getMessage());
+                kwHits = List.of();
+            }
         }
 
-        // 3. 加权融合（min-max 归一化 + 加权求和），替代 RRF。
-        //    RRF 只看排名不看分数，中文 RAG 场景下关键词路 ts_rank_cd 会被高频词
-        //    反复出现的长 chunk 刷出虚高排名，与真正语义相关的向量结果"双路命中"
-        //    后反而压过只命中向量路的正确答案。归一化消除两路量纲差异（向量余弦 0~1，
-        //    关键词 ts_rank_cd 0~∞），再按向量路权重（默认 0.7）加权求和。
-        double vectorWeight = clampWeight(props.getRetrieval().getHybridVectorWeight());
-        List<Map<String, Object>> fused = weightedFuse(vectorHits, kwHits, vectorWeight);
+        // 3. 融合：embedding 单路用向量结果；text 单路用关键词结果；mix 加权融合。
+        //    加权融合（min-max 归一化 + 加权求和）替代 RRF —— RRF 只看排名不看分数，
+        //    中文 RAG 场景下关键词路 ts_rank_cd 会被高频词反复出现的长 chunk 刷出虚高排名，
+        //    与真正语义相关的向量结果"双路命中"后反而压过只命中向量路的真正答案。
+        //    归一化消除两路量纲差异（向量余弦 0~1，关键词 ts_rank_cd 0~∞），再按向量路权重（默认 0.7）加权求和。
+        List<Map<String, Object>> fused;
+        if ("embedding".equals(mode)) {
+            fused = vectorHits;
+        } else if ("text".equals(mode)) {
+            fused = kwHits;
+        } else {
+            double vectorWeight = clampWeight(props.getRetrieval().getHybridVectorWeight());
+            fused = weightedFuse(vectorHits, kwHits, vectorWeight);
+        }
 
         log.info("[HybridRetrieve] query=\"{}\" vector={} kw={} fused={}",
                 qText, vectorHits.size(), kwHits.size(), fused.size());

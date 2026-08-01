@@ -478,7 +478,8 @@ CREATE TABLE "public"."knowledge_agent" (
   "rewrite_model_id" int4,
   "rewrite_model_name" varchar(128) COLLATE "pg_catalog"."default",
   "sample_query_enabled" int2 NOT NULL DEFAULT 2,
-  "sample_query_threshold" float8 NOT NULL DEFAULT 0.85
+  "sample_query_threshold" float8 NOT NULL DEFAULT 0.85,
+  "retrieval_mode" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'mix'::character varying
 )
 ;
 COMMENT ON COLUMN "public"."knowledge_agent"."id" IS '主键 UUID hex';
@@ -513,6 +514,7 @@ COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_id" IS '意图/改�
 COMMENT ON COLUMN "public"."knowledge_agent"."rewrite_model_name" IS '冗余：意图/改写专用模型显示名';
 COMMENT ON COLUMN "public"."knowledge_agent"."sample_query_enabled" IS '是否启用样例查询优先匹配 1启用 2禁用';
 COMMENT ON COLUMN "public"."knowledge_agent"."sample_query_threshold" IS '样例匹配相似度阈值（空时回退 sample_query_config.similarity_threshold）';
+COMMENT ON COLUMN "public"."knowledge_agent"."retrieval_mode" IS '检索方式 embedding纯向量/mix混合/text纯关键词';
 COMMENT ON TABLE "public"."knowledge_agent" IS '知识库智能体表';
 
 -- ----------------------------
@@ -1655,9 +1657,74 @@ ALTER TABLE "public"."knowledge_agent" ADD COLUMN IF NOT EXISTS "persistent_memo
 COMMENT ON COLUMN "public"."knowledge_agent"."persistent_memory_enabled" IS '是否启用跨会话持久记忆 1启用 2禁用';
 
 -- ----------------------------
+-- knowledge_agent 新增检索方式列（embedding纯向量/mix混合/text纯关键词）
+-- ----------------------------
+ALTER TABLE "public"."knowledge_agent" ADD COLUMN IF NOT EXISTS "retrieval_mode" varchar(16) NOT NULL DEFAULT 'mix';
+COMMENT ON COLUMN "public"."knowledge_agent"."retrieval_mode" IS '检索方式 embedding纯向量/mix混合/text纯关键词';
+
+-- ----------------------------
 -- t_conversation_message 补联合索引（持久记忆按 user_id 前缀扫描会话族消息时用）
 -- ----------------------------
 CREATE INDEX IF NOT EXISTS "idx_conv_msg_uid" ON "public"."t_conversation_message" USING btree (
   "user_id" COLLATE "pg_catalog"."default" "text_ops" ASC NULLS LAST,
   "id" "int8_ops" ASC NULLS LAST
 );
+
+-- ----------------------------
+-- 智能体测试对话（独立于业务对话表 t_chat_*，避免污染业务数据）
+-- ----------------------------
+DROP SEQUENCE IF EXISTS "public"."t_agent_test_message_id_seq";
+CREATE SEQUENCE "public"."t_agent_test_message_id_seq"
+INCREMENT 1
+MINVALUE 1
+MAXVALUE 9223372036854775807
+START 1
+CACHE 1;
+
+DROP TABLE IF EXISTS "public"."t_agent_test_session";
+CREATE TABLE "public"."t_agent_test_session" (
+  "id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
+  "admin_id" int8 NOT NULL,
+  "agent_id" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "title" varchar(255) COLLATE "pg_catalog"."default",
+  "created_at" timestamp(6) DEFAULT now(),
+  "updated_at" timestamp(6) DEFAULT now()
+)
+;
+COMMENT ON COLUMN "public"."t_agent_test_session"."id" IS '主键（UUID hex，业务生成）';
+COMMENT ON COLUMN "public"."t_agent_test_session"."admin_id" IS '所属管理员 id（按账号隔离）';
+COMMENT ON COLUMN "public"."t_agent_test_session"."agent_id" IS '测试的智能体 id';
+COMMENT ON COLUMN "public"."t_agent_test_session"."title" IS '会话标题';
+COMMENT ON TABLE "public"."t_agent_test_session" IS '智能体测试对话会话表（独立于业务对话，仅调试用）';
+
+DROP TABLE IF EXISTS "public"."t_agent_test_message";
+CREATE TABLE "public"."t_agent_test_message" (
+  "id" int8 NOT NULL DEFAULT nextval('t_agent_test_message_id_seq'::regclass),
+  "session_id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
+  "role" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT '',
+  "content" text COLLATE "pg_catalog"."default",
+  "references" jsonb,
+  "stage_data" jsonb,
+  "stage_timings" jsonb,
+  "total_cost" int8,
+  "created_at" timestamp(6) DEFAULT now()
+)
+;
+COMMENT ON COLUMN "public"."t_agent_test_message"."session_id" IS '所属会话 id';
+COMMENT ON COLUMN "public"."t_agent_test_message"."role" IS '角色 user/assistant';
+COMMENT ON COLUMN "public"."t_agent_test_message"."content" IS '消息内容';
+COMMENT ON COLUMN "public"."t_agent_test_message"."references" IS '引用来源 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_agent_test_message"."stage_data" IS 'RAG 各阶段上下文 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_agent_test_message"."stage_timings" IS 'RAG 各阶段耗时 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_agent_test_message"."total_cost" IS '总耗时（毫秒）';
+COMMENT ON TABLE "public"."t_agent_test_message" IS '智能体测试对话消息表（独立于业务对话，仅调试用）';
+
+ALTER TABLE "public"."t_agent_test_session" ADD CONSTRAINT "t_agent_test_session_pkey" PRIMARY KEY ("id");
+ALTER TABLE "public"."t_agent_test_message" ADD CONSTRAINT "t_agent_test_message_pkey" PRIMARY KEY ("id");
+
+CREATE INDEX "idx_agent_test_session_admin" ON "public"."t_agent_test_session" USING btree (
+  "admin_id" ASC,
+  "agent_id" ASC,
+  "updated_at" DESC
+);
+CREATE INDEX "idx_agent_test_message_session" ON "public"."t_agent_test_message" USING btree ("session_id");

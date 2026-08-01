@@ -22,6 +22,7 @@ export interface Agent {
   embeddingTopK?: number;
   vectorThreshold?: number;
   keywordThreshold?: number;
+  retrievalMode?: string; // 检索方式 embedding纯向量/mix混合/text纯关键词
   rerankModelId?: number;
   rerankModelName?: string;
   rerankEnabled?: number; // 1启用 2禁用
@@ -59,6 +60,7 @@ export interface AgentSave {
   embeddingTopK?: number;
   vectorThreshold?: number;
   keywordThreshold?: number;
+  retrievalMode?: string; // 检索方式 embedding纯向量/mix混合/text纯关键词
   rerankModelId?: number;
   rerankModelName?: string;
   /** ★ 仅前端用：重排模型组合 key `${modelId}::${modelName}`，提交时拆成 id+name（不入库） */
@@ -295,6 +297,13 @@ export const KB_MODE_OPTIONS = [
   { label: '不使用知识库', value: 'none' },
 ];
 
+/** 检索方式（与后端 embedding/mix/text 术语一致，对齐 hitTest） */
+export const RETRIEVAL_MODE_OPTIONS = [
+  { label: '混合', value: 'mix' },
+  { label: '纯向量', value: 'embedding' },
+  { label: '纯关键词', value: 'text' },
+];
+
 
 export function getAgentList(params: { keyword?: string; page: number; size: number }) {
   return Alova.Get<any>('/knowledge/agent/index', { params });
@@ -437,4 +446,61 @@ function parseSseFrame(
   } else if (eventName === 'error' || payload.type === 'error') {
     handlers.onError?.(payload.message || '生成失败');
   }
+}
+
+// ==================== 智能体测试对话（独立持久化，替代 localStorage） ====================
+
+/** 测试会话（对齐后端 AgentTestSessionVo） */
+export interface AgentTestSession {
+  id: string;
+  agentId?: string;
+  title?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** 测试消息（对齐后端 AgentTestMessageVo；references/stageData/stageTimings 走 @JsonRawValue 原样 JSON） */
+export interface AgentTestMessageVo {
+  id?: number;
+  role: string;
+  content: string;
+  references?: any; // 后端 @JsonRawValue 原样输出，前端已是对象/数组
+  stageData?: any;
+  stageTimings?: Record<string, number>;
+  totalCost?: number;
+  createdAt?: string;
+}
+
+/** 落库消息入参（对齐后端 AgentTestMessageSaveValidate；JSON 字段需前端序列化成字符串） */
+export interface AgentTestMessageSave {
+  role: string;
+  content: string;
+  references?: string; // JSON 字符串
+  stageData?: string; // JSON 字符串
+  stageTimings?: string; // JSON 字符串
+  totalCost?: number;
+}
+
+export function getAgentTestSessions(agentId: string) {
+  return Alova.Get<any>('/knowledge/agent/test/sessions', { params: { agentId } });
+}
+
+export function createAgentTestSession(data: { agentId: string; title?: string }) {
+  return Alova.Post<any>('/knowledge/agent/test/session', data);
+}
+
+export function updateAgentTestSession(id: string, data: { title?: string }) {
+  return Alova.Post<any>('/knowledge/agent/test/session/update', data, { params: { id } });
+}
+
+export function deleteAgentTestSession(id: string) {
+  return Alova.Get<any>('/knowledge/agent/test/session/del', { params: { id } });
+}
+
+export function getAgentTestMessages(sessionId: string) {
+  return Alova.Get<any>('/knowledge/agent/test/messages', { params: { sessionId } });
+}
+
+export function saveAgentTestMessages(sessionId: string, messages: AgentTestMessageSave[]) {
+  return Alova.Post<any>('/knowledge/agent/test/messages', messages, { params: { sessionId } });
 }

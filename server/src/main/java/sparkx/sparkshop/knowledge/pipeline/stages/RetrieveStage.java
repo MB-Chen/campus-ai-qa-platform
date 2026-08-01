@@ -379,19 +379,20 @@ public class RetrieveStage implements PipelineStage {
         int topK = ov.getEmbeddingTopK();
         double vecThr = ov.getVectorThreshold();
         double kwThr = ov.getKeywordThreshold();
+        String mode = ov.getRetrievalMode();
 
         // 多知识库：ctx.knowledgeBaseIds 有多个时循环检索合并
         List<String> kbIds = ctx.getKnowledgeBaseIds();
         if (kbIds != null && kbIds.size() > 1) {
             java.util.Map<String, Content> dedup = new java.util.LinkedHashMap<>();
             for (String kbId : kbIds) {
-                for (Content c : retriever.retrieve(query, kbId, docIds, topK, vecThr, kwThr)) {
+                for (Content c : retriever.retrieve(query, kbId, docIds, topK, vecThr, kwThr, mode)) {
                     dedup.putIfAbsent(c.textSegment().text(), c);
                 }
             }
             return new ArrayList<>(dedup.values());
         }
-        return retriever.retrieve(query, primaryKb, docIds, topK, vecThr, kwThr);
+        return retriever.retrieve(query, primaryKb, docIds, topK, vecThr, kwThr, mode);
     }
 
     /** 取主知识库 id（用于按 kb 绑定的 embedding 模型查询向量化；单 kb 取首个） */

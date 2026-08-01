@@ -225,6 +225,16 @@
           </template>
 
           <template v-if="menuKey === 'retrieval'">
+            <n-form-item label="检索方式">
+              <n-radio-group v-model:value="form.retrievalMode">
+                <n-radio-button v-for="o in RETRIEVAL_MODE_OPTIONS" :key="o.value" :value="o.value">{{
+                  o.label
+                }}</n-radio-button>
+              </n-radio-group>
+              <n-text depth="3" style="font-size: 12px; margin-left: 8px; white-space: nowrap">
+                {{ curRetrievalModeHint }}
+              </n-text>
+            </n-form-item>
             <n-form-item label="向量召回 topK">
               <n-input-number v-model:value="form.embeddingTopK" :min="1" :max="50" />
             </n-form-item>
@@ -308,7 +318,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, reactive } from 'vue';
+  import { ref, reactive, computed } from 'vue';
   import { useMessage } from 'naive-ui';
   import type { FormInst, FormRules } from 'naive-ui';
   import {
@@ -316,6 +326,7 @@
     editAgent,
     FALLBACK_OPTIONS,
     KB_MODE_OPTIONS,
+    RETRIEVAL_MODE_OPTIONS,
     type Agent,
     type AgentSave,
   } from '@/api/system/agent';
@@ -381,6 +392,8 @@
       embeddingTopK: 10,
       vectorThreshold: 0.2,
       keywordThreshold: 0.3,
+      // ★ 检索方式默认 mix（与后端默认一致，向后兼容）
+      retrievalMode: 'mix',
       rerankModelId: undefined,
       rerankModelName: '',
       // ★ 重排模型组合 key：`${modelId}::${modelName}`（一对多拉平，提交时拆成 id+name）
@@ -401,6 +414,16 @@
       status: 1,
     };
   }
+
+  /** 检索方式当前选项的说明（给用户直观提示各模式差异） */
+  const RETRIEVAL_MODE_HINTS: Record<string, string> = {
+    mix: '向量+关键词加权融合（推荐，召回最全）',
+    embedding: '仅语义向量召回（适合语义模糊匹配）',
+    text: '仅关键词全文检索（适合精确词面命中）',
+  };
+  const curRetrievalModeHint = computed(
+    () => RETRIEVAL_MODE_HINTS[form.retrievalMode || 'mix'] || ''
+  );
 
   const rules: FormRules = {
     name: [{ required: true, message: '请输入智能体名称', trigger: ['blur', 'input'] }],
@@ -593,6 +616,8 @@
       embeddingTopK: ag.embeddingTopK ?? 10,
       vectorThreshold: ag.vectorThreshold ?? 0.2,
       keywordThreshold: ag.keywordThreshold ?? 0.3,
+      // ★ 回显检索方式（默认 mix）
+      retrievalMode: ag.retrievalMode || 'mix',
       rerankModelId: ag.rerankModelId,
       rerankModelName: ag.rerankModelName || '',
       // ★ 回显：把 id + name 拼成组合 key（与 option value 格式一致）

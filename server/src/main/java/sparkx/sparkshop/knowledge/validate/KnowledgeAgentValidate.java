@@ -70,6 +70,9 @@ public class KnowledgeAgentValidate implements Serializable {
     @Schema(description = "关键词阈值")
     private Double keywordThreshold;
 
+    @Schema(description = "检索方式 embedding纯向量/mix混合/text纯关键词")
+    private String retrievalMode;
+
     @Schema(description = "重排模型 id（type=3），空用全局默认")
     private Integer rerankModelId;
 

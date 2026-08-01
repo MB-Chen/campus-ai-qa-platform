@@ -309,6 +309,7 @@ public class AgentChatService {
         ov.setEmbeddingTopK(agent.getEmbeddingTopK());
         ov.setVectorThreshold(agent.getVectorThreshold());
         ov.setKeywordThreshold(agent.getKeywordThreshold());
+        ov.setRetrievalMode(agent.getRetrievalMode());
         ov.setRerankModelId(agent.getRerankModelId());
         ov.setRerankModelName(agent.getRerankModelName());
         ov.setRerankEnabled(agent.getRerankEnabled() != null && agent.getRerankEnabled() == 1);

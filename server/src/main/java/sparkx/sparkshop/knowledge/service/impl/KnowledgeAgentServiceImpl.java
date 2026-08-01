@@ -118,6 +118,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         agent.setEmbeddingTopK(validate.getEmbeddingTopK() != null ? validate.getEmbeddingTopK() : 10);
         agent.setVectorThreshold(validate.getVectorThreshold() != null ? validate.getVectorThreshold() : 0.2);
         agent.setKeywordThreshold(validate.getKeywordThreshold() != null ? validate.getKeywordThreshold() : 0.3);
+        agent.setRetrievalMode(validate.getRetrievalMode() != null ? validate.getRetrievalMode() : "mix");
         agent.setRerankEnabled(validate.getRerankEnabled() != null ? validate.getRerankEnabled() : 1);
         agent.setRerankTopK(validate.getRerankTopK() != null ? validate.getRerankTopK() : 5);
         agent.setRerankThreshold(validate.getRerankThreshold() != null ? validate.getRerankThreshold() : 0.3);
@@ -181,6 +182,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         if (validate.getEmbeddingTopK() != null) agent.setEmbeddingTopK(validate.getEmbeddingTopK());
         if (validate.getVectorThreshold() != null) agent.setVectorThreshold(validate.getVectorThreshold());
         if (validate.getKeywordThreshold() != null) agent.setKeywordThreshold(validate.getKeywordThreshold());
+        if (validate.getRetrievalMode() != null) agent.setRetrievalMode(validate.getRetrievalMode());
         if (validate.getRerankEnabled() != null) agent.setRerankEnabled(validate.getRerankEnabled());
         if (validate.getRerankTopK() != null) agent.setRerankTopK(validate.getRerankTopK());
         if (validate.getRerankThreshold() != null) agent.setRerankThreshold(validate.getRerankThreshold());
@@ -253,6 +255,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService {
         vo.setEmbeddingTopK(agent.getEmbeddingTopK());
         vo.setVectorThreshold(agent.getVectorThreshold());
         vo.setKeywordThreshold(agent.getKeywordThreshold());
+        vo.setRetrievalMode(agent.getRetrievalMode());
         vo.setRerankModelId(agent.getRerankModelId());
         vo.setRerankModelName(agent.getRerankModelName());
         vo.setRerankEnabled(agent.getRerankEnabled());

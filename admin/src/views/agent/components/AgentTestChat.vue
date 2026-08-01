@@ -212,6 +212,12 @@
   import { marked } from 'marked';
   import {
     streamAgentChat,
+    getAgentTestSessions,
+    createAgentTestSession,
+    updateAgentTestSession,
+    deleteAgentTestSession,
+    getAgentTestMessages,
+    saveAgentTestMessages,
     type Agent,
     type AgentChatMessage,
     type RagStageData,
@@ -235,6 +241,7 @@
     title: string;
     messages: AgentChatMessage[];
     updatedAt: string;
+    loaded?: boolean; // 消息是否已从后端加载（懒加载标记）
   }
 
   const conversations = ref<Conversation[]>([]);
@@ -426,34 +433,95 @@
     return msg.content;
   }
 
-  function open(ag: Agent) {
+  // 把后端返回的会话/时间格式化成前端展示用结构（不加载数据，懒加载）
+  function fmtUpdatedAt(iso?: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  async function open(ag: Agent) {
     agent.value = ag;
-    conversations.value = loadConversations(ag.id!);
-    if (conversations.value.length === 0) {
-      const c = createConversation();
-      conversations.value = [c];
-    }
-    currentId.value = conversations.value[0].id;
-    resetStream();
+    conversations.value = [];
+    currentId.value = '';
     show.value = true;
+    resetStream();
+    // 从后端加载会话列表
+    try {
+      const res: any = await getAgentTestSessions(ag.id!);
+      if (res && res.code === 0 && Array.isArray(res.data)) {
+        conversations.value = res.data
+          .filter((s: any) => s && s.id)
+          .map((s: any) => ({
+            id: s.id,
+            title: s.title || '新会话',
+            messages: [],
+            updatedAt: fmtUpdatedAt(s.updatedAt),
+            loaded: false,
+          }));
+      }
+    } catch {
+      // ignore
+    }
+    if (conversations.value.length === 0) {
+      // 首次打开没有会话，自动建一个
+      await newConversation();
+    } else {
+      currentId.value = conversations.value[0].id;
+      await ensureMessagesLoaded(currentId.value);
+    }
     nextTick(scrollBottom);
   }
 
-  function createConversation(): Conversation {
-    return { id: genId(), title: '新会话', messages: [], updatedAt: nowStr() };
-  }
-
-  function newConversation() {
-    if (streaming.value) return;
-    const c = createConversation();
-    conversations.value.unshift(c);
-    currentId.value = c.id;
-    persist();
+  async function newConversation() {
+    if (streaming.value || !agent.value) return;
+    try {
+      const res: any = await createAgentTestSession({ agentId: agent.value.id!, title: '新会话' });
+      if (res && res.code === 0 && res.data && res.data.id) {
+        const c: Conversation = {
+          id: res.data.id,
+          title: res.data.title || '新会话',
+          messages: [],
+          updatedAt: fmtUpdatedAt(res.data.updatedAt),
+          loaded: true,
+        };
+        conversations.value.unshift(c);
+        currentId.value = c.id;
+      }
+    } catch {
+      message.error('创建会话失败');
+    }
     resetStream();
     input.value = '';
   }
 
-  function switchConversation(id: string) {
+  // 切到某会话时若消息未加载，懒加载一次
+  async function ensureMessagesLoaded(id: string) {
+    const conv = conversations.value.find((c) => c.id === id);
+    if (!conv || conv.loaded) return;
+    try {
+      const res: any = await getAgentTestMessages(id);
+      if (res && res.code === 0 && Array.isArray(res.data)) {
+        conv.messages = res.data
+          .filter((m: any) => m && m.role)
+          .map((m: any) => ({
+            role: m.role,
+            content: m.content || '',
+            references: m.references,
+            stageTimings: m.stageTimings,
+            totalCost: m.totalCost || 0,
+            stageData: m.stageData,
+          })) as AgentChatMessage[];
+      }
+    } catch {
+      // ignore
+    }
+    conv.loaded = true;
+  }
+
+  async function switchConversation(id: string) {
     if (streaming.value) {
       message.warning('生成中，请先停止');
       return;
@@ -461,52 +529,38 @@
     currentId.value = id;
     resetStream();
     input.value = '';
+    await ensureMessagesLoaded(id);
     nextTick(scrollBottom);
   }
 
-  function deleteConversation(id: string) {
+  async function deleteConversation(id: string) {
     if (streaming.value) {
       message.warning('生成中，请先停止');
       return;
     }
+    try {
+      const res: any = await deleteAgentTestSession(id);
+      if (!res || res.code !== 0) {
+        message.error(res?.message || '删除失败');
+        return;
+      }
+    } catch {
+      message.error('删除失败');
+      return;
+    }
     conversations.value = conversations.value.filter((c) => c.id !== id);
     if (conversations.value.length === 0) {
-      const c = createConversation();
-      conversations.value = [c];
-    }
-    if (currentId.value === id) {
+      await newConversation();
+    } else if (currentId.value === id) {
       currentId.value = conversations.value[0].id;
+      await ensureMessagesLoaded(currentId.value);
     }
-    persist();
   }
 
   function resetStream() {
     streamFullText.value = '';
     streamDone.value = false;
     streamingIdx.value = -1;
-  }
-
-  function lsKey(agentId: string) {
-    return `agent_convs_${agentId}`;
-  }
-  function loadConversations(agentId: string): Conversation[] {
-    try {
-      const raw = localStorage.getItem(lsKey(agentId));
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) return arr;
-      }
-    } catch {
-      // ignore
-    }
-    return [];
-  }
-  function persist() {
-    if (agent.value?.id) {
-      // 只保留最近 20 个会话，避免无限增长
-      conversations.value = conversations.value.slice(0, 20);
-      localStorage.setItem(lsKey(agent.value.id), JSON.stringify(conversations.value));
-    }
   }
 
   function onSuggestedClick(q: string) {
@@ -521,9 +575,11 @@
 
     // 用户消息入会话
     conv.messages.push({ role: 'user', content: q });
-    // 首条消息作为会话标题
+    // 首条消息作为会话标题（并同步到后端）
+    let titleChanged = false;
     if (conv.title === '新会话') {
       conv.title = q.length > 20 ? q.slice(0, 20) + '...' : q;
+      titleChanged = true;
     }
     conv.updatedAt = nowStr();
     input.value = '';
@@ -569,7 +625,8 @@
             //   模板里 v-if="msg.totalCost" 不会重新求值（时间线按钮不显示的根因）。
             //   浅拷贝数组触发引用变更，强制 computed + v-for 重算。
             conv.messages = [...conv.messages];
-            persist();
+            // 落库到后端（user + assistant 两条），失败只 toast 不阻断展示
+            persistConversation(conv, q, payload, titleChanged);
           },
           onError: (errMsg) => {
             const msg = conv.messages[streamingIdx.value];
@@ -595,8 +652,46 @@
         const msg = conv.messages[streamingIdx.value];
         if (msg) msg.content = streamFullText.value || msg.content;
         scrollBottom();
-        persist();
       });
+    }
+  }
+
+  // ★ 落库一次问答（user + assistant），替代原 localStorage persist。
+  //   失败仅静默 toast，不影响前端已展示的消息。
+  async function persistConversation(
+    conv: Conversation,
+    userQuery: string,
+    payload: { answer: string; references?: any; stageTimings?: any; totalCost?: number; stageData?: any },
+    titleChanged: boolean,
+  ) {
+    try {
+      const safeJson = (v: any) => {
+        if (v == null) return undefined;
+        try {
+          const s = typeof v === 'string' ? v : JSON.stringify(v);
+          return s && s !== 'null' && s !== '[]' && s !== '{}' ? s : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+      await saveAgentTestMessages(conv.id, [
+        { role: 'user', content: userQuery },
+        {
+          role: 'assistant',
+          content: payload.answer || streamFullText.value || '',
+          references: safeJson(payload.references),
+          stageData: safeJson(payload.stageData),
+          stageTimings: safeJson(payload.stageTimings),
+          totalCost: payload.totalCost || 0,
+        },
+      ]);
+      // 标题变了才同步一次（省一次请求）
+      if (titleChanged) {
+        await updateAgentTestSession(conv.id, { title: conv.title });
+      }
+      conv.loaded = true;
+    } catch (e: any) {
+      message.warning('消息保存到服务端失败（不影响当前展示）');
     }
   }
 
@@ -607,7 +702,6 @@
 
   function onClose() {
     streaming.value = false;
-    persist();
   }
 
   async function scrollBottom() {
@@ -617,9 +711,6 @@
     }
   }
 
-  function genId(): string {
-    return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
   function nowStr(): string {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');

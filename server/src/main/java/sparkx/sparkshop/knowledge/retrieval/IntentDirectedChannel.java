@@ -92,9 +92,10 @@ public class IntentDirectedChannel implements ConditionalRetrievalChannel {
             docIds = ov.getDocumentIds();
         }
         int topK = topKOverride != null ? topKOverride : resolveNodeTopK(kbIntents);
+        String modeOverride = ov != null ? ov.getRetrievalMode() : null;
         log.debug("[Channel:intent-directed] KB intents={}, targetKbId={}, docIds={}, topK={}",
                 kbIntents.size(), targetKbId, docIds == null ? 0 : docIds.size(), topK);
-        return retriever.retrieve(query, targetKbId, docIds, topK, vecThrOverride, kwThrOverride);
+        return retriever.retrieve(query, targetKbId, docIds, topK, vecThrOverride, kwThrOverride, modeOverride);
     }
 
     /** 节点级 topK 兜底：取最高优先意图的 topK ×2，缺省 10×2（智能体未覆盖时用） */

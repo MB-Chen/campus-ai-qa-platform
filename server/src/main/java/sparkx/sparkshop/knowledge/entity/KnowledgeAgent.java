@@ -97,6 +97,10 @@ public class KnowledgeAgent implements Serializable {
     @TableField(value = "keyword_threshold")
     private Double keywordThreshold;
 
+    /** 检索方式 embedding纯向量/mix混合/text纯关键词（空走 mix 默认） */
+    @TableField(value = "retrieval_mode")
+    private String retrievalMode;
+
     /** 重排模型 ai_model.id（type=3），空用全局默认 */
     @TableField(value = "rerank_model_id")
     private Integer rerankModelId;

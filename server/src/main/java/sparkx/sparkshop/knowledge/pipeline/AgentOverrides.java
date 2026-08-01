@@ -51,6 +51,11 @@ public class AgentOverrides {
     private Double vectorThreshold;
     /** 关键词阈值（覆盖 HybridContentRetriever 的 keywordThreshold） */
     private Double keywordThreshold;
+    /**
+     * 检索方式 embedding纯向量/mix混合/text纯关键词（覆盖 HybridContentRetriever 的 mode）。
+     * null 时回退 mix（向后兼容，与改造前行为一致）。
+     */
+    private String retrievalMode;
     /** 重排模型 ai_model.id（type=3）；非空时 RerankStage 用它调真实 rerank API，否则用全局默认 ScoringModel */
     private Integer rerankModelId;
     /** ★ 重排具体模型名（从 ai_model.models 逗号拆分中指定）；非空时 AgentRerankClient 用它而非首项 */
@@ -110,6 +115,8 @@ public class AgentOverrides {
     public void setVectorThreshold(Double vectorThreshold) { this.vectorThreshold = vectorThreshold; }
     public Double getKeywordThreshold() { return keywordThreshold; }
     public void setKeywordThreshold(Double keywordThreshold) { this.keywordThreshold = keywordThreshold; }
+    public String getRetrievalMode() { return retrievalMode; }
+    public void setRetrievalMode(String retrievalMode) { this.retrievalMode = retrievalMode; }
     public Integer getRerankModelId() { return rerankModelId; }
     public void setRerankModelId(Integer rerankModelId) { this.rerankModelId = rerankModelId; }
     public String getRerankModelName() { return rerankModelName; }

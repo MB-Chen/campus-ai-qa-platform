@@ -70,7 +70,7 @@ public class VectorKeywordHybridChannel implements ConditionalRetrievalChannel {
         if (ov != null) {
             return hybridRetriever.retrieve(query, primaryKbId,
                     ov.getDocumentIds(), ov.getEmbeddingTopK(),
-                    ov.getVectorThreshold(), ov.getKeywordThreshold());
+                    ov.getVectorThreshold(), ov.getKeywordThreshold(), ov.getRetrievalMode());
         }
         return hybridRetriever.retrieve(query, primaryKbId);
     }
