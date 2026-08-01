@@ -61,7 +61,9 @@
     <div v-if="!activeSessionId" class="chat-landing">
       <div class="cc-container">
         <!-- 大标题 -->
-        <h1 class="cc-greeting">Hi，我是 SparkX，让你的知识触手可及</h1>
+        <h1 class="cc-greeting">
+          {{ selectedAgentWelcome || 'Hi，我是 SparkX，让你的知识触手可及' }}
+        </h1>
 
         <!-- 主输入区域 -->
         <div class="cc-input-card">
@@ -317,7 +319,7 @@
                 <h2 class="empty-hero-title">
                   你好，我是 {{ currentTarget?.name || 'SparkX' }}
                 </h2>
-                <p class="empty-hero-sub">有什么可以帮你的吗？</p>
+                <p class="empty-hero-sub">{{ currentWelcome || '有什么可以帮你的吗？' }}</p>
 
                 <div
                   v-if="currentSuggestedQuestions.length"
@@ -676,6 +678,13 @@
     return agents.value.find((a) => a.id === selectedAgentId.value)?.name || '';
   });
 
+  /** 欢迎页：当前选中智能体的开场白（编排智能体暂无） */
+  const selectedAgentWelcome = computed(() => {
+    if (selectedKind.value === 'workflow') return '';
+    const agent = agents.value.find((a) => a.id === selectedAgentId.value);
+    return agent?.welcome || '';
+  });
+
   /** 智能体分组（映射成统一 TargetItem） */
   const agentItems = computed<TargetItem[]>(
     () => agents.value.map((a) => ({
@@ -852,10 +861,10 @@
     return {
       id: String(vo.id),
       title: vo.title || '新会话',
-      agentId: String(vo.agent_id ?? vo.agentId ?? ''),
+      agentId: String(vo.agentId ?? ''),
       kind: (vo.kind as ChatKind) || 'agent',
       messages: [],
-      updatedAt: fmtTime(vo.updated_at ?? vo.updatedAt),
+      updatedAt: fmtTime(vo.updatedAt),
     };
   }
 
@@ -888,11 +897,11 @@
         role: m.role,
         content: m.content || '',
         references: m.references ?? null,
-        stageData: m.stage_data ?? m.stageData,
+        stageData: m.stageData,
         stageTimings: {},
-        workflowSteps: m.workflow_steps ?? m.workflowSteps,
-        totalCost: m.total_cost ?? m.totalCost,
-        totalTokens: m.total_tokens ?? m.totalTokens,
+        workflowSteps: m.workflowSteps,
+        totalCost: m.totalCost,
+        totalTokens: m.totalTokens,
         streaming: false,
       }));
       conv.messages = [...conv.messages];
@@ -907,7 +916,7 @@
   async function persistMessage(conv: Conversation, data: Record<string, any>): Promise<void> {
     try {
       // jsonb 列在后端是 String 入参：对象/数组先序列化，字符串/null 原样透传
-      const JSON_KEYS = ['references', 'stage_data', 'workflow_steps'];
+      const JSON_KEYS = ['references', 'stageData', 'workflowSteps'];
       const payload: Record<string, any> = { ...data };
       for (const k of JSON_KEYS) {
         const v = payload[k];
@@ -1017,6 +1026,13 @@
           suggestedQuestions: a.suggestedQuestions as string[] | undefined,
         }
       : null;
+  });
+
+  /** 聊天模式：当前活跃会话绑定的智能体开场白（编排智能体暂无） */
+  const currentWelcome = computed(() => {
+    if (currentKind.value === 'workflow') return '';
+    const a = agents.value.find((x) => x.id === currentAgentId.value);
+    return a?.welcome || '';
   });
 
   // 保留向后兼容（部分模板/逻辑引用 currentAgent?.name）
@@ -1149,9 +1165,9 @@
               persistMessage(conv, {
                 role: 'assistant',
                 content: roundMsg?.content || streamFullText.value,
-                workflow_steps: roundMsg?.workflowSteps,
-                total_cost: roundMsg?.totalCost,
-                total_tokens: roundMsg?.totalTokens,
+                workflowSteps: roundMsg?.workflowSteps,
+                totalCost: roundMsg?.totalCost,
+                totalTokens: roundMsg?.totalTokens,
               });
             },
             onError: (errMsg) => {
@@ -1401,11 +1417,10 @@
       let sessionId = '';
       try {
         const resp: any = await createSessions({
-          agent_id: aid,
+          agentId: aid,
           query: q,
           title,
           kind,
-          agent_config: { enabled: true },
         });
         const body = resp ?? {};
         const data = body.code === 0 && body.data !== undefined ? body.data : body;

@@ -13,10 +13,10 @@ export interface ChatSession {
   description?: string;
   source?: string;
   kind?: string;
-  agent_id?: string;
-  created_at?: string;
-  updated_at?: string;
-  agent_config?: Record<string, any>;
+  agentId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  agentConfig?: Record<string, any>;
   [key: string]: any;
 }
 
@@ -26,20 +26,20 @@ export interface ChatMessageVo {
   role: string;
   content: string;
   references?: any;
-  stage_data?: any;
-  workflow_steps?: any;
-  total_cost?: number;
-  total_tokens?: number;
-  created_at?: string;
+  stageData?: any;
+  workflowSteps?: any;
+  totalCost?: number;
+  totalTokens?: number;
+  createdAt?: string;
   [key: string]: any;
 }
 
 export interface CreateSessionData {
-  agent_id?: string;
+  agentId?: string;
   query?: string;
   title?: string;
   kind?: string;
-  agent_config?: Record<string, any>;
+  agentConfig?: Record<string, any>;
   [key: string]: any;
 }
 
@@ -48,20 +48,20 @@ export interface SaveMessageData {
   role: string;
   content: string;
   references?: any;
-  stage_data?: any;
-  workflow_steps?: any;
-  total_cost?: number;
-  total_tokens?: number;
+  stageData?: any;
+  workflowSteps?: any;
+  totalCost?: number;
+  totalTokens?: number;
   [key: string]: any;
 }
 
 /** 新建会话 */
 export async function createSessions(data: CreateSessionData = {}) {
-  // 后端按 agent_id / kind / query 解析；保持 snake_case 入参
-  const payload = toSnake(data);
-  // agent_config 是 jsonb 列（后端 String 入参），对象需序列化
-  if (payload.agent_config != null && typeof payload.agent_config !== 'string') {
-    payload.agent_config = JSON.stringify(payload.agent_config);
+  // 后端 ChatSessionCreateValidate 用驼峰字段（agentId / kind / query / agentConfig）
+  const payload: Record<string, any> = { ...data };
+  // agentConfig 是 jsonb 列（后端 String 入参），对象需序列化
+  if (payload.agentConfig != null && typeof payload.agentConfig !== 'string') {
+    payload.agentConfig = JSON.stringify(payload.agentConfig);
   }
   return Alova.Post<ChatSession>('/api/v1/sessions', payload);
 }
@@ -119,14 +119,4 @@ export async function clearSessionMessages(session_id: string) {
 /** 停止生成（后端暂未实现，预留） */
 export async function stopSession(session_id: string, message_id: string) {
   return Alova.Post<any>(`/api/v1/sessions/${session_id}/stop`, { message_id });
-}
-
-/** 将对象 key 由 camelCase 转为 snake_case（入参对齐后端 validate） */
-function toSnake(obj: Record<string, any>): Record<string, any> {
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    const sk = k.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-    out[sk] = v;
-  }
-  return out;
 }

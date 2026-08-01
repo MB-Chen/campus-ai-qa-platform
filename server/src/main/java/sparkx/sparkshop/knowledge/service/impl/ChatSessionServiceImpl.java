@@ -91,7 +91,19 @@ public class ChatSessionServiceImpl implements IChatSessionService {
         session.setAgentConfig(normalizeJson(v.getAgentConfig()));
         session.setCreatedAt(LocalDateTime.now());
         session.setUpdatedAt(session.getCreatedAt());
-        sessionMapper.insert(session);
+        // ★ agent_config 是 jsonb 列，BaseMapper.insert 把 String 绑定为 varchar 写 jsonb 会报类型
+        //    不匹配，改用 insertJsonb 原生 SQL + CAST AS jsonb（同 ChatMessageMapper 模式）
+        sessionMapper.insertJsonb(
+                session.getId(),
+                session.getAdminId(),
+                session.getTitle(),
+                session.getDescription(),
+                session.getSource(),
+                session.getKind(),
+                session.getAgentId(),
+                session.getAgentConfig(),
+                session.getCreatedAt(),
+                session.getUpdatedAt());
         return toSessionVo(session);
     }
 
