@@ -1838,7 +1838,9 @@
     font-weight: 500;
     transition: all 0.15s;
     &:hover {
-      background: v-bind('themeVars.primaryColorSuppl');
+      background: v-bind('themeVars.primaryColor');
+      color: #fff;
+      border-color: v-bind('themeVars.primaryColor');
     }
   }
 
