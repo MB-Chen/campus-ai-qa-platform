@@ -155,7 +155,7 @@
     <template #action>
       <n-space>
         <n-button @click="showPasswordModal = false">取消</n-button>
-        <n-button type="primary" @click="handlePasswordSubmit" :loading="passwordLoading"
+        <n-button type="primary" secondary @click="handlePasswordSubmit" :loading="passwordLoading"
           >确定</n-button
         >
       </n-space>

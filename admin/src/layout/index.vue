@@ -150,7 +150,7 @@
       <template #footer>
         <n-space justify="end">
           <n-button @click="showPwdModal = false">取消</n-button>
-          <n-button type="primary" :loading="pwdLoading" @click="handleChangePassword"
+          <n-button type="primary" secondary :loading="pwdLoading" @click="handleChangePassword"
             >确认修改</n-button
           >
         </n-space>
