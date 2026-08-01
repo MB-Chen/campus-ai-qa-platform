@@ -48,8 +48,10 @@ public class ChatMessage implements Serializable {
     @TableField(value = "content")
     private String content;
 
-    /** 引用来源 JSON（assistant，序列化后的字符串） */
-    @TableField(value = "references")
+    /** 引用来源 JSON（assistant，序列化后的字符串）。
+     *  ★ 列名用 refs 而非 references：references 是 PG 保留字，MyBatis-Plus 拼参时不加引号会报
+     *    syntax error at or near "references"。Java 字段名保留 references（语义清晰），仅 DB 列名改 refs。 */
+    @TableField(value = "refs")
     private String references;
 
     /** RAG 各阶段上下文 JSON（assistant，序列化后的字符串） */

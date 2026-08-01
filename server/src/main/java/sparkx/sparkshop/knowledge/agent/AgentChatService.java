@@ -11,6 +11,7 @@ package sparkx.sparkshop.knowledge.agent;
 
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import dev.langchain4j.rag.content.Content;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +23,10 @@ import sparkx.sparkshop.knowledge.intent.QueryIntent;
 import sparkx.sparkshop.knowledge.pipeline.AgentOverrides;
 import sparkx.sparkshop.knowledge.pipeline.PipelineContext;
 import sparkx.sparkshop.knowledge.pipeline.RagPipeline;
+import sparkx.sparkshop.knowledge.service.IChatSessionService;
 import sparkx.sparkshop.knowledge.service.IKnowledgeAgentService;
 import sparkx.sparkshop.knowledge.validate.AgentChatValidate;
+import sparkx.sparkshop.knowledge.validate.ChatMessageSaveValidate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,6 +70,9 @@ public class AgentChatService {
 
     @Resource
     private IKnowledgeAgentService agentService;
+
+    @Resource
+    private IChatSessionService chatSessionService;
 
     @Resource
     private RagPipeline ragPipeline;
@@ -115,14 +121,14 @@ public class AgentChatService {
             log.warn("[AgentChat] SSE 异常 session={}: {}", sessionKey, t.getMessage());
         });
 
-        ragTaskExecutor.execute(() -> runPipelineAndStream(agent, req.getQuery(), sessionKey, persistentMemoryKey, adminId, emitter));
+        ragTaskExecutor.execute(() -> runPipelineAndStream(agent, req.getQuery(), sessionKey, persistentMemoryKey, adminId, req.getSessionId(), emitter));
 
         return emitter;
     }
 
     /** 实际跑管线 + SSE 推送（在 ragTaskExecutor 线程内执行） */
     private void runPipelineAndStream(KnowledgeAgent agent, String query, String sessionKey,
-                                      String persistentMemoryKey, Long adminId, SseEmitter emitter) {
+                                      String persistentMemoryKey, Long adminId, String sessionId, SseEmitter emitter) {
         StringBuilder fullAnswer = new StringBuilder();
         try {
             PipelineContext ctx = buildContext(agent, query, sessionKey, persistentMemoryKey, adminId);
@@ -139,6 +145,13 @@ public class AgentChatService {
 
             ChatResult result = collectResult(agent, ctx, fullAnswer.toString());
 
+            // ★ RAG 各阶段上下文（改写/召回/重排分数/意图等）：构建一次，complete 事件与落库共用
+            Map<String, Object> stageData = sparkx.sparkshop.knowledge.pipeline.RagTraceBuilder.build(ctx);
+
+            // ★ 后端权威落库 assistant 回复：前端仅负责 user 落库，assistant 由后端在 complete 时写入，
+            //   避免前端 SSE 回调异步落库失败（静默吞异常）导致库里缺 LLM 回复。
+            saveAssistantMessage(sessionId, adminId, result, stageData, ctx.getTotalCost());
+
             // 推送 complete 事件（含 answer + references + 各阶段耗时）
             // ★ 排查日志：确认耗时数据已写入 complete 事件（前端时间线展示依赖此字段）
             log.info("[AgentChat:complete] session={} totalCost={}ms stageTimings={} answerLen={}",
@@ -152,7 +165,7 @@ public class AgentChatService {
                     "stageTimings", ctx.getStageTimings(),
                     "totalCost", ctx.getTotalCost(),
                     // ★ RAG 各阶段上下文（改写/召回/重排分数/意图等），供前端调用流程抽屉展示
-                    "stageData", sparkx.sparkshop.knowledge.pipeline.RagTraceBuilder.build(ctx)
+                    "stageData", stageData
             ));
             emitter.complete();
 
@@ -239,6 +252,37 @@ public class AgentChatService {
         r.answer = answer;
         r.references = extractReferences(ctx);
         return r;
+    }
+
+    /**
+     * 后端权威落库 assistant 回复（对齐 t_chat_message）。
+     * <p>仅当 sessionId + adminId 均非空时落库（chat 页传 sessionId；测试对话不传，跳过）。
+     * 失败仅告警不中断 SSE，避免影响主流程。
+     *
+     * @param sessionId  聊天会话 id（t_chat_session.id）
+     * @param adminId    当前登录管理员 id（loadOwned 校验归属）
+     * @param result     管线产出（answer + references）
+     * @param stageData  RAG 各阶段上下文（已构建，序列化为 jsonb）
+     * @param totalCost  管线总耗时(ms)
+     */
+    private void saveAssistantMessage(String sessionId, Long adminId, ChatResult result,
+                                      Map<String, Object> stageData, long totalCost) {
+        if (StrUtil.isBlank(sessionId) || adminId == null) {
+            return;
+        }
+        try {
+            ChatMessageSaveValidate v = new ChatMessageSaveValidate();
+            v.setRole("assistant");
+            v.setContent(StrUtil.isBlank(result.answer) ? "" : result.answer);
+            v.setReferences(result.references != null ? JSONUtil.toJsonStr(result.references) : null);
+            v.setStageData(stageData != null ? JSONUtil.toJsonStr(stageData) : null);
+            v.setTotalCost(totalCost);
+            chatSessionService.saveMessage(adminId, sessionId, v);
+            log.info("[AgentChat] assistant 消息已落库 session={}", sessionId);
+        } catch (Exception e) {
+            // 落库失败仅记录，不影响已推送给前端的回答
+            log.warn("[AgentChat] 落库 assistant 消息失败 session={}: {}", sessionId, e.getMessage());
+        }
     }
 
     /** 同步问答结果（供评估消费） */

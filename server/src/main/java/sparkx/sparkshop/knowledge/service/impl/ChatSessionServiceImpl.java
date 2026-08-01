@@ -134,9 +134,8 @@ public class ChatSessionServiceImpl implements IChatSessionService {
     @Override
     public List<ChatMessageVo> messages(Long adminId, String sessionId) {
         loadOwned(adminId, sessionId);
-        List<ChatMessage> list = messageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
-                .eq(ChatMessage::getSessionId, sessionId)
-                .orderByAsc(ChatMessage::getId));
+        // ★ 用原生 SQL 查询（refs 是 PG 保留字别名，selectList 拼的 SQL 会语法错）
+        List<ChatMessage> list = messageMapper.selectBySession(sessionId);
         if (list == null || list.isEmpty()) {
             return Collections.emptyList();
         }
@@ -146,23 +145,26 @@ public class ChatSessionServiceImpl implements IChatSessionService {
     @Override
     public Long saveMessage(Long adminId, String sessionId, ChatMessageSaveValidate v) {
         loadOwned(adminId, sessionId);
-        ChatMessage msg = new ChatMessage();
-        msg.setSessionId(sessionId);
-        msg.setRole(v.getRole());
-        msg.setContent(v.getContent());
-        msg.setReferences(normalizeJson(v.getReferences()));
-        msg.setStageData(normalizeJson(v.getStageData()));
-        msg.setWorkflowSteps(normalizeJson(v.getWorkflowSteps()));
-        msg.setTotalCost(v.getTotalCost());
-        msg.setTotalTokens(v.getTotalTokens());
-        msg.setCreatedAt(LocalDateTime.now());
-        messageMapper.insert(msg);
+        // ★ jsonb 列走原生 SQL（CAST AS jsonb），BaseMapper.insert 会报类型不匹配
+        LocalDateTime now = LocalDateTime.now();
+        messageMapper.insertJsonb(
+                sessionId,
+                v.getRole(),
+                v.getContent(),
+                normalizeJson(v.getReferences()),
+                normalizeJson(v.getStageData()),
+                normalizeJson(v.getWorkflowSteps()),
+                v.getTotalCost(),
+                v.getTotalTokens(),
+                now);
         // 落库后刷新会话更新时间
         ChatSession session = new ChatSession();
         session.setId(sessionId);
-        session.setUpdatedAt(msg.getCreatedAt());
+        session.setUpdatedAt(now);
         sessionMapper.updateById(session);
-        return msg.getId();
+        // 返回最新消息 id（取该会话最大 id 兜底）
+        List<ChatMessage> latest = messageMapper.selectBySession(sessionId);
+        return (latest != null && !latest.isEmpty()) ? latest.get(latest.size() - 1).getId() : null;
     }
 
     // ==================== 内部辅助 ====================

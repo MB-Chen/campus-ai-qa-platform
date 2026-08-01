@@ -308,26 +308,41 @@
         <!-- 消息列表 -->
         <div ref="msgBoxRef" class="chat-messages">
           <div class="chat-messages-inner">
-            <!-- 空状态 / 欢迎语 -->
+            <!-- 空状态：复刻欢迎页大居中布局 -->
             <template v-if="currentMessages.length === 0">
-              <div class="chat-welcome">
-                <div class="welcome-avatar">
-                  <n-icon :size="28" color="#fff"><RobotOutlined /></n-icon>
+              <div class="chat-empty-hero">
+                <div class="empty-hero-icon">
+                  <n-icon :size="40" color="#fff"><RobotOutlined /></n-icon>
                 </div>
-                <div class="welcome-text"
-                  >你好！我是 {{ currentTarget?.name || 'SparkX' }}，有什么可以帮你的吗？</div
+                <h2 class="empty-hero-title">
+                  你好，我是 {{ currentTarget?.name || 'SparkX' }}
+                </h2>
+                <p class="empty-hero-sub">有什么可以帮你的吗？</p>
+
+                <div
+                  v-if="currentSuggestedQuestions.length"
+                  class="empty-hero-suggested"
                 >
+                  <div class="empty-hero-grid">
+                    <div
+                      v-for="(q, qi) in currentSuggestedQuestions"
+                      :key="qi"
+                      class="empty-hero-card"
+                      @click="onSuggestedClick(q)"
+                    >
+                      <n-icon size="14" class="empty-hero-card-icon"
+                        ><ThunderboltOutlined
+                      /></n-icon>
+                      <span class="empty-hero-card-text">{{ q }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="empty-hero-hint">
+                  <n-icon size="13"><EditOutlined /></n-icon>
+                  <span>在下方输入框开始对话</span>
+                </div>
               </div>
-              <div v-if="currentSuggestedQuestions.length" class="chat-suggested-chips">
-                <button
-                  v-for="(q, i) in currentSuggestedQuestions"
-                  :key="i"
-                  class="suggested-chip"
-                  @click="onSuggestedClick(q)"
-                  >{{ q }}</button
-                >
-              </div>
-              <n-empty v-else description="输入问题开始对话" style="margin-top: 60px" />
             </template>
 
             <!-- 消息列表 -->
@@ -572,6 +587,8 @@
     ApartmentOutlined,
     DeploymentUnitOutlined,
     CaretRightOutlined,
+    ThunderboltOutlined,
+    EditOutlined,
   } from '@vicons/antd';
   import {
     createSessions,
@@ -1151,7 +1168,7 @@
         );
       } else {
         await streamAgentChat(
-          { agentId: currentAgentId.value, conversationId: conv.id, query },
+          { agentId: currentAgentId.value, conversationId: conv.id, query, sessionId: conv.id },
           {
             onAnswer: (token) => {
               streamFullText.value += token;
@@ -1169,14 +1186,8 @@
               streamDone.value = true;
               conv.updatedAt = nowStr();
               conv.messages = [...conv.messages]; // 触发响应式更新
-              // assistant 消息落库（引用来源 / RAG 各阶段上下文 / 耗时）
-              persistMessage(conv, {
-                role: 'assistant',
-                content: msg?.content || payload.answer,
-                references: msg?.references,
-                stage_data: msg?.stageData,
-                total_cost: msg?.totalCost,
-              });
+              // ★ assistant 消息落库已改由后端 AgentChatService 在 complete 时权威写入，
+              //   此处不再落库，避免前端异步落库失败导致库里缺 LLM 回复。
             },
             onError: (errMsg) => {
               const msg = conv.messages[streamingIdx.value];
@@ -2015,42 +2026,115 @@
     }
   }
 
-  /* 消息区：外层滚动，内层容器限宽 800px 居中 */
+  /* 消息区：外层滚动，内层容器限宽 1000px 居中 */
   .chat-messages {
     flex: 1;
     overflow-y: auto;
     padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
   }
   .chat-messages-inner {
     max-width: 1000px;
+    width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex: 1;
   }
 
-  /* 欢迎语 */
-  .chat-welcome {
+  /* 空状态：复刻欢迎页大居中布局 */
+  .chat-empty-hero {
+    flex: 1;
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 20px 0;
-    margin-bottom: 12px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 20px 60px;
+    min-height: 480px;
   }
-  .welcome-avatar {
-    width: 36px;
-    height: 36px;
+  .empty-hero-icon {
+    width: 72px;
+    height: 72px;
     border-radius: 50%;
-    flex-shrink: 0;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
     align-items: center;
     justify-content: center;
+    background: linear-gradient(
+      135deg,
+      v-bind('themeVars.primaryColorHover') 0%,
+      v-bind('themeVars.primaryColor') 100%
+    );
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1),
+      0 0 0 6px v-bind('themeVars.primaryColorSuppl');
+    margin-bottom: 20px;
   }
-  .welcome-text {
-    font-size: 15px;
-    line-height: 1.6;
+  .empty-hero-title {
+    margin: 0 0 8px;
+    font-size: 26px;
+    font-weight: 600;
     color: v-bind('themeVars.textColorBase');
+    letter-spacing: 0.3px;
+    line-height: 1.4;
+  }
+  .empty-hero-sub {
+    margin: 0 0 32px;
+    font-size: 15px;
+    color: v-bind('themeVars.textColor3');
+  }
+  .empty-hero-suggested {
+    width: 100%;
+    max-width: 640px;
+  }
+  .empty-hero-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .empty-hero-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    background: v-bind('themeVars.cardColor');
+    border: 1px solid v-bind('themeVars.borderColor');
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.18s ease;
+    &:hover {
+      border-color: v-bind('themeVars.primaryColor');
+      box-shadow: v-bind('themeVars.boxShadow2');
+      transform: translateY(-1px);
+      .empty-hero-card-icon {
+        color: v-bind('themeVars.primaryColor');
+      }
+    }
+  }
+  .empty-hero-card-icon {
+    color: v-bind('themeVars.textColor3');
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: color 0.18s;
+  }
+  .empty-hero-card-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+    color: v-bind('themeVars.textColor2');
+    word-break: break-word;
+  }
+  .empty-hero-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: v-bind('themeVars.textColor3');
+    background: v-bind('themeVars.actionColor');
+    border-radius: 20px;
   }
 
   /* 推荐问题 chip */

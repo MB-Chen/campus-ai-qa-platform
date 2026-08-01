@@ -1604,7 +1604,7 @@ CREATE TABLE "public"."t_chat_message" (
   "session_id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
   "role" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "content" text COLLATE "pg_catalog"."default",
-  "references" jsonb,
+  "refs" jsonb,
   "stage_data" jsonb,
   "workflow_steps" jsonb,
   "total_cost" int8,
@@ -1615,7 +1615,7 @@ CREATE TABLE "public"."t_chat_message" (
 COMMENT ON COLUMN "public"."t_chat_message"."session_id" IS '所属会话 id';
 COMMENT ON COLUMN "public"."t_chat_message"."role" IS '角色：user / assistant';
 COMMENT ON COLUMN "public"."t_chat_message"."content" IS '消息内容';
-COMMENT ON COLUMN "public"."t_chat_message"."references" IS '引用来源 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_chat_message"."refs" IS '引用来源 JSON（assistant）。列名用 refs 而非 references（PG 保留字）';
 COMMENT ON COLUMN "public"."t_chat_message"."stage_data" IS 'RAG 各阶段上下文 JSON（assistant）';
 COMMENT ON COLUMN "public"."t_chat_message"."workflow_steps" IS '编排智能体步骤 JSON（assistant）';
 COMMENT ON COLUMN "public"."t_chat_message"."total_cost" IS '总耗时（毫秒）';

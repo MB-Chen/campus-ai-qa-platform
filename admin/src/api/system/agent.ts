@@ -85,6 +85,8 @@ export interface AgentSave {
 export interface AgentChatRequest {
   agentId: string;
   conversationId?: string;
+  /** 聊天会话 id（来自 /api/v1/sessions 的 id；后端据此落库 assistant 回复） */
+  sessionId?: string;
   query: string;
 }
 
