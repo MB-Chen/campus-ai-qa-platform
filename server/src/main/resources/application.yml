@@ -173,6 +173,13 @@ app:
       summary-start-turns: 5
       summary-max-chars: 200
       title-max-length: 30
+      # ★ 跨会话持久记忆（L3，对标 Claude Code CLAUDE.md + wU2）—— v2.0 默认关闭。
+      #   代码已预研就绪（PersistentMemoryService），但 RAG 问答场景 ROI 低，计划在编程智能体场景启用。
+      #   以下四项即便不写也会走 Java 默认值，这里显式声明 false 以明确「当前未启用」。
+      persistent-enabled: false
+      persistent-start-turns: 8
+      extract-interval: 6
+      persistent-max-chars: 500
     # MinerU 入库行为开关（仅行为，不含连接配置——endpoint/apiKey/model 在 ext_service_config 表）
     # image-mode:
     #   describe（默认）= VLM 把图片转「描述+OCR」文本替换 markdown 引用（图片不上 MinIO，chunk 无 URL 噪声）
@@ -208,6 +215,11 @@ app:
       summary-start-turns: 5
       summary-max-chars: 200
       title-max-length: 30
+      # ★ 跨会话持久记忆（与 app.rag.memory 镜像）—— v2.0 默认关闭，显式声明。
+      persistent-enabled: false
+      persistent-start-turns: 8
+      extract-interval: 6
+      persistent-max-chars: 500
     # ollama 容错层 ChatClient 启用开关
     ollama:
       enabled: true
