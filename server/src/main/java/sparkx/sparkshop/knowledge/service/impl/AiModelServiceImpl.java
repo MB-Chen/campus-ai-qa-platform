@@ -27,10 +27,12 @@ import sparkx.sparkshop.knowledge.config.AiModelProperties;
 import sparkx.sparkshop.knowledge.config.RagProperties;
 import sparkx.sparkshop.knowledge.entity.AiModel;
 import sparkx.sparkshop.knowledge.entity.KnowledgeBase;
+import sparkx.sparkshop.knowledge.entity.SampleQueryConfig;
 import sparkx.sparkshop.knowledge.infra.EmbeddingModelProvider;
 import sparkx.sparkshop.knowledge.infra.chat.ModelTarget;
 import sparkx.sparkshop.knowledge.mapper.AiModelMapper;
 import sparkx.sparkshop.knowledge.mapper.KnowledgeBaseMapper;
+import sparkx.sparkshop.knowledge.mapper.SampleQueryConfigMapper;
 import sparkx.sparkshop.knowledge.service.IAiModelService;
 import sparkx.sparkshop.knowledge.validate.AiModelValidate;
 import sparkx.sparkshop.knowledge.vo.ModelTestVo;
@@ -86,6 +88,8 @@ public class AiModelServiceImpl implements IAiModelService {
     private static final int TYPE_EMBEDDING = 2;
     private static final int TYPE_RERANK = 3;
     private static final int TYPE_VLM = 4;
+    /** 样例查询全局配置固定 id（整个功能共用一条 sample_query_config） */
+    private static final int SAMPLE_QUERY_CONFIG_ID = 1;
     /** status：启用 */
     private static final int STATUS_ENABLED = 1;
     /** supportsThinking：是 */
@@ -95,15 +99,19 @@ public class AiModelServiceImpl implements IAiModelService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final RagProperties ragProperties;
     private final EmbeddingModelProvider embeddingModelProvider;
+    /** ★ 样例查询全局配置（固定 id=1）也引用 embedding 模型，改名/删模型时需一并保护，避免冗余快照变脏 */
+    private final SampleQueryConfigMapper sampleQueryConfigMapper;
 
     public AiModelServiceImpl(AiModelMapper aiModelMapper,
                               KnowledgeBaseMapper knowledgeBaseMapper,
                               RagProperties ragProperties,
-                              EmbeddingModelProvider embeddingModelProvider) {
+                              EmbeddingModelProvider embeddingModelProvider,
+                              SampleQueryConfigMapper sampleQueryConfigMapper) {
         this.aiModelMapper = aiModelMapper;
         this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.ragProperties = ragProperties;
         this.embeddingModelProvider = embeddingModelProvider;
+        this.sampleQueryConfigMapper = sampleQueryConfigMapper;
     }
 
 
@@ -298,16 +306,30 @@ public class AiModelServiceImpl implements IAiModelService {
         // 查所有引用此模型的知识库，收集它们绑定的具体模型名
         List<KnowledgeBase> refs = knowledgeBaseMapper.selectList(new LambdaQueryWrapper<KnowledgeBase>()
                 .eq(KnowledgeBase::getEmbeddingModelId, oldModel.getId()));
-        if (refs.isEmpty()) {
-            // 未被引用，自由修改
+
+        // ★ 样例查询全局配置（固定 id=1）也引用此模型：若绑定同一 id，其 embedding_model_name 同样不能被改名删掉，
+        //   否则冗余快照变脏 → 向量化时透传旧名给供应商报 no_such_model（曾因此全量向量化失败）。
+        SampleQueryConfig sqCfg = sampleQueryConfigMapper.selectById(SAMPLE_QUERY_CONFIG_ID);
+        boolean sqBound = sqCfg != null
+                && sqCfg.getEmbeddingModelId() != null
+                && sqCfg.getEmbeddingModelId().equals(oldModel.getId());
+
+        if (refs.isEmpty() && !sqBound) {
+            // 未被任何引用方引用，自由修改
             return;
         }
+
+        // 收集被绑定的具体模型名（知识库 + 样例查询配置）
         java.util.Set<String> boundNames = new java.util.HashSet<>();
         for (KnowledgeBase kb : refs) {
             if (kb.getEmbeddingModelName() != null && !kb.getEmbeddingModelName().isBlank()) {
                 boundNames.add(kb.getEmbeddingModelName().trim());
             }
         }
+        if (sqBound && sqCfg.getEmbeddingModelName() != null && !sqCfg.getEmbeddingModelName().isBlank()) {
+            boundNames.add(sqCfg.getEmbeddingModelName().trim());
+        }
+
         if (boundNames.isEmpty()) {
             // 老数据未存具体模型名，无法精确校验，退化为"models 首项不能变"的保护
             String oldFirst = firstModel(oldModel.getModels());
@@ -332,10 +354,10 @@ public class AiModelServiceImpl implements IAiModelService {
             if (!newModels.contains(n)) missing.add(n);
         }
         if (!missing.isEmpty()) {
-            throw new BusinessException("该向量模型被 " + refs.size()
-                    + " 个知识库引用，以下模型名正在被使用，不能从模型列表中删除："
+            throw new BusinessException("该向量模型被 " + refs.size() + " 个知识库"
+                    + (sqBound ? "及样例查询配置" : "") + "引用，以下模型名正在被使用，不能从模型列表中删除："
                     + String.join("、", missing)
-                    + "。删除会导致对应知识库的向量失效。如需更换，请新建模型配置并重建知识库。"
+                    + "。删除会导致对应知识库/样例查询的向量失效。如需更换，请新建模型配置并重建。"
                     + "（可新增模型名或修改服务地址 url / apiKey）");
         }
     }
@@ -348,8 +370,16 @@ public class AiModelServiceImpl implements IAiModelService {
         if (model != null && model.getType() != null && model.getType() == TYPE_EMBEDDING) {
             long refCount = knowledgeBaseMapper.selectCount(new LambdaQueryWrapper<KnowledgeBase>()
                     .eq(KnowledgeBase::getEmbeddingModelId, id));
-            if (refCount > 0) {
-                throw new BusinessException("该向量模型已被 " + refCount + " 个知识库引用，无法删除。请先解除引用或删除相关知识库。");
+            // ★ 样例查询全局配置引用也算（固定 id=1）：删除会让其向量化哑火
+            boolean sqBound = false;
+            SampleQueryConfig sqCfg = sampleQueryConfigMapper.selectById(SAMPLE_QUERY_CONFIG_ID);
+            if (sqCfg != null && sqCfg.getEmbeddingModelId() != null
+                    && sqCfg.getEmbeddingModelId().equals(id)) {
+                sqBound = true;
+            }
+            if (refCount > 0 || sqBound) {
+                throw new BusinessException("该向量模型已被 " + refCount + " 个知识库"
+                        + (sqBound ? "及样例查询配置" : "") + "引用，无法删除。请先解除引用或删除相关知识库/重置样例查询配置。");
             }
         }
         aiModelMapper.deleteById(id);

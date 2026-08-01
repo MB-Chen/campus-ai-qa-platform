@@ -182,9 +182,10 @@ public class EmbeddingModelProvider {
             }
             String url = extractField(model.getOptions(), "url");
             String apiKey = extractField(model.getCredential(), "apiKey");
-            // 优先用传入的 modelName，为空回退 models 首项（兼容老数据）
-            String effModelName = (modelName != null && !modelName.isBlank())
-                    ? modelName.trim() : firstModel(model.getModels());
+            // ★ 解析有效模型名：传入的 modelName 必须是 ai_model.models 的合法子项，
+            //   否则回退首项。防止 sample_query_config / kb 等冗余快照存了脏名（如模型改名后）
+            //   直接透传给供应商导致 no_such_model 哑火（曾因此 sample query 向量化全失败）。
+            String effModelName = resolveEffectiveModelName(embeddingModelId, modelName, model.getModels());
             if (url == null || url.isBlank() || effModelName == null || effModelName.isBlank()) {
                 log.warn("[EmbeddingProvider] ai_model={} 配置不完整(url/model)，回退默认", embeddingModelId);
                 return defaultModel;
@@ -288,13 +289,53 @@ public class EmbeddingModelProvider {
         }
     }
 
-    /** 取 models 逗号分隔首项 */
-    private String firstModel(String models) {
-        if (models == null || models.isBlank()) return null;
-        for (String p : models.split(",")) {
-            if (p != null && !p.isBlank()) return p.trim();
+    /**
+     * 解析最终生效的具体模型名（含脏快照自愈）。
+     *
+     * <p>规则：
+     * <ol>
+     *   <li>传入 {@code modelName} 非空且<b>命中</b> {@code ai_model.models} 某一项 → 原样用；</li>
+     *   <li>传入 {@code modelName} 非空但<b>不在</b> models 列表里（脏快照/模型改名后）→ 回退首项并 WARN，
+     *       既自愈又留排查痕迹；</li>
+     *   <li>传入为空 → 回退首项（兼容老数据）。</li>
+     * </ol>
+     *
+     * <p>★ 动机：{@code sample_query_config.embedding_model_name} / {@code kb.embedding_model_name}
+     * 都是冗余快照，用户在 {@code /ai/model} 页改了模型名（如 {@code embedding-8b} → {@code qwen3-embedding-8b}）
+     * 后这些快照不会同步更新，原逻辑盲信快照直接透传给供应商 → {@code no_such_model} 哑火。
+     * 本方法把"快照名必须合法"这层校验下沉到模型构造的唯一入口，所有调用点（sample query / kb 快照 / kb 老链路）一并兜住。
+     *
+     * @param modelId 仅用于日志定位
+     * @param modelName 调用方传入的具体模型名（快照，可能脏）
+     * @param modelsCsv ai_model.models 字段（逗号分隔的合法模型名清单）
+     * @return 最终生效的具体模型名；models 为空且 modelName 也为空时返回 null
+     */
+    private String resolveEffectiveModelName(Integer modelId, String modelName, String modelsCsv) {
+        // models 列表为空：只能用传入名（若也空则返回 null，由调用方判定配置不完整）
+        if (modelsCsv == null || modelsCsv.isBlank()) {
+            return (modelName != null && !modelName.isBlank()) ? modelName.trim() : null;
         }
-        return null;
+        java.util.List<String> valid = new java.util.ArrayList<>();
+        for (String p : modelsCsv.split(",")) {
+            if (p != null && !p.isBlank()) valid.add(p.trim());
+        }
+        if (valid.isEmpty()) {
+            return (modelName != null && !modelName.isBlank()) ? modelName.trim() : null;
+        }
+        // 传入为空 → 首项（兼容老数据）
+        if (modelName == null || modelName.isBlank()) {
+            return valid.get(0);
+        }
+        String wanted = modelName.trim();
+        // 命中合法项 → 原样用
+        for (String v : valid) {
+            if (v.equals(wanted)) return wanted;
+        }
+        // 脏快照：不在合法列表里 → 回退首项 + WARN 留痕
+        log.warn("[EmbeddingProvider] 快照模型名 \"{}\" 不在 ai_model={} 的 models 列表{} 内，回退首项 \"{}\""
+                        + "（请在对应配置页重存以消除脏快照）",
+                wanted, modelId, valid, valid.get(0));
+        return valid.get(0);
     }
 
     /**

@@ -73,6 +73,19 @@ public class IntentClassifier {
         List<IntentNode> leaves = IntentTreeCacheManager.flattenLeaves(root);
         if (leaves.isEmpty()) return List.of(new NodeScore(buildDefaultRetrieval(), 0.5));
 
+        // ★ 降本短路：意图树仅含预设底座（用户一个业务节点都没配）时，跳过 LLM 调用。
+        //   规则闸门（IntentStage）已零成本拦截问候/闲聊/追问/联网，短应答已被上面 isFiller 归 sys_chitchat，
+        //   能走到这里的都是"规则未命中的实质问题或长尾闲聊"。此时让 LLM 给唯一候选 sys_chitchat 打分毫无意义
+        //   （事实问答必被打低分→空兜底 sys_default_retrieval，等于白烧一次 LLM）。
+        //   直接归默认知识库检索兜底：事实问答走 KB 检索；KB 无召回的长尾闲聊由 GenerateStage
+        //   用 LLM 自然直答（与"配了意图路由但都没命中"的兜底路径一致）。
+        //   ★ 幂等性：仅当无任何用户自定义节点（leaves 全为 sys_ 前缀预设）时触发，
+        //     用户一配节点即恢复 LLM 精分类（hasUserNode 返回 true）。
+        if (!hasUserNode(leaves)) {
+            log.debug("[Intent] 意图树无用户自定义节点，跳过 LLM 分类，直接走默认检索兜底");
+            return List.of(new NodeScore(buildDefaultRetrieval(), 0.5));
+        }
+
         // 1. 渲染意图列表（id/path/description/examples/type）
         String intentList = buildIntentList(leaves);
         String prompt = templateLoader.render("intent-classifier.st",
@@ -106,6 +119,25 @@ public class IntentClassifier {
                 .sorted(NodeScore.descending())
                 .limit(topN)
                 .toList();
+    }
+
+    /**
+     * 是否存在用户自定义节点（非预设底座）。
+     *
+     * <p>判断依据：节点 id 不以 {@code sys_} 开头即为用户配置节点。
+     * 与 {@link NodeScore} 的预设节点识别（{@code id.startsWith("sys_")}）保持同一约定，
+     * 避免两处各写一套判断口径。
+     *
+     * @param leaves 展平的叶子节点列表
+     * @return 存在至少一个用户节点返回 true；全为预设底座（如仅 sys_chitchat）返回 false
+     */
+    private static boolean hasUserNode(List<IntentNode> leaves) {
+        if (leaves == null || leaves.isEmpty()) return false;
+        for (IntentNode leaf : leaves) {
+            String id = leaf == null ? null : leaf.getId();
+            if (id == null || !id.startsWith("sys_")) return true;
+        }
+        return false;
     }
 
     private String buildIntentList(List<IntentNode> leaves) {
