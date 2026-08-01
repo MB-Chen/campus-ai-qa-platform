@@ -81,11 +81,10 @@ public class GenerateStage implements PipelineStage {
     @Override
     public StageResult execute(PipelineContext ctx) throws Exception {
         long t0 = System.currentTimeMillis();
-        // 1. KB 证据：优先用 RetrieveStage 产出的 kbContext（结构化），否则回退渲染 searchResult
-        String kbContext = ctx.getKbContext();
-        if (kbContext == null || kbContext.isBlank()) {
-            kbContext = renderKbContext(ctx);
-        }
+        // 1. KB 证据：★ 始终基于 mergeResult 重新渲染（扁平逐块带 index），与 refs 编号同源同序。
+        //    不复用 RetrieveStage 冻结的 ctx.kbContext（那个是重排前按子问题分组渲染的，
+        //    index 与重排后的 refs 错位，会导致 LLM 标的 [n] 与前端引用来源 n 指向不同块）。
+        String kbContext = renderKbContext(ctx);
         // MCP 工具结果：用 RetrieveStage 产出的 mcpContext
         String mcpContext = ctx.getMcpContext();
 
@@ -193,20 +192,41 @@ public class GenerateStage implements PipelineStage {
         return StageResult.CONTINUE;
     }
 
-    /** 渲染 KB 证据为 <documents> 内的逐条文档 */
+    /**
+     * 渲染 KB 证据为 <documents> 内的逐条文档（扁平逐块编号）。
+     *
+     * <p>★ 数据源优先级与 {@code AgentChatService.extractReferences} 完全一致
+     * （mergeResult → rerankResult → searchResult），且每个 <context index="i"> 的 i
+     * 与 refs 的 index 同源同序（都是从 1 递增遍历同一份列表），保证 LLM 标的 [n]
+     * 与前端「引用来源 n」指向同一个块，杜绝引用错位。
+     *
+     * <p>不再使用 RetrieveStage.mergeKbContext 冻结的「按子问题分组」版本——那个版本
+     * 在重排前渲染、按子问题序号编号，与重排后的 refs 编号必然错位。
+     */
     private String renderKbContext(PipelineContext ctx) {
-        if (ctx.getMergeResult() == null || ctx.getMergeResult().isEmpty()) {
-            // 用 rerankResult 兜底（merge 可能未执行）
-            List<dev.langchain4j.rag.content.Content> src =
-                    ctx.getRerankResult() != null ? ctx.getRerankResult() : ctx.getSearchResult();
-            if (src == null || src.isEmpty()) return "";
-            return src.stream()
-                    .map(c -> "<context>" + c.textSegment().text() + "</context>")
-                    .collect(Collectors.joining("\n"));
+        List<dev.langchain4j.rag.content.Content> src = resolveRefSource(ctx);
+        if (src == null || src.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        int idx = 1;
+        for (dev.langchain4j.rag.content.Content c : src) {
+            String text = c.textSegment().text();
+            if (text == null || text.isBlank()) continue;
+            sb.append("<context index=\"").append(idx++).append("\">")
+              .append(text).append("</context>\n");
         }
-        return ctx.getMergeResult().stream()
-                .map(c -> "<context>" + c.textSegment().text() + "</context>")
-                .collect(Collectors.joining("\n"));
+        return sb.toString().trim();
+    }
+
+    /**
+     * 解析引用数据源，优先级与 {@code AgentChatService.extractReferences} 对齐：
+     * mergeResult → rerankResult（非 null 时即使空列表也以此为准）→ searchResult。
+     */
+    private List<dev.langchain4j.rag.content.Content> resolveRefSource(PipelineContext ctx) {
+        List<dev.langchain4j.rag.content.Content> src = ctx.getMergeResult();
+        if (src != null && !src.isEmpty()) return src;
+        List<dev.langchain4j.rag.content.Content> rerankResult = ctx.getRerankResult();
+        if (rerankResult != null) return rerankResult;
+        return ctx.getSearchResult();
     }
 
     /** 加载会话记忆：失败时空列表降级（不影响生成）。★ 智能体覆盖：historyTurns 非空时用覆盖值 */

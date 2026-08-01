@@ -118,16 +118,17 @@ public class AgentTestSessionServiceImpl implements IAgentTestSessionService {
         }
         LocalDateTime now = LocalDateTime.now();
         for (AgentTestMessageSaveValidate v : messages) {
-            AgentTestMessage msg = new AgentTestMessage();
-            msg.setSessionId(sessionId);
-            msg.setRole(v.getRole());
-            msg.setContent(v.getContent());
-            msg.setReferences(normalizeJson(v.getReferences()));
-            msg.setStageData(normalizeJson(v.getStageData()));
-            msg.setStageTimings(normalizeJson(v.getStageTimings()));
-            msg.setTotalCost(v.getTotalCost());
-            msg.setCreatedAt(now);
-            messageMapper.insert(msg);
+            // ★ jsonb 列走原生 SQL（CAST AS jsonb），不能走 BaseMapper.insert（String 参数会被
+            //   PG JDBC 绑定为 varchar，报 "column is of type jsonb but expression is of type character varying"）
+            messageMapper.insertJsonb(
+                    sessionId,
+                    v.getRole(),
+                    v.getContent(),
+                    normalizeJson(v.getReferences()),
+                    normalizeJson(v.getStageData()),
+                    normalizeJson(v.getStageTimings()),
+                    v.getTotalCost(),
+                    now);
         }
         // 落库后刷新会话更新时间，让列表排序靠后
         AgentTestSession session = new AgentTestSession();

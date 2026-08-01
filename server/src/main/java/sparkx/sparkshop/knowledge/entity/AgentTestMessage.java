@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
  * 流式回答结束后由前端落库：user 问题 + 完整 assistant 回答（含引用来源 / RAG 各阶段
  * 上下文 / 各阶段耗时 / 总耗时）。
  *
- * <p>references / stageData / stageTimings 三个 jsonb 列统一用 String 映射
+ * <p>references(列名 refs) / stageData / stageTimings 三个 jsonb 列统一用 String 映射
  * （项目既有范式，见 {@link ChatMessage}），写入前归一，读取 VO 用 {@code @JsonRawValue}。
  */
 @Data
@@ -51,8 +51,10 @@ public class AgentTestMessage implements Serializable {
     @TableField(value = "content")
     private String content;
 
-    /** 引用来源 JSON（assistant，序列化后的字符串，jsonb 列） */
-    @TableField(value = "references")
+    /** 引用来源 JSON（assistant，序列化后的字符串，jsonb 列）。
+     *  ★ 列名用 refs 而非 references：references 是 PG 保留字，MyBatis-Plus 拼 INSERT 时不加引号会报
+     *    syntax error at or near "references"。Java 字段名保留 references（语义清晰），仅 DB 列名改 refs。 */
+    @TableField(value = "refs")
     private String references;
 
     /** RAG 各阶段上下文 JSON（assistant，jsonb 列） */

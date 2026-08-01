@@ -1695,7 +1695,9 @@ COMMENT ON COLUMN "public"."t_agent_test_session"."id" IS '主键（UUID hex，�
 COMMENT ON COLUMN "public"."t_agent_test_session"."admin_id" IS '所属管理员 id（按账号隔离）';
 COMMENT ON COLUMN "public"."t_agent_test_session"."agent_id" IS '测试的智能体 id';
 COMMENT ON COLUMN "public"."t_agent_test_session"."title" IS '会话标题';
-COMMENT ON TABLE "public"."t_agent_test_session" IS '智能体测试对话会话表（独立于业务对话，仅调试用）';
+COMMENT ON COLUMN "public"."t_agent_test_session"."created_at" IS '创建时间';
+COMMENT ON COLUMN "public"."t_agent_test_session"."updated_at" IS '更新时间';
+COMMENT ON TABLE "public"."t_agent_test_session" IS '智能体测试对话会话表';
 
 DROP TABLE IF EXISTS "public"."t_agent_test_message";
 CREATE TABLE "public"."t_agent_test_message" (
@@ -1703,21 +1705,23 @@ CREATE TABLE "public"."t_agent_test_message" (
   "session_id" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
   "role" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT '',
   "content" text COLLATE "pg_catalog"."default",
-  "references" jsonb,
+  "refs" jsonb,
   "stage_data" jsonb,
   "stage_timings" jsonb,
   "total_cost" int8,
   "created_at" timestamp(6) DEFAULT now()
 )
 ;
+COMMENT ON COLUMN "public"."t_agent_test_message"."id" IS '主键（自增）';
 COMMENT ON COLUMN "public"."t_agent_test_message"."session_id" IS '所属会话 id';
 COMMENT ON COLUMN "public"."t_agent_test_message"."role" IS '角色 user/assistant';
 COMMENT ON COLUMN "public"."t_agent_test_message"."content" IS '消息内容';
-COMMENT ON COLUMN "public"."t_agent_test_message"."references" IS '引用来源 JSON（assistant）';
+COMMENT ON COLUMN "public"."t_agent_test_message"."refs" IS '引用来源 JSON（assistant）';
 COMMENT ON COLUMN "public"."t_agent_test_message"."stage_data" IS 'RAG 各阶段上下文 JSON（assistant）';
 COMMENT ON COLUMN "public"."t_agent_test_message"."stage_timings" IS 'RAG 各阶段耗时 JSON（assistant）';
 COMMENT ON COLUMN "public"."t_agent_test_message"."total_cost" IS '总耗时（毫秒）';
-COMMENT ON TABLE "public"."t_agent_test_message" IS '智能体测试对话消息表（独立于业务对话，仅调试用）';
+COMMENT ON COLUMN "public"."t_agent_test_message"."created_at" IS '创建时间';
+COMMENT ON TABLE "public"."t_agent_test_message" IS '智能体测试对话消息表';
 
 ALTER TABLE "public"."t_agent_test_session" ADD CONSTRAINT "t_agent_test_session_pkey" PRIMARY KEY ("id");
 ALTER TABLE "public"."t_agent_test_message" ADD CONSTRAINT "t_agent_test_message_pkey" PRIMARY KEY ("id");
