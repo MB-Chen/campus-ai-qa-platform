@@ -227,8 +227,12 @@ public class GraphExtractionService {
             return;
         }
         try {
-            doExtractDocument(docId, kbId, progress, bucket);
-            progress.setStatus("done");
+            int failedParents = doExtractDocument(docId, kbId, progress, bucket);
+            // 有父块失败 → failed（与 record 表状态保持一致，前端轮询据此弹失败提示）
+            progress.setStatus(failedParents > 0 ? "failed" : "done");
+            if (failedParents > 0) {
+                progress.setMessage("部分父块抽取失败(" + failedParents + ")");
+            }
             bucket.set(progress, PROGRESS_TTL);
         } catch (Throwable t) {
             log.error("[KgExtract] 异步任务整体失败 docId={} kbId={}: {}", docId, kbId, t.getMessage(), t);
@@ -257,15 +261,21 @@ public class GraphExtractionService {
                 // 单文档路径 triggerExtraction() 会 upsertRecord，批量补抽取路径原先漏了这步，
                 // 导致 record 表为空、抽取管理表格无数据。
                 upsertRecord(kbId, docId, "extracting");
-                doExtractDocument(docId, kbId, progress, bucket);
-                totalSuccess++;
+                int failedParents = doExtractDocument(docId, kbId, progress, bucket);
+                if (failedParents > 0) {
+                    // 父块级失败已在 doExtractDocument 内把该文档 record 标 failed，这里只汇总计数
+                    totalFailed++;
+                } else {
+                    totalSuccess++;
+                }
             } catch (Exception e) {
                 log.warn("[KgExtract] 文档抽取失败 docId={}: {}", docId, e.getMessage());
                 totalFailed++;
                 updateRecordStatus(kbId, docId, "failed", e.getMessage());
             }
         }
-        progress.setStatus("done");
+        // 任一文档失败 → 整批 failed（前端轮询据此弹失败提示，而非误显示成功）
+        progress.setStatus(totalFailed > 0 ? "failed" : "done");
         progress.setMessage("文档级汇总: 成功=" + totalSuccess + " 失败=" + totalFailed);
         bucket.set(progress, PROGRESS_TTL);
     }
@@ -273,21 +283,23 @@ public class GraphExtractionService {
 
     /**
      * 单文档抽取：遍历父块 → LLM 抽取 → 消歧 → 写 Neo4j + kg_entity。
-     * 异常向上抛（由调用方 catch 整体兜底）。
+     * 整体级异常向上抛（由调用方 catch 兜底）；单个父块失败被内部 catch，不抛出。
+     *
+     * @return 失败的父块数（0 表示全部成功）；调用方据此决定最终状态是 done 还是 failed
      */
-    private void doExtractDocument(String docId, String kbId,
-                                    KgExtractionProgressVo progress, RBucket<KgExtractionProgressVo> bucket) {
+    private int doExtractDocument(String docId, String kbId,
+                                   KgExtractionProgressVo progress, RBucket<KgExtractionProgressVo> bucket) {
         KgConfig config = kgConfigMapper.selectById(1);
         if (config == null || config.getEnabled() == null || config.getEnabled() != 1) {
             log.info("[KgExtract] kg_config 未启用，跳过 docId={}", docId);
-            return;
+            return 0;
         }
 
         List<ParentChunkEntity> parents = parentChunkMapper.selectByDocumentId(docId);
         if (parents.isEmpty()) {
             log.info("[KgExtract] 无父块可抽取 docId={}", docId);
             updateRecordStatus(kbId, docId, "done", null);
-            return;
+            return 0;
         }
 
         // 更新进度桶 total
@@ -343,9 +355,17 @@ public class GraphExtractionService {
         // 阻塞等全部完成（本方法在 @Async 线程跑，阻塞不影响主线程/HTTP 请求）
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-        // 更新记录状态
+        int failed = parentFailed.get();
+        // 更新记录状态：只要有父块失败就标 failed（部分失败 / 全失败）。
+        // 原先无条件设 done，导致出错也显示"已抽取"，且增量补抽取（候选集 减 status=done）会漏掉这些文档，
+        // 用户以为完成了、实际一个实体都没成功写入，还永远不会再被重试。
+        // 重抽是幂等的（Neo4j MERGE + kg_entity ON CONFLICT upsert），failed 会被纳入下次增量重试。
+        String errorMsg = failed > 0
+                ? "部分失败(" + failed + "/" + parents.size() + ")"
+                : null;
         updateRecordResult(kbId, docId, parentDone.get(), totalEntities.get(), totalRelations.get(),
-                parentFailed.get() > 0 ? "部分失败(" + parentFailed.get() + "/" + parents.size() + ")" : null);
+                failed, errorMsg);
+        return failed;
     }
 
     /**
@@ -636,13 +656,15 @@ public class GraphExtractionService {
     }
 
     private void updateRecordResult(String kbId, String docId, int parentDone,
-                                     int entityCount, int relationCount, String errorMsg) {
+                                     int entityCount, int relationCount, int failedCount, String errorMsg) {
         KgExtractionRecord record = findRecord(kbId, docId);
         if (record == null) return;
         record.setParentDone(parentDone);
         record.setEntityCount(entityCount);
         record.setRelationCount(relationCount);
-        record.setStatus(errorMsg == null ? "done" : "done");  // 部分失败也算 done（前端看 failed 数）
+        // 有父块失败 → failed（含全失败）；否则 done。
+        // 原先两个分支都是 "done"，导致部分失败时 status=done，前端显示"已抽取"且被增量补抽取漏掉。
+        record.setStatus(failedCount > 0 ? "failed" : "done");
         record.setErrorMsg(errorMsg);
         record.setFinishedAt(LocalDateTime.now());
         record.setUpdatedAt(LocalDateTime.now());

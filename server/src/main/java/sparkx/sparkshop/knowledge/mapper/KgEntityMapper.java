@@ -191,8 +191,11 @@ public interface KgEntityMapper extends BaseMapper<KgEntity> {
             "#{aliases}, #{sourceDocIds}, #{sourceParentIds}, NULL, " +
             "0, 1, now(), now()" +
             ") ON CONFLICT (kb_id, doc_id, canonical_name) DO UPDATE SET " +
-            "source_doc_ids = (COALESCE(source_doc_ids::jsonb, '[]'::jsonb) || #{sourceDocIds}::jsonb)::text, " +
-            "source_parent_ids = (COALESCE(source_parent_ids::jsonb, '[]'::jsonb) || #{sourceParentIds}::jsonb)::text, " +
+            // ★ SET 右值里的 source_doc_ids / source_parent_ids 必须加表名前缀：
+            // DO UPDATE 作用域内，列名同时存在于「目标表已有行」和 excluded（待插入行），
+            // 不限定会报 PSQLException: column reference "source_doc_ids" is ambiguous。
+            "source_doc_ids = (COALESCE(kg_entity.source_doc_ids::jsonb, '[]'::jsonb) || #{sourceDocIds}::jsonb)::text, " +
+            "source_parent_ids = (COALESCE(kg_entity.source_parent_ids::jsonb, '[]'::jsonb) || #{sourceParentIds}::jsonb)::text, " +
             "updated_at = now() " +
             "RETURNING id, (xmax = 0) AS inserted")
     Map<String, Object> upsertOnConflict(@Param("kbId") String kbId,
