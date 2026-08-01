@@ -14,8 +14,10 @@ import sparkx.sparkshop.knowledge.infra.chat.LlmChatRequest;
 import sparkx.sparkshop.knowledge.infra.chat.StreamCallback;
 import sparkx.sparkshop.knowledge.intent.QueryIntent;
 import sparkx.sparkshop.knowledge.memory.ConversationMemoryService;
+import sparkx.sparkshop.knowledge.memory.PersistentMemoryService;
 import sparkx.sparkshop.knowledge.prompt.PromptPlanner;
 import sparkx.sparkshop.knowledge.prompt.PromptScene;
+import sparkx.sparkshop.knowledge.config.RagProperties;
 import sparkx.sparkshop.knowledge.pipeline.AgentOverrides;
 import sparkx.sparkshop.knowledge.pipeline.PipelineContext;
 import sparkx.sparkshop.knowledge.pipeline.PipelineStage;
@@ -52,13 +54,19 @@ public class GenerateStage implements PipelineStage {
     private final LLMService llmService;
     private final PromptPlanner promptPlanner;
     private final ConversationMemoryService memoryService;
+    private final PersistentMemoryService persistentMemoryService;
+    private final boolean globalPersistentEnabled;
 
     public GenerateStage(LLMService llmService,
                          PromptPlanner promptPlanner,
-                         ConversationMemoryService memoryService) {
+                         ConversationMemoryService memoryService,
+                         PersistentMemoryService persistentMemoryService,
+                         RagProperties ragProperties) {
         this.llmService = llmService;
         this.promptPlanner = promptPlanner;
         this.memoryService = memoryService;
+        this.persistentMemoryService = persistentMemoryService;
+        this.globalPersistentEnabled = ragProperties.getMemory().isPersistentEnabled();
     }
 
     @Override
@@ -97,10 +105,15 @@ public class GenerateStage implements PipelineStage {
         List<ChatMessage> history = loadHistory(ctx);
         long tMem = System.currentTimeMillis();
 
-        // 5. 构建结构化消息：system → history(含摘要) → user(证据+问题)
+        // 5. 构建结构化消息：system → 持久记忆 → history(含摘要) → user(证据+问题)
         String userMsg = buildUserMessage(ctx, kbContext, mcpContext);
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(SystemMessage.from(systemPrompt));
+        // ★ 跨会话持久记忆（agentId+adminId 维度的长期事实），在摘要之前注入
+        String persistentMem = loadPersistentMemory(ctx);
+        if (persistentMem != null) {
+            messages.add(SystemMessage.from(persistentMem));
+        }
         if (history != null && !history.isEmpty()) {
             messages.addAll(history);
         }
@@ -300,8 +313,45 @@ public class GenerateStage implements PipelineStage {
                 log.debug("[Generate] 序列化 RAG 上下文失败（忽略，不影响落库）: {}", je.getMessage());
             }
             memoryService.append(convId, userId, dev.langchain4j.data.message.AiMessage.from(answer), ragContextJson);
+
+            // ★ 触发跨会话持久记忆异步抽取（按 agentId+adminId 会话族沉淀长期事实）
+            if (isPersistentEnabled(ctx)) {
+                String pmemKey = ctx.getPersistentMemoryKey();
+                if (pmemKey != null) {
+                    Integer extractModelId = ctx.getAgentOverrides() != null
+                            ? ctx.getAgentOverrides().getRewriteModelId() : null;
+                    String extractModelName = ctx.getAgentOverrides() != null
+                            ? ctx.getAgentOverrides().getRewriteModelName() : null;
+                    persistentMemoryService.extractIfNeeded(pmemKey, convId, extractModelId, extractModelName);
+                }
+            }
         } catch (Exception e) {
             log.debug("[Generate] 追加会话记忆失败（不影响主流程）: {}", e.getMessage());
         }
+    }
+
+    /**
+     * 加载跨会话持久记忆并渲染为标签文本（失败时空降级，不影响生成）。
+     * 仅当智能体/全局开启持久记忆且有 memoryKey 时才加载。
+     */
+    private String loadPersistentMemory(PipelineContext ctx) {
+        if (!isPersistentEnabled(ctx)) return null;
+        try {
+            String pmemKey = ctx.getPersistentMemoryKey();
+            if (pmemKey == null) return null;
+            return persistentMemoryService.load(pmemKey);
+        } catch (Exception e) {
+            log.debug("[Generate] 加载持久记忆失败，降级跳过: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 持久记忆开关：智能体覆盖优先，否则回退全局 app.rag.memory.persistent-enabled */
+    private boolean isPersistentEnabled(PipelineContext ctx) {
+        AgentOverrides ov = ctx.getAgentOverrides();
+        if (ov != null && ov.getPersistentMemoryEnabled() != null) {
+            return ov.getPersistentMemoryEnabled();
+        }
+        return globalPersistentEnabled;
     }
 }

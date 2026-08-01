@@ -141,6 +141,10 @@ public class KnowledgeAgent implements Serializable {
     @TableField(value = "sample_query_threshold")
     private Double sampleQueryThreshold;
 
+    /** 是否启用跨会话持久记忆 1启用 2禁用（启用后按 agentId+adminId 沉淀/共享长期记忆） */
+    @TableField(value = "persistent_memory_enabled")
+    private Integer persistentMemoryEnabled;
+
     /** 开场白 */
     @TableField(value = "welcome")
     private String welcome;

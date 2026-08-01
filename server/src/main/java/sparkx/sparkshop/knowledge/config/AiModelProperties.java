@@ -84,6 +84,16 @@ public class AiModelProperties {
         private int summaryMaxChars = 200;
         /** 摘要标题最大长度（预留） */
         private int titleMaxLength = 30;
+        /** 是否开启跨会话持久记忆（与 RagProperties.Memory 镜像） */
+        private boolean persistentEnabled = false;
+        /** 持久记忆抽取触发阈值（与 RagProperties.Memory 镜像） */
+        private int persistentStartTurns = 8;
+        /** 持久记忆抽取间隔（与 RagProperties.Memory 镜像） */
+        private int extractInterval = 6;
+        /** 持久记忆结构化 JSON 最大字符数（与 RagProperties.Memory 镜像） */
+        private int persistentMaxChars = 500;
+        /** 持久记忆抽取单次拉取最大消息条数（与 RagProperties.Memory 镜像） */
+        private int persistentBatchMessages = 20;
 
         public int getHistoryKeepTurns() { return historyKeepTurns; }
         public void setHistoryKeepTurns(int historyKeepTurns) { this.historyKeepTurns = historyKeepTurns; }
@@ -95,6 +105,16 @@ public class AiModelProperties {
         public void setSummaryMaxChars(int summaryMaxChars) { this.summaryMaxChars = summaryMaxChars; }
         public int getTitleMaxLength() { return titleMaxLength; }
         public void setTitleMaxLength(int titleMaxLength) { this.titleMaxLength = titleMaxLength; }
+        public boolean isPersistentEnabled() { return persistentEnabled; }
+        public void setPersistentEnabled(boolean persistentEnabled) { this.persistentEnabled = persistentEnabled; }
+        public int getPersistentStartTurns() { return persistentStartTurns; }
+        public void setPersistentStartTurns(int persistentStartTurns) { this.persistentStartTurns = persistentStartTurns; }
+        public int getExtractInterval() { return extractInterval; }
+        public void setExtractInterval(int extractInterval) { this.extractInterval = extractInterval; }
+        public int getPersistentMaxChars() { return persistentMaxChars; }
+        public void setPersistentMaxChars(int persistentMaxChars) { this.persistentMaxChars = persistentMaxChars; }
+        public int getPersistentBatchMessages() { return persistentBatchMessages; }
+        public void setPersistentBatchMessages(int persistentBatchMessages) { this.persistentBatchMessages = persistentBatchMessages; }
     }
 
 

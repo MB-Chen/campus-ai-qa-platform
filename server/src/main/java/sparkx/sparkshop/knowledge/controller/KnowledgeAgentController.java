@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import sparkx.sparkshop.common.core.AjaxResult;
+import sparkx.sparkshop.common.utils.AdminContextUtils;
 import sparkx.sparkshop.knowledge.agent.AgentChatService;
 import sparkx.sparkshop.knowledge.agent.AgentEvalService;
 import sparkx.sparkshop.knowledge.service.IKnowledgeAgentService;
@@ -94,7 +95,9 @@ public class KnowledgeAgentController {
     @Operation(summary = "智能体测试对话（SSE 流式）")
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody @Valid AgentChatValidate validate) {
-        return agentChatService.chat(validate);
+        // ★ 在 HTTP 线程内取 adminId（异步线程里 AdminContextUtils 会失效），透传给持久记忆按会话族隔离
+        Long adminId = AdminContextUtils.getAdminIdAsLong();
+        return agentChatService.chat(validate, adminId);
     }
 
 

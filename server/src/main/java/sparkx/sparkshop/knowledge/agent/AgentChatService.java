@@ -80,10 +80,11 @@ public class AgentChatService {
     /**
      * 启动一次智能体测试对话（SSE 流式）。
      *
-     * @param req 入参（agentId + conversationId + query）
+     * @param req     入参（agentId + conversationId + query）
+     * @param adminId 当前登录管理员 id（用于持久记忆按会话族隔离；null 表示无登录上下文，跳过持久记忆）
      * @return SseEmitter
      */
-    public SseEmitter chat(AgentChatValidate req) {
+    public SseEmitter chat(AgentChatValidate req, Long adminId) {
         KnowledgeAgent agent = agentService.getById(req.getAgentId());
         if (agent == null) {
             throw new BusinessException("智能体不存在");
@@ -98,6 +99,10 @@ public class AgentChatService {
         String sessionKey = "agent:" + agent.getId() + ":" + conversationId;
         activeChats.put(sessionKey, Boolean.TRUE);
 
+        // ★ 持久记忆 key：按 agentId + adminId 划分会话族（同一管理员在同一智能体下的所有会话共享）
+        // adminId 为 null（无登录上下文）时不启用持久记忆
+        String persistentMemoryKey = adminId != null ? "pmem:" + agent.getId() + ":" + adminId : null;
+
         // SSE：不超时（0L），由客户端断开或完成回调驱动结束
         SseEmitter emitter = new SseEmitter(0L);
         emitter.onCompletion(() -> activeChats.remove(sessionKey));
@@ -110,16 +115,17 @@ public class AgentChatService {
             log.warn("[AgentChat] SSE 异常 session={}: {}", sessionKey, t.getMessage());
         });
 
-        ragTaskExecutor.execute(() -> runPipelineAndStream(agent, req.getQuery(), sessionKey, emitter));
+        ragTaskExecutor.execute(() -> runPipelineAndStream(agent, req.getQuery(), sessionKey, persistentMemoryKey, adminId, emitter));
 
         return emitter;
     }
 
     /** 实际跑管线 + SSE 推送（在 ragTaskExecutor 线程内执行） */
-    private void runPipelineAndStream(KnowledgeAgent agent, String query, String sessionKey, SseEmitter emitter) {
+    private void runPipelineAndStream(KnowledgeAgent agent, String query, String sessionKey,
+                                      String persistentMemoryKey, Long adminId, SseEmitter emitter) {
         StringBuilder fullAnswer = new StringBuilder();
         try {
-            PipelineContext ctx = buildContext(agent, query, sessionKey);
+            PipelineContext ctx = buildContext(agent, query, sessionKey, persistentMemoryKey, adminId);
 
             ctx.setTokenConsumer(token -> {
                 // 客户端已断开则停止推送
@@ -198,7 +204,7 @@ public class AgentChatService {
         StringBuilder fullAnswer = new StringBuilder();
         long[] firstTokenAt = {0L};
         try {
-            PipelineContext ctx = buildContext(agent, query, sessionKey);
+            PipelineContext ctx = buildContext(agent, query, sessionKey, null, null);
             long startMs = System.currentTimeMillis();
             // 逐 token 回调：记录首个非空 token 到达时刻，供评测首字耗时(TTFT)用
             ctx.setTokenConsumer(token -> {
@@ -254,12 +260,15 @@ public class AgentChatService {
     public record EvalProbeResult(ChatResult result, PipelineContext ctx, Long firstTokenMs) {}
 
 
-    /** 构造管线上下文：注入智能体的知识库 + 参数覆盖 */
-    private PipelineContext buildContext(KnowledgeAgent agent, String query, String sessionKey) {
+    /** 构造管线上下文：注入智能体的知识库 + 参数覆盖 + 持久记忆 key */
+    private PipelineContext buildContext(KnowledgeAgent agent, String query, String sessionKey,
+                                         String persistentMemoryKey, Long adminId) {
         PipelineContext ctx = new PipelineContext();
         ctx.setOriginalQuery(query);
         ctx.setSessionId(sessionKey);
         ctx.setUserId(OPERATOR_USER_ID);
+        ctx.setAdminId(adminId);
+        ctx.setPersistentMemoryKey(persistentMemoryKey);
         ctx.setLanguage("中文");
 
         // ★ 知识库三态（对齐 WeKnora）：
@@ -312,6 +321,7 @@ public class AgentChatService {
         ov.setFallbackResponse(agent.getFallbackResponse());
         ov.setSampleQueryEnabled(agent.getSampleQueryEnabled() != null && agent.getSampleQueryEnabled() == 1);
         ov.setSampleQueryThreshold(agent.getSampleQueryThreshold());
+        ov.setPersistentMemoryEnabled(agent.getPersistentMemoryEnabled() != null && agent.getPersistentMemoryEnabled() == 1);
         return ov;
     }
 

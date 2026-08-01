@@ -35,6 +35,8 @@ public class PipelineContext {
     private String originalQuery;
     private String sessionId;
     private String userId;
+    private Long adminId;                         // 当前登录管理员 id（持久记忆按 agentId+adminId 隔离）
+    private String persistentMemoryKey;           // 跨会话持久记忆 key（pmem:{agentId}:{adminId}），null 表示不启用
     private List<String> knowledgeBaseIds;
     private List<String> images;                  // 图片 URL 列表
     private boolean webSearchEnabled;
@@ -106,6 +108,10 @@ public class PipelineContext {
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+    public Long getAdminId() { return adminId; }
+    public void setAdminId(Long adminId) { this.adminId = adminId; }
+    public String getPersistentMemoryKey() { return persistentMemoryKey; }
+    public void setPersistentMemoryKey(String persistentMemoryKey) { this.persistentMemoryKey = persistentMemoryKey; }
     public List<String> getKnowledgeBaseIds() { return knowledgeBaseIds; }
     public void setKnowledgeBaseIds(List<String> knowledgeBaseIds) { this.knowledgeBaseIds = knowledgeBaseIds; }
     public List<String> getImages() { return images; }

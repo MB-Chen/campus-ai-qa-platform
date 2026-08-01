@@ -82,6 +82,11 @@ public class AgentOverrides {
     private Boolean sampleQueryEnabled;
     /** 样例匹配相似度阈值覆盖（null 时回退全局 sample_query_config.similarity_threshold） */
     private Double sampleQueryThreshold;
+    /**
+     * 是否启用跨会话持久记忆（null=不覆盖，回退全局 app.rag.memory.persistent-enabled）。
+     * 启用后：GenerateStage 注入持久记忆 SystemMessage；每轮后异步抽取沉淀长期事实。
+     */
+    private Boolean persistentMemoryEnabled;
 
     public String getKbMode() { return kbMode; }
     public void setKbMode(String kbMode) { this.kbMode = kbMode; }
@@ -129,4 +134,6 @@ public class AgentOverrides {
     public void setSampleQueryEnabled(Boolean sampleQueryEnabled) { this.sampleQueryEnabled = sampleQueryEnabled; }
     public Double getSampleQueryThreshold() { return sampleQueryThreshold; }
     public void setSampleQueryThreshold(Double sampleQueryThreshold) { this.sampleQueryThreshold = sampleQueryThreshold; }
+    public Boolean getPersistentMemoryEnabled() { return persistentMemoryEnabled; }
+    public void setPersistentMemoryEnabled(Boolean persistentMemoryEnabled) { this.persistentMemoryEnabled = persistentMemoryEnabled; }
 }

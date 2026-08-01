@@ -1624,3 +1624,40 @@ ALTER TABLE "public"."t_chat_message" ADD CONSTRAINT "t_chat_message_pkey" PRIMA
 CREATE INDEX "idx_chat_message_session" ON "public"."t_chat_message" USING btree (
   "session_id" COLLATE "pg_catalog"."default" "text_ops" ASC NULLS LAST
 );
+
+
+-- ----------------------------
+-- Table structure for t_persistent_memory（跨会话持久记忆，按 agentId+adminId 会话族隔离）
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."t_persistent_memory";
+CREATE TABLE "public"."t_persistent_memory" (
+  "memory_key" varchar(160) COLLATE "pg_catalog"."default" NOT NULL,
+  "memory_json" jsonb,
+  "version" int4 NOT NULL DEFAULT 0,
+  "last_extracted_message_id" int8,
+  "message_count" int4 NOT NULL DEFAULT 0,
+  "updated_at" timestamp(6) DEFAULT now()
+)
+;
+COMMENT ON COLUMN "public"."t_persistent_memory"."memory_key" IS '持久记忆 key（pmem:{agentId}:{adminId}）';
+COMMENT ON COLUMN "public"."t_persistent_memory"."memory_json" IS '结构化分区 JSON（userProfile/longTermConstraints/confirmedFacts/preferences）';
+COMMENT ON COLUMN "public"."t_persistent_memory"."version" IS '版本号（每次抽取自增）';
+COMMENT ON COLUMN "public"."t_persistent_memory"."last_extracted_message_id" IS '增量抽取下界：已抽取的最后一条消息 id';
+COMMENT ON COLUMN "public"."t_persistent_memory"."message_count" IS '该会话族累计用户消息数（闸门用）';
+COMMENT ON COLUMN "public"."t_persistent_memory"."updated_at" IS '更新时间';
+COMMENT ON TABLE "public"."t_persistent_memory" IS '跨会话持久记忆表（每个 agentId+adminId 一份）';
+ALTER TABLE "public"."t_persistent_memory" ADD CONSTRAINT "t_persistent_memory_pkey" PRIMARY KEY ("memory_key");
+
+-- ----------------------------
+-- knowledge_agent 新增持久记忆开关列
+-- ----------------------------
+ALTER TABLE "public"."knowledge_agent" ADD COLUMN IF NOT EXISTS "persistent_memory_enabled" int2 NOT NULL DEFAULT 2;
+COMMENT ON COLUMN "public"."knowledge_agent"."persistent_memory_enabled" IS '是否启用跨会话持久记忆 1启用 2禁用';
+
+-- ----------------------------
+-- t_conversation_message 补联合索引（持久记忆按 user_id 前缀扫描会话族消息时用）
+-- ----------------------------
+CREATE INDEX IF NOT EXISTS "idx_conv_msg_uid" ON "public"."t_conversation_message" USING btree (
+  "user_id" COLLATE "pg_catalog"."default" "text_ops" ASC NULLS LAST,
+  "id" "int8_ops" ASC NULLS LAST
+);

@@ -292,6 +292,16 @@ public class RagProperties {
         private int summaryMaxChars = 200;
         /** 摘要标题最大长度 */
         private int titleMaxLength = 30;
+        /** 是否开启跨会话持久记忆（按 agentId+adminId 沉淀长期事实，跨会话共享） */
+        private boolean persistentEnabled = false;
+        /** 持久记忆抽取触发阈值：该会话族用户消息总数达到此值才开始抽取（比摘要阈值高，避免噪音） */
+        private int persistentStartTurns = 8;
+        /** 持久记忆抽取间隔：达到起步阈值后，每积累这么多轮新对话才抽一次（控制 LLM 调用成本） */
+        private int extractInterval = 6;
+        /** 持久记忆结构化 JSON 最大字符数 */
+        private int persistentMaxChars = 500;
+        /** 持久记忆抽取时一次性拉取的最大消息条数（防单次输入过长） */
+        private int persistentBatchMessages = 20;
 
         public int getHistoryKeepTurns() { return historyKeepTurns; }
         public void setHistoryKeepTurns(int historyKeepTurns) { this.historyKeepTurns = historyKeepTurns; }
@@ -303,6 +313,16 @@ public class RagProperties {
         public void setSummaryMaxChars(int summaryMaxChars) { this.summaryMaxChars = summaryMaxChars; }
         public int getTitleMaxLength() { return titleMaxLength; }
         public void setTitleMaxLength(int titleMaxLength) { this.titleMaxLength = titleMaxLength; }
+        public boolean isPersistentEnabled() { return persistentEnabled; }
+        public void setPersistentEnabled(boolean persistentEnabled) { this.persistentEnabled = persistentEnabled; }
+        public int getPersistentStartTurns() { return persistentStartTurns; }
+        public void setPersistentStartTurns(int persistentStartTurns) { this.persistentStartTurns = persistentStartTurns; }
+        public int getExtractInterval() { return extractInterval; }
+        public void setExtractInterval(int extractInterval) { this.extractInterval = extractInterval; }
+        public int getPersistentMaxChars() { return persistentMaxChars; }
+        public void setPersistentMaxChars(int persistentMaxChars) { this.persistentMaxChars = persistentMaxChars; }
+        public int getPersistentBatchMessages() { return persistentBatchMessages; }
+        public void setPersistentBatchMessages(int persistentBatchMessages) { this.persistentBatchMessages = persistentBatchMessages; }
     }
 
     /**

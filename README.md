@@ -96,6 +96,92 @@ spark-x/
 
 > 分层不是为了炫技，而是解决实际问题：`knowledge` 子系统内部进一步按 pipeline / retrieval / ingest / infra / mcp / intent / graph 分包，换模型供应商不用改业务代码，加检索通道不用动生成逻辑。
 
+<details>
+<summary><b>knowledge 模块完整结构（点击展开）</b> · 后端最大子系统，RAG / 智能体 / 意图 / 图谱 / MCP 全部自包含于此</summary>
+
+### 目录结构
+
+```
+knowledge/
+├── pipeline/           # RAG 流水线引擎（按 @Order 自动装配）
+│   └── stages/         # 11 个具体阶段（样例/改写/意图/检索/重排/生成…）
+├── retrieval/          # 检索通道 + 后处理链（混合 / 去重 / MMR / RRF 融合）
+├── ingest/             # 文档入库流水线（解析 / 分块 / 嵌入 / 索引）
+│   ├── block/          # 基于版面的结构化分块（段落 / 标题 / 表格 / 代码…）
+│   └── mineru/         # MinerU 复杂版面解析客户端封装
+├── intent/             # 意图树 + 规则快路径 + LLM 分类 + 引导澄清
+├── graph/              # 知识图谱（Neo4j 存储 + 抽取 + 检索通道）
+├── infra/              # LLM / 嵌入 / 重排 基础设施
+│   ├── chat/           # 模型客户端（路由 + 三态熔断 + 首包探测 + 流式）
+│   └── model/          # 模型健康 / 路由选择 / 路由执行
+├── mcp/                # MCP 工具注册中心 + 执行器
+├── memory/             # 对话记忆（历史加载 + 摘要压缩）
+├── agent/              # 智能体对话编排入口 + 评测
+├── prompt/             # 提示词编排（场景路由 + 模板管理）
+├── query/              # 查询改写 / 扩展 / 多子问题拆分
+├── fallback/           # 模型兜底 / 降级策略
+├── config/             # Spring Bean 装配与配置绑定
+├── controller/         # REST 入口（各领域 HTTP 接口）
+├── service/ + impl/    # 业务逻辑层（接口 + 实现）
+├── mapper/             # MyBatis Mapper（各表 CRUD）
+├── entity/             # 持久化实体（对应 26 张业务表）
+├── vo/                 # 出入参 DTO
+├── validate/           # 入参校验（每场景一个 Validate 类）
+└── common/             # 异常 + 全链路 Trace AOP
+    ├── exception/      # RAG 统一异常
+    └── trace/          # @RagTraceNode 链路追踪切面
+```
+
+### 各目录职责
+
+**流水线核心**
+- `pipeline/` — `RagPipeline` 按 `@Order` 自动装配所有 stage；`PipelineStage` 定义 `CONTINUE` / `FALLBACK` / `COMPLETE` 契约；`PipelineContext` 贯穿各阶段共享上下文。
+- `pipeline/stages/` — 11 个阶段：样例命中(5) → 改写拆分(10) → 意图分类(20/30) → 歧义澄清(40) → 引导(50) → 检索(60) → 重排(70) → 合并(80) → 生成(90)；任一步可短路 `COMPLETE` 直返，异常走 `FallbackStage` 兜底。
+
+**检索**
+- `retrieval/` — `ConditionalRetrievalChannel` 接口 + `VectorKeywordHybridChannel`（向量+关键词）、`IntentDirectedChannel`（意图驱动）；`HybridContentRetriever` 编排多通道；后处理链 `DeduplicationPostProcessor` / `MmrReranker` / `ParentExpansionPostProcessor` / `FusionPostProcessor`（RRF 融合）。
+
+**入库**
+- `ingest/` — `DocumentIngestService` 入库总服务；`AdaptiveDocumentSplitter` / `ParentChildSplitter` / `SpreadsheetRowSplitter` 分块策略；`MultimodalDocumentParser` / `ImageOcrService` 多模态解析；`KgEntityIndexer` / `SampleQueryIndexer` / `QuestionIndexer` 实体 / 样例 / 问答索引。
+- `ingest/block/` — 基于版面的结构化切片：`Block` 抽象 + 段落 / 标题 / 列表 / 表格 / 图片 / 代码块，`BlockAwareChunker` 按结构分块并保留 `Provenance` 溯源。
+- `ingest/mineru/` — MinerU 复杂 PDF 版面解析客户端封装（`MinerUClient` / `MinerUDocumentParser` / `MinerUImageDescriber` 等）。
+
+**意图**
+- `intent/` — `IntentNode` + `IntentTreeCacheManager` 意图树；`RuleBasedIntentRouter` 规则快路径（问候 / 闲聊零成本）；`IntentClassifier` / `LlmIntentClassifier` 低温 LLM 分类；`AmbiguityChecker` / `VagueQueryClarifier` / `IntentGuidanceService` 歧义检测与引导澄清；`IntentSeedService` / `IntentEvalService` 种子生成与评测。
+
+**知识图谱**
+- `graph/` — `GraphRepository` 接口 + `Neo4jGraphRepository` / `NoopGraphRepository`（未配 Neo4j 兜底）；`KnowledgeGraphChannel` 图谱检索通道并入 RAG；`GraphExtractionService` 实体关系抽取；`CommunityService` 社区检测（global 模式前置）；`EntityDisambiguator` 实体消歧。
+
+**模型基础设施**
+- `infra/` — `LLMService` LLM 统一门面、`EmbeddingModelProvider` 嵌入模型解析、`TsVectorGenerator` 关键词检索向量生成。
+- `infra/chat/` — 模型客户端：`RoutingLLMService` 路由入口 + `ModelSelector` 选模型 + `ModelHealthStore` 三态熔断 + `LlmFirstPacketProbe` 首包探测 + `StreamCallback` 流式回调；`OpenAICompatibleChatClient` / `OllamaChatClient` 具体实现。
+- `infra/model/` — `ModelHealthStore` 健康状态（CLOSED / OPEN / HALF_OPEN）、`ModelSelector` 策略选模型、`ModelRoutingExecutor` 路由执行。
+
+**工具与记忆**
+- `mcp/` — `McpToolRegistry` 注册中心 + `McpToolService` 执行器 + `McpClientManager` 客户端管理；远程 MCP 工具经 `mcp_server` / `mcp_tool` 表接入。
+- `memory/` — `ConversationMemoryService` / `ConversationMemoryStore` 历史加载 + `ConversationMemorySummaryService` 摘要压缩，长对话不超 Token。
+
+**智能体与提示词**
+- `agent/` — `AgentChatService` 智能体对话总入口（驱动 `RagPipeline`）、`AgentEvalService` 评测、`AgentRerankClient` 重排客户端。
+- `prompt/` — `PromptPlanner` 提示词编排（KB_ONLY / MCP_ONLY / MIXED / EMPTY 场景路由）+ `PromptTemplateLoader` / `PromptTemplateManager` 模板管理。
+- `query/` — `MultiQuestionRewriteService` 多子问题改写、`QueryExpansionTransformer` 查询扩展、`QueryTermMappingService` 词映射。
+
+**兜底与配置**
+- `fallback/` — `FallbackProvider` 接口 + `ModelFallbackProvider` / `FixedFallbackProvider` 模型降级兜底。
+- `config/` — Spring Bean 装配与配置绑定：`RagProperties` / `AiModelProperties` / `AsyncConfig` / `LangChain4jConfig` / `McpBeansConfig` / `MinerUConfig` / `MinioConfig` / `KnowledgeGraphConfig` 等。
+
+**支撑层（通用）**
+- `controller/` — 各领域 REST 入口（知识库 / 文档 / 智能体 / 意图 / 图谱 / MCP / 样例 / 会话 / 模型 / 管线）。
+- `service/` + `service/impl/` — 业务逻辑接口与实现。
+- `mapper/` — MyBatis Mapper（22 张表 CRUD）。
+- `entity/` — 持久化实体（对应 `KnowledgeBase` / `Chunk` / `IntentNode` / `KgEntity` / `SampleQuery` / `McpTool` / `AiModel` / `Conversation`… 等表）。
+- `vo/` — 出入参 DTO（29 个）。
+- `validate/` — 入参校验（38 个 Validate 类，每场景一个）。
+- `common/exception/` — `RagException` RAG 统一异常。
+- `common/trace/` — `RagTraceAspect` / `RagTraceNode` 全链路 Trace AOP 切面（每个环节耗时 / 输入输出记录）。
+
+</details>
+
 ![](screenshot/2.png)
 
 一次用户提问，在 SparkX 服务里经过的 RAG 核心链路如下：
