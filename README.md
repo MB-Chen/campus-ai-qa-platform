@@ -387,7 +387,7 @@ SparkX 提供完整的可视化管理后台，覆盖智能体开发的全生命�
 
 ## 🛠️ 技术架构
 
-**后端**：Java 17 + Spring Boot 3.4 + MyBatis-Plus + LangChain4j 1.18 + PostgreSQL(vector) + Redis(Redisson) + MinIO + WebSocket
+**后端**：Java 17 + Spring Boot 3.4 + MyBatis-Plus + LangChain4j 1.18 + PostgreSQL(vector) + Redis(Redisson) + MinIO + SSE（服务端推送，无 WebSocket）
 
 **前端**：Vue 3 + TypeScript + Vite + Naive UI + Alova(HTTP) + AntV X6(编排)
 
@@ -437,7 +437,7 @@ http://localhost:8189
 ```
 
 账号 `admin`
-密码 `admin`
+密码 `123456`
 
 ## 📖 使用手册
 
