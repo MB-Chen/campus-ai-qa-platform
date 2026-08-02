@@ -57,12 +57,22 @@
               </span>
             </div>
             <div class="kb-actions">
-              <n-button size="tiny" quaternary type="primary" @click="openEdit(wf)">编辑</n-button>
-              <n-button size="tiny" quaternary type="info" @click="openDebug(wf)">调试</n-button>
-              <n-button size="tiny" quaternary @click="handleCopy(wf)">复制</n-button>
-              <n-button size="tiny" quaternary type="error" @click="handleDelete(wf)"
-                >删除</n-button
-              >
+              <n-button class="kb-action-btn" size="tiny" quaternary type="primary" @click="openEdit(wf)">
+                <template #icon><n-icon><EditOutlined /></n-icon></template>
+                编辑
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary type="info" @click="openDebug(wf)">
+                <template #icon><n-icon><BugOutlined /></n-icon></template>
+                调试
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary @click="handleCopy(wf)">
+                <template #icon><n-icon><CopyOutlined /></n-icon></template>
+                复制
+              </n-button>
+              <n-button class="kb-action-btn" size="tiny" quaternary type="error" @click="handleDelete(wf)">
+                <template #icon><n-icon><DeleteOutlined /></n-icon></template>
+                删除
+              </n-button>
             </div>
           </div>
         </div>
@@ -125,7 +135,14 @@
   import { ref, reactive, onMounted } from 'vue';
   import { useRouter } from 'vue-router';
   import { useMessage, useDialog, type FormInst, type FormRules } from 'naive-ui';
-  import { SearchOutlined, DeploymentUnitOutlined } from '@vicons/antd';
+  import {
+    SearchOutlined,
+    DeploymentUnitOutlined,
+    EditOutlined,
+    BugOutlined,
+    CopyOutlined,
+    DeleteOutlined,
+  } from '@vicons/antd';
   import {
     getWorkflowList,
     addWorkflow,
@@ -290,11 +307,11 @@
     border: 1px solid #eee;
     border-radius: 8px;
     padding: 14px;
-    background: linear-gradient(135deg, #ffffff 0%, rgba(24, 160, 88, 0.04) 100%);
+    background: linear-gradient(135deg, #ffffff 0%, rgba(5, 150, 105, 0.04) 100%);
     transition: all 0.2s;
     &:hover {
-      border-color: #18a058;
-      box-shadow: 0 4px 12px rgba(24, 160, 88, 0.12);
+      border-color: #059669;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.12);
     }
     &.disabled {
       opacity: 0.6;
@@ -309,7 +326,7 @@
   }
   .kb-avatar {
     font-size: 20px;
-    color: #18a058;
+    color: #059669;
   }
   .kb-name {
     font-size: 15px;
@@ -354,8 +371,11 @@
     color: #333;
   }
   .kb-actions {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .kb-action-btn {
+    min-width: 0;
   }
 </style>
