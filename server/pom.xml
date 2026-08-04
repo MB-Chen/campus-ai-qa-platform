@@ -235,6 +235,13 @@
             <artifactId>langchain4j-mcp</artifactId>
             <version>${langchain4j-mcp.version}</version>
         </dependency>
+
+        <!-- 测试（JUnit 5 + Mockito + AssertJ；test scope 仅编译测试代码，不进运行时 jar） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
