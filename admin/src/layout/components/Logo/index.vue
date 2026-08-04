@@ -1,6 +1,6 @@
 <template>
   <div class="logo">
-    <h2 v-show="!collapsed" class="title">SparkX</h2>
+    <h2 v-show="!collapsed" class="title">校园智能问答平台</h2>
   </div>
 </template>
 

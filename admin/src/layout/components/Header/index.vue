@@ -7,7 +7,7 @@
     >
       <div class="logo" v-if="navMode === 'horizontal'">
         <img :src="websiteConfig.logo" alt="" />
-        <h2 v-show="!collapsed" class="title">SparkX</h2>
+        <h2 v-show="!collapsed" class="title">校园智能问答平台</h2>
       </div>
       <AsideMenu
         :collapsed="collapsed"
