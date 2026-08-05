@@ -19,4 +19,4 @@ WORKDIR /app
 # 复制后端 JAR 包（2.0 单模块，finalName=sparkx-server）
 COPY sparkx-server.jar ./sparkx-server.jar
 
-ENTRYPOINT ["/bin/sh", "-c", "java -jar sparkx-server.jar"]
+ENTRYPOINT ["/bin/sh", "-c", "java -Dhttps.protocols=TLSv1.2,TLSv1.3 -Djdk.tls.client.protocols=TLSv1.2,TLSv1.3 -jar sparkx-server.jar"]

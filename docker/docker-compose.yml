@@ -154,6 +154,8 @@ services:
     environment:
       # 激活 docker profile：用服务名连接 postgres/redis/minio，配置见 application-docker.yml
       SPRING_PROFILES_ACTIVE: docker
+    # 覆盖默认启动命令，加 JVM SSL 参数修复 OkHttp SSLHandshakeException
+    command: java -Dhttps.protocols=TLSv1.2,TLSv1.3 -Djdk.tls.client.protocols=TLSv1.2,TLSv1.3 -jar /app/sparkx-server.jar
     ports:
       - "7026:7026"
 
