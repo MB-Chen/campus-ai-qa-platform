@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import sparkx.sparkshop.knowledge.infra.LLMService;
-import sparkx.sparkshop.knowledge.mapper.ChunkMapper;
+import sparkx.sparkshop.knowledge.service.IKnowledgeService;
+import sparkx.sparkshop.knowledge.validate.HitTestValidate;
+import sparkx.sparkshop.knowledge.vo.HitTestVo;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,7 +31,7 @@ public class CampusAgentService {
 
     private final LLMService llmService;
     private final IntentRouter router;
-    private final ChunkMapper chunkMapper;
+    private final IKnowledgeService knowledgeService;
 
     // 5 个校园知识库 ID
     private static final List<String> CAMPUS_KB_IDS = List.of(
@@ -104,22 +106,28 @@ public class CampusAgentService {
     /**
      * 从 5 个校园知识库中检索相关内容
      *
-     * 流程：embed(问题) → 对每个知识库 vectorSearch → 合并取 top-3
-     * 5 个知识库共享同一个 embedding 模型（硅基流动 bge-m3），所以只 embed 一次。
+     * 流程：对每个知识库调用 hitTest（复用 SparkX 2.0 内置检索管线，
+     * 含正确的 embedding 模型解析 + 向量检索 + FTS 混合检索），
+     * 合并结果取 top-3。
+     *
+     * ★ 为什么不用 llmService.embed() + chunkMapper.vectorSearch 自行组装？
+     * 因为 EmbeddingModelProvider 的缓存/回退机制导致 embed() 可能返回默认模型
+     * 的向量（与入库向量不在同一空间），而 hitTest 已验证能正确检索。
      */
     private String retrieveFromKnowledgeBase(String question) {
         try {
-            // 用第一个知识库的 embedding 模型向量化（5 个知识库用同一个模型）
-            float[] vec = llmService.embed(question, CAMPUS_KB_IDS.get(0));
-            String pgVec = toPgVector(vec);
-
-            // 对每个知识库检索，合并结果
-            List<Map<String, Object>> allHits = new ArrayList<>();
+            // 对每个知识库调用 hitTest，合并结果
+            List<HitTestVo> allHits = new ArrayList<>();
             for (String kbId : CAMPUS_KB_IDS) {
                 try {
-                    List<Map<String, Object>> hits = chunkMapper.vectorSearch(
-                            kbId, null, pgVec, SIMILARITY_THRESHOLD, TOP_K
-                    );
+                    HitTestValidate validate = new HitTestValidate();
+                    validate.setKbId(kbId);
+                    validate.setQuery(question);
+                    validate.setMode("embedding");   // 纯向量检索，避免 FTS 分词问题
+                    validate.setSimilarity(SIMILARITY_THRESHOLD);
+                    validate.setTopRank(TOP_K);
+
+                    List<HitTestVo> hits = knowledgeService.hitTest(validate);
                     allHits.addAll(hits);
                 } catch (Exception e) {
                     log.warn("[校园平台] 知识库 {} 检索失败: {}", kbId, e.getMessage());
@@ -132,38 +140,21 @@ public class CampusAgentService {
 
             // 按相似度降序排序，取 top-3
             allHits.sort((a, b) -> {
-                double scoreA = a.get("score") instanceof Number ? ((Number) a.get("score")).doubleValue() : 0;
-                double scoreB = b.get("score") instanceof Number ? ((Number) b.get("score")).doubleValue() : 0;
+                double scoreA = a.getScore() != null ? a.getScore() : 0;
+                double scoreB = b.getScore() != null ? b.getScore() : 0;
                 return Double.compare(scoreB, scoreA);
             });
 
             return allHits.stream()
                     .limit(TOP_K)
-                    .map(hit -> {
-                        String content = hit.get("content") != null ? hit.get("content").toString() : "";
-                        String kbId = hit.get("kb_id") != null ? hit.get("kb_id").toString() : "";
-                        double score = hit.get("score") instanceof Number ? ((Number) hit.get("score")).doubleValue() : 0;
-                        return String.format(Locale.ROOT, "[来源: %s, 相似度: %.2f]\n%s", kbId, score, content);
-                    })
+                    .map(hit -> String.format(Locale.ROOT, "[相似度: %.2f]\n%s",
+                            hit.getScore() != null ? hit.getScore() : 0,
+                            hit.getContent() != null ? hit.getContent() : ""))
                     .collect(Collectors.joining("\n---\n"));
 
         } catch (Exception e) {
             log.warn("[校园平台] 知识库检索异常: {}", e.getMessage());
             return "（知识库检索失败，请稍后再试）";
         }
-    }
-
-    /**
-     * float[] → pgvector 文本格式 [0.1,0.2,...]
-     * 与 KnowledgeServiceImpl.toPgVector 逻辑一致
-     */
-    private static String toPgVector(float[] vec) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < vec.length; i++) {
-            if (i > 0) sb.append(',');
-            sb.append(String.format(Locale.ROOT, "%.6f", vec[i]));
-        }
-        sb.append(']');
-        return sb.toString();
     }
 }

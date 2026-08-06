@@ -18,16 +18,26 @@ import java.util.List;
 @Component
 public class IntentRouter {
 
-    // KNOWLEDGE：疑问句式类关键词（先匹配）
+    // KNOWLEDGE：疑问句式/信息查询类关键词（先匹配）
     private static final List<String> KNOWLEDGE_KEYWORDS = List.of(
             "什么是", "怎么", "流程", "材料", "要求", "怎么办",
-            "注意事项", "事项", "介绍", "定义", "含义"
+            "注意事项", "事项", "介绍", "定义", "含义",
+            "几点", "开门", "时间", "地点", "哪里", "多少",
+            "申请", "办理", "如何", "能否", "是否", "需要",
+            "食堂", "宿舍", "图书馆", "奖学金", "请假", "选课",
+            "报到", "注册", "入学", "毕业", "补办", "挂失"
     );
 
     // TOOL：数据查询类关键词
     private static final List<String> TOOL_KEYWORDS = List.of(
             "课表", "成绩", "分数", "学分", "绩点", "校历", "放假",
-            "考试周", "开学", "课", "考试", "排名"
+            "考试周", "开学", "考试", "排名"
+    );
+
+    // CHAT：闲聊排除词（含这些词的问题走 FALLBACK，即使也命中了 KNOWLEDGE）
+    private static final List<String> CHAT_KEYWORDS = List.of(
+            "天气", "笑话", "游戏", "电影", "音乐", "你好",
+            "早上好", "晚上好", "晚安", "谢谢", "再见"
     );
 
     /**
@@ -40,7 +50,15 @@ public class IntentRouter {
             return Intent.FALLBACK;
         }
 
-        // 先匹配 KNOWLEDGE 疑问句式（优先级更高）
+        // 先排除闲聊（即使命中了 KNOWLEDGE，也优先走 FALLBACK）
+        // 例："你好，今天天气怎么样" → "天气"命中 CHAT → FALLBACK
+        for (String keyword : CHAT_KEYWORDS) {
+            if (question.contains(keyword)) {
+                return Intent.FALLBACK;
+            }
+        }
+
+        // 再匹配 KNOWLEDGE 疑问句式（优先级高于 TOOL）
         for (String keyword : KNOWLEDGE_KEYWORDS) {
             if (question.contains(keyword)) {
                 return Intent.KNOWLEDGE_QA;
