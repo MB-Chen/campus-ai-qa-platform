@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -67,15 +68,13 @@ public class IntentDirectedChannel implements ConditionalRetrievalChannel {
                 .sorted(NodeScore.descending())
                 .toList();
         // ★ 精准路由：取最高置信 KB 叶子的 collectionName（落库时 = kbId），定向到该知识库
-        // 兜底：命中叶子的 collectionName 为空 → 退回会话绑定的首个知识库
+        // 兜底：命中叶子的 collectionName 为空/脏/越权 → resolveTargetKbId 返回 null → 遍历全部会话库
         List<String> ids = ctx.getKnowledgeBaseIds();
-        String fallbackKbId = (ids == null || ids.isEmpty()) ? null : ids.get(0);
         // 最高置信 KB 叶子（已降序，取首个）
         NodeScore topKb = kbIntents.isEmpty() ? null : kbIntents.get(0);
         String nodeKbId = (topKb == null || topKb.node().getCollectionName() == null
                 || topKb.node().getCollectionName().isBlank())
                         ? null : topKb.node().getCollectionName();
-        String targetKbId = resolveTargetKbId(nodeKbId, ids, fallbackKbId);
         // 文档级限定：最高置信 KB 叶子的 docIds（为空则检索整库）
         // ★ 智能体配了 documentIds 限定文档时优先用智能体的（节点级 docIds 仅作节点覆盖兜底）
         List<String> docIds = topKb == null ? null : topKb.node().getDocIds();
@@ -93,9 +92,24 @@ public class IntentDirectedChannel implements ConditionalRetrievalChannel {
         }
         int topK = topKOverride != null ? topKOverride : resolveNodeTopK(kbIntents);
         String modeOverride = ov != null ? ov.getRetrievalMode() : null;
-        log.debug("[Channel:intent-directed] KB intents={}, targetKbId={}, docIds={}, topK={}",
-                kbIntents.size(), targetKbId, docIds == null ? 0 : docIds.size(), topK);
-        return retriever.retrieve(query, targetKbId, docIds, topK, vecThrOverride, kwThrOverride, modeOverride);
+        log.debug("[Channel:intent-directed] KB intents={}, nodeKbId={}, docIds={}, topK={}",
+                kbIntents.size(), nodeKbId, docIds == null ? 0 : docIds.size(), topK);
+
+        // ★ 有明确意图目标 → 定向单库；无明确目标（resolveTargetKbId 返回 null）→ 遍历全部会话库，
+        //   而非原实现 fallback 到 ids.get(0) 只搜第一个库。
+        String resolved = resolveTargetKbId(nodeKbId, ids, null);
+        if (resolved != null) {
+            return retriever.retrieve(query, resolved, docIds, topK, vecThrOverride, kwThrOverride, modeOverride);
+        }
+        List<Content> merged = new ArrayList<>();
+        for (String kbId : ids) {
+            try {
+                merged.addAll(retriever.retrieve(query, kbId, docIds, topK, vecThrOverride, kwThrOverride, modeOverride));
+            } catch (Exception e) {
+                log.warn("[Channel:intent-directed] 知识库 {} 检索失败，跳过: {}", kbId, e.getMessage());
+            }
+        }
+        return merged;
     }
 
     /** 节点级 topK 兜底：取最高优先意图的 topK ×2，缺省 10×2（智能体未覆盖时用） */
@@ -111,41 +125,41 @@ public class IntentDirectedChannel implements ConditionalRetrievalChannel {
      * <p>意图节点 {@code collection_name} 在 KB 重建/换 id 后极易残留旧 id（历史踩坑），
      * 用旧 id 去检索 chunks 表会查空 → 召回 0 → 走兜底话术。本方法做两道校验：
      * <ol>
-     *   <li>存在性：{@code knowledge_base} 表里查得到；查不到降级会话 KB。</li>
+     *   <li>存在性：{@code knowledge_base} 表里查得到；查不到返回 null（降级遍历全部会话库）。</li>
      *   <li>会话范围：节点配的 KB 必须在当前会话允许的 {@code sessionKbIds} 内
-     *       （防止意图节点配错/越权查到别的库）；不在范围内也降级会话 KB。</li>
+     *       （防止意图节点配错/越权查到别的库）；不在范围内也返回 null（降级遍历全部会话库）。</li>
      * </ol>
-     * 节点未配 collection_name（null/空）时直接用会话 KB，与原行为一致。
+     * 节点未配 collection_name（null/空）时返回 null，由调用方遍历全部会话库（与原行为一致或更优）。
      *
      * @param nodeKbId      意图节点配的 collection_name（可能脏）
      * @param sessionKbIds  当前会话允许的知识库 id 列表（来自 agent/调用方）
-     * @param fallbackKbId  会话 KB 首个（兜底用）
-     * @return 校验通过的检索目标 KB id
+     * @param ignored       保留参数位（原 fallbackKbId 已废弃，固定传 null）
+     * @return 校验通过的定向检索目标 KB id；无明确目标返回 null 表示应遍历全部会话库
      */
-    private String resolveTargetKbId(String nodeKbId, List<String> sessionKbIds, String fallbackKbId) {
+    private String resolveTargetKbId(String nodeKbId, List<String> sessionKbIds, String ignored) {
         if (nodeKbId == null || nodeKbId.isBlank()) {
-            return fallbackKbId;
+            return null;   // 无明确目标 → 调用方遍历全部会话库
         }
         // ★ 本方法绝不能抛异常——RetrieveStage 的通道异常被 catch 成空结果，抛了就等于"查不到"。
-        //   校验逻辑全部包在 try-catch 里，任何失败都安全降级到会话 KB。
+        //   校验逻辑全部包在 try-catch 里，任何失败都安全降级为遍历全部会话库。
         try {
             // 存在性校验：KB 重建换 id 后节点 collection_name 会指向已删除的库
             KnowledgeBase kb = knowledgeBaseMapper.selectById(nodeKbId);
             if (kb == null) {
                 log.warn("[Channel:intent-directed] 意图节点 collection_name={} 对应的知识库不存在"
-                        + "（疑似 KB 重建换 id），降级使用会话 KB={}", nodeKbId, fallbackKbId);
-                return fallbackKbId;
+                        + "（疑似 KB 重建换 id），降级遍历全部会话库", nodeKbId);
+                return null;
             }
             // 会话范围校验：节点配的 KB 必须在当前会话允许范围内（防越权查别的库）
             if (sessionKbIds != null && !sessionKbIds.isEmpty() && !sessionKbIds.contains(nodeKbId)) {
                 log.warn("[Channel:intent-directed] 意图节点 collection_name={} 不在当前会话允许的知识库范围内{}，"
-                        + "降级使用会话 KB={}", nodeKbId, sessionKbIds, fallbackKbId);
-                return fallbackKbId;
+                        + "降级遍历全部会话库", nodeKbId, sessionKbIds);
+                return null;
             }
         } catch (Exception e) {
-            log.warn("[Channel:intent-directed] 校验 KB 存在性时异常 nodeKbId={}, 降级会话 KB={}: {}",
-                    nodeKbId, fallbackKbId, e.getMessage());
-            return fallbackKbId;
+            log.warn("[Channel:intent-directed] 校验 KB 存在性时异常 nodeKbId={}, 降级遍历全部会话库: {}",
+                    nodeKbId, e.getMessage());
+            return null;
         }
         return nodeKbId;
     }
