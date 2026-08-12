@@ -289,6 +289,16 @@ public class HybridContentRetriever implements ContentRetriever {
             }
             if (content == null || content.isBlank()) continue;
             if (!seenOriginal.add(dedupKey)) continue;   // 已出现过，跳过
+            // ★ 把相似度分写入 metadata（rrf_score）：多库合并时下游需要跨库排序，
+            //   RRF 按 rank 会偏向「遍历顺序在前的库」，score 让语义最相关的内容排前。
+            //   mix 模式已有 rrf_score（归一化加权融合分）；embedding/text 单路用原始 score。
+            if (meta != null) {
+                Object sc = row.get("rrf_score");
+                if (sc == null) sc = row.get("score");
+                if (sc != null) {
+                    meta.put("rrf_score", sc);
+                }
+            }
             dev.langchain4j.data.document.Metadata lcMeta =
                     meta != null ? dev.langchain4j.data.document.Metadata.from(meta)
                                  : new dev.langchain4j.data.document.Metadata();

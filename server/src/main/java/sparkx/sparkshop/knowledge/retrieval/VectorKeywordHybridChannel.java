@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -85,7 +86,19 @@ public class VectorKeywordHybridChannel implements ConditionalRetrievalChannel {
                 log.warn("[Channel:hybrid-global] 知识库 {} 检索失败，跳过: {}", kbId, e.getMessage());
             }
         }
+        // ★ 跨库按相似度降序排序：RRF 按 rank 会偏向遍历顺序在前的库，score 让语义最相关的内容排前
+        merged.sort(Comparator.comparingDouble((Content c) -> metaScore(c)).reversed());
         return merged;
+    }
+
+    /** 从 Content metadata 读取相似度分（HybridContentRetriever 注入的 rrf_score），缺省 0 */
+    private static double metaScore(Content c) {
+        try {
+            Object v = c.textSegment().metadata().toMap().get("rrf_score");
+            return v instanceof Number n ? n.doubleValue() : 0.0;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     @Override

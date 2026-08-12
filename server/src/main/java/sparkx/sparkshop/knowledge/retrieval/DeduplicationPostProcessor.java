@@ -11,6 +11,7 @@ package sparkx.sparkshop.knowledge.retrieval;
 
 import dev.langchain4j.rag.content.Content;
 import dev.langchain4j.rag.query.Query;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -23,6 +24,7 @@ import java.util.Map;
  * 多通道结果合并时去重：同一文本片段只保留首次出现（按通道 priority 优先）。
  * 调用方应在合并时已按 priority 排序，本处理器仅做文本级去重。
  */
+@Slf4j
 @Component
 public class DeduplicationPostProcessor implements SearchResultPostProcessor {
 
