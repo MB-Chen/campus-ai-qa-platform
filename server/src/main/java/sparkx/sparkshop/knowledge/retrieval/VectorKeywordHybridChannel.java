@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -61,24 +62,30 @@ public class VectorKeywordHybridChannel implements ConditionalRetrievalChannel {
 
     @Override
     public List<Content> retrieve(Query query, RetrievalContext ctx) {
-        log.debug("[Channel:hybrid-global] 全局混合检索");
-        // 按 kb.embedding_model_id 解析对应 embedding 模型（查询向量与入库向量维度一致）
-        String primaryKbId = primaryKbId(ctx);
-        // ★ 智能体覆盖：传 topK/向量阈值/关键词阈值，让「智能体配置的向量召回 topK」生效，
+        log.debug("[Channel:hybrid-global] 全局混合检索（多库遍历）");
+        // ★ 遍历 agent 绑定的全部知识库，而非只搜第一个（原 primaryKbId = ids.get(0) 的缺陷）
+        List<String> ids = ctx.getKnowledgeBaseIds();
+        if (ids == null || ids.isEmpty()) {
+            return hybridRetriever.retrieve(query);
+        }
+        // 智能体覆盖：传 topK/向量阈值/关键词阈值，让「智能体配置的向量召回 topK」生效，
         //   而非回退全局默认（曾因未传导致智能体配 topK=10 却召回 30 条）。
         sparkx.sparkshop.knowledge.pipeline.AgentOverrides ov = ctx.getAgentOverrides();
-        if (ov != null) {
-            return hybridRetriever.retrieve(query, primaryKbId,
-                    ov.getDocumentIds(), ov.getEmbeddingTopK(),
-                    ov.getVectorThreshold(), ov.getKeywordThreshold(), ov.getRetrievalMode());
+        List<Content> merged = new ArrayList<>();
+        for (String kbId : ids) {
+            try {
+                if (ov != null) {
+                    merged.addAll(hybridRetriever.retrieve(query, kbId,
+                            ov.getDocumentIds(), ov.getEmbeddingTopK(),
+                            ov.getVectorThreshold(), ov.getKeywordThreshold(), ov.getRetrievalMode()));
+                } else {
+                    merged.addAll(hybridRetriever.retrieve(query, kbId));
+                }
+            } catch (Exception e) {
+                log.warn("[Channel:hybrid-global] 知识库 {} 检索失败，跳过: {}", kbId, e.getMessage());
+            }
         }
-        return hybridRetriever.retrieve(query, primaryKbId);
-    }
-
-    /** 取主知识库 id（用于按 kb 绑定的 embedding 模型查询向量化） */
-    private static String primaryKbId(RetrievalContext ctx) {
-        List<String> ids = ctx.getKnowledgeBaseIds();
-        return (ids == null || ids.isEmpty()) ? null : ids.get(0);
+        return merged;
     }
 
     @Override
