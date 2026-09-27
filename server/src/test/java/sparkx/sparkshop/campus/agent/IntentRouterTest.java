@@ -17,8 +17,8 @@ class IntentRouterTest {
 
     @Test
     void testRouteToToolQuery() {
-        // 含"课" → 工具查询
-        assertEquals(Intent.TOOL_QUERY, router.classify("我下学期有什么课"));
+        // 含"课表" → 工具查询（57d259c 起单字"课"已从 TOOL 词表移除，防止劫持"选课怎么选"类知识问句）
+        assertEquals(Intent.TOOL_QUERY, router.classify("帮我查一下课表"));
         // 含"成绩" → 工具查询
         assertEquals(Intent.TOOL_QUERY, router.classify("查询我的成绩"));
         // 含"开学" → 工具查询

@@ -4,9 +4,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import sparkx.sparkshop.knowledge.infra.LLMService;
+import sparkx.sparkshop.knowledge.service.IKnowledgeService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -19,6 +21,7 @@ class CampusAgentServiceTest {
 
     private LLMService llmService;
     private IntentRouter router;
+    private IKnowledgeService knowledgeService;
     private CampusAgentService service;
 
     @BeforeEach
@@ -27,7 +30,11 @@ class CampusAgentServiceTest {
         when(llmService.chat(anyString(), anyDouble(), anyDouble(), anyBoolean()))
                 .thenReturn("mocked answer");
         router = new IntentRouter();
-        service = new CampusAgentService(llmService, router);
+        // 检索走 knowledgeService.hitTest（统一入口），单测中返回空结果即可，
+        // retrieveFromKnowledgeBase 对空结果返回"（未检索到相关知识库内容）"，不抛异常
+        knowledgeService = Mockito.mock(IKnowledgeService.class);
+        when(knowledgeService.hitTest(any())).thenReturn(java.util.List.of());
+        service = new CampusAgentService(llmService, router, knowledgeService);
     }
 
     @Test
