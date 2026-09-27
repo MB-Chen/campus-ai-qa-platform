@@ -154,6 +154,12 @@ services:
     environment:
       # 激活 docker profile：用服务名连接 postgres/redis/minio，配置见 application-docker.yml
       SPRING_PROFILES_ACTIVE: docker
+      # Rerank 打分模型兜底修复：ScoringModel Bean 用启动时装配的 EmbeddingModel（yml 默认 api.openai.com 国内不可达），
+      # 指向硅基流动 bge-m3（与知识库检索同款），避免重排阶段连接超时拖死整条对话链路
+      # API Key 不入库：在同目录 .env 中配置 EMBEDDING_API_KEY（参考 .env.example）
+      EMBEDDING_BASE_URL: https://api.siliconflow.cn/v1
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:?请在 docker/.env 中配置 EMBEDDING_API_KEY}
+      EMBEDDING_MODEL: BAAI/bge-m3
     # 覆盖默认启动命令，加 JVM SSL 调试参数排查 OkHttp SSLHandshakeException
     command: java -Djavax.net.debug=ssl:handshake -jar /app/sparkx-server.jar
     ports:
