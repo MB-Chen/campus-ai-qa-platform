@@ -29,6 +29,29 @@
   <img src="https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vuedotjs&logoColor=white" />
 </p>
 
+## 🎓 校园场景定制（本 fork 做了什么）
+
+SparkX 是通用智能体平台；本 fork 将其定制为**校园智能问答平台**原型：多知识库校园问答 + 独立聊天入口。定制代码集中在 `campus/` 包与 `campus.html` 独立页面，与上游代码物理隔离，合并上游更新不冲突。
+
+| 定制点 | 实现 | 代码 / 证据 |
+|---|---|---|
+| 三级关键词意图路由 | 闲聊排除（CHAT）→ 疑问句式（KNOWLEDGE）→ 数据查询（TOOL）→ 兜底（FALLBACK）；不用 LLM 分类——快、零 token、可调试 | `campus/agent/IntentRouter.java`（78 行） |
+| 3 Agent 对话编排 | FaqAgent（知识问答）/ ToolAgent（数据查询）/ AggregatorAgent（闲聊兜底），独立端点 `POST /api/campus/chat` | `campus/agent/CampusAgentService.java`（160 行） |
+| 校园知识库工程 | 5 大主题知识库（新生指南 / 教务信息 / 校园生活 / 请假审批 / 奖助学金），294KB 学生手册切分建库；智能体配置 DeepSeek + bge-m3 | `campus_docs/` |
+| 检索层缺陷修复 | 混合通道漏检 `55c0c3f` · 意图定向错误 fallback `52e5f24` · RRF 跨库排序偏向 `3d45d69` | `git log --author=2818661801` 可检索 |
+| E2E 自动化验证 | 6 场景（3 路由正例 + 3 异常探针）全通过，自动登录含汉字点选验证码绕过 | [docs/verify-task5.5.md](./docs/verify-task5.5.md)、`scripts/campus/` |
+
+### 端到端验证（6/6 通过）
+
+真实 HTTP 调用 `POST /api/campus/chat`（带登录 token，后端日志为证，完整报告与踩坑记录见 [docs/verify-task5.5.md](./docs/verify-task5.5.md)）：
+
+| # | 请求 | 路由结果（后端日志） | 判定 |
+|---|------|--------------------|------|
+| A | `你好` | FALLBACK → AggregatorAgent 闲聊兜底 | ✅ |
+| B | `我下学期有什么课` | TOOL_QUERY → ToolAgent 数据查询 | ✅ |
+| C | `什么是 RAG` | KNOWLEDGE_QA → FaqAgent 知识问答 | ✅ |
+| 探针 ×3 | 空请求 / 缺字段 / 错误 HTTP 方法 | 兜底与全局异常处理器接住，无 NPE、无 500 | ✅ |
+
 ## 🚀 什么是 SparkX？
 
 SparkX 是一个采用 **大语言模型 + 可视化编排** 构建的企业级 AI 智能体开发平台，覆盖从知识库入库、检索增强、智能体对话到工作流编排的完整链路。开箱即用、模型任选、灵活编排。
