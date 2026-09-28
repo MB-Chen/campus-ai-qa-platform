@@ -39,7 +39,7 @@ SparkX 是通用智能体平台；本 fork 将其定制为**校园智能问答�
 | 3 Agent 对话编排 | FaqAgent（知识问答）/ ToolAgent（数据查询）/ AggregatorAgent（闲聊兜底），独立端点 `POST /api/campus/chat` | `campus/agent/CampusAgentService.java`（160 行） |
 | 校园知识库工程 | 5 大主题知识库（新生指南 / 教务信息 / 校园生活 / 请假审批 / 奖助学金），294KB 学生手册切分建库；智能体配置 DeepSeek + bge-m3 | `campus_docs/` |
 | 检索层缺陷修复 | 混合通道漏检 `55c0c3f` · 意图定向错误 fallback `52e5f24` · RRF 跨库排序偏向 `3d45d69` | `git log --author=2818661801` 可检索 |
-| E2E 自动化验证 | 6 场景（3 路由正例 + 3 异常探针）全通过，自动登录含汉字点选验证码绕过 | [docs/verify-task5.5.md](./docs/verify-task5.5.md)、`scripts/campus/` |
+| E2E 自动化验证 | 6 场景（3 路由正例 + 3 异常路径用例）全通过，自动登录含汉字点选验证码绕过 | [docs/verify-task5.5.md](./docs/verify-task5.5.md)、`scripts/campus/` |
 
 ### 端到端验证（6/6 通过）
 
@@ -50,7 +50,7 @@ SparkX 是通用智能体平台；本 fork 将其定制为**校园智能问答�
 | A | `你好` | FALLBACK → AggregatorAgent 闲聊兜底 | ✅ |
 | B | `我下学期有什么课` | TOOL_QUERY → ToolAgent 数据查询 | ✅ |
 | C | `什么是 RAG` | KNOWLEDGE_QA → FaqAgent 知识问答 | ✅ |
-| 探针 ×3 | 空请求 / 缺字段 / 错误 HTTP 方法 | 兜底与全局异常处理器接住，无 NPE、无 500 | ✅ |
+| 异常路径用例 ×3 | 空请求 / 缺字段 / 错误 HTTP 方法 | 兜底与全局异常处理器接住，无 NPE、无 500 | ✅ |
 
 ## 🚀 什么是 SparkX？
 
