@@ -1,9 +1,9 @@
 > **本仓库性质**：[SparkX 企业级 AI 智能体平台](https://gitee.com/shop-sparker/spark-x)（Apache-2.0）的**定制 fork**，作为个人作品集展示，主线开发归上游。  
-> **本 fork 的定制工作**（`git log --author=2818661801` 可检索，共 17 个提交（本 fork 独有，不含上游 677 个））：  
+> **本 fork 的定制工作**（`git log --author=2818661801` 可检索，共 21 个提交（本 fork 独有，不含上游 676 个））：  
 > ① 修复开源检索层 3 处多知识库缺陷（混合通道漏检 / 意图定向错误 fallback / RRF 跨库排序偏向）；  
-> ② 设计零 LLM 成本三级关键词意图路由（TDD 用例覆盖）+ Embedding 缓存一致性修复；  
-> ③ 校园 5 大知识库工程（294KB 学生手册切分建库）与智能体配置（DeepSeek + bge-m3）；  
-> ④ E2E 自动化验证脚本（自动登录 + SSE 解析，6 场景含异常探针）与 Docker Compose 部署排障。  
+> ② 设计确定性三级关键词意图路由（测试用例覆盖路由边界）+ Embedding 缓存一致性修复；  
+> ③ 校园 5 大知识库工程（294KB 学生手册切分建库，场景案例见 `campus_docs/`）与智能体配置（DeepSeek + bge-m3）；  
+> ④ E2E 自动化验证脚本（自动登录 + SSE 解析，6 场景含异常路径用例，脚本与验证记录见 `scripts/campus/`）与 Docker Compose 部署排障。  
 
 <p align="center">
   <a href="https://gitee.com/shop-sparker/spark-x">
