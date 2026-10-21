@@ -207,6 +207,7 @@ CREATE TABLE "public"."admin_user" (
   "salt" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "avatar" varchar(255) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "status" int2 NOT NULL DEFAULT 1,
+  "role" int2 NOT NULL DEFAULT 3,
   "last_login_ip" varchar(55) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
   "last_login_time" timestamp(6),
   "create_time" timestamp(6),
@@ -219,7 +220,7 @@ COMMENT ON TABLE "public"."admin_user" IS '员工表';
 -- ----------------------------
 -- Records of admin_user
 -- ----------------------------
-INSERT INTO "public"."admin_user" VALUES (1, 'admin', '管理员', '9b94e5b87d65a9590aed658a6624d665', 'xservice-admin-salt-2026', '', 1, '', NULL, '2026-07-22 03:56:53.778705', '2026-07-22 03:56:53.778705');
+INSERT INTO "public"."admin_user" ("id", "account", "nickname", "password", "salt", "avatar", "status", "role", "last_login_ip", "last_login_time", "create_time", "update_time") VALUES (1, 'admin', '管理员', '9b94e5b87d65a9590aed658a6624d665', 'xservice-admin-salt-2026', '', 1, 1, '', NULL, '2026-07-22 03:56:53.778705', '2026-07-22 03:56:53.778705');
 
 -- ----------------------------
 -- Table structure for ai_model

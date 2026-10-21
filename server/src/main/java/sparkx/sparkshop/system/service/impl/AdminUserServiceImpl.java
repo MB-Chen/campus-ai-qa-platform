@@ -74,6 +74,7 @@ public class AdminUserServiceImpl implements IAdminUserService {
             vo.setNickname(u.getNickname());
             vo.setAvatar(u.getAvatar());
             vo.setStatus(u.getStatus());
+            vo.setRole(u.getRole());
             vo.setLastLoginIp(u.getLastLoginIp());
             vo.setLastLoginTime(u.getLastLoginTime() == null ? null : u.getLastLoginTime().format(FMT));
             vo.setCreateTime(u.getCreateTime() == null ? null : u.getCreateTime().format(FMT));
@@ -111,6 +112,11 @@ public class AdminUserServiceImpl implements IAdminUserService {
         user.setPassword(ToolUtils.makePassword(pwd, salt));
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
+        Integer role = validate.getRole() == null ? 3 : validate.getRole();
+        if (role < 1 || role > 3) {
+            throw new BusinessException("角色取值须为 1-3");
+        }
+        user.setRole(role);
         adminUserMapper.insert(user);
     }
 
@@ -143,6 +149,16 @@ public class AdminUserServiceImpl implements IAdminUserService {
             String salt = ToolUtils.makeSalt();
             user.setSalt(salt);
             user.setPassword(ToolUtils.makePassword(validate.getPassword(), salt));
+        }
+        if (validate.getRole() != null) {
+            if (validate.getRole() < 1 || validate.getRole() > 3) {
+                throw new BusinessException("角色取值须为 1-3");
+            }
+            // 超管角色锁定：id=1 不允许被改成其他角色
+            if (Integer.valueOf(1).equals(user.getId()) && !Integer.valueOf(1).equals(validate.getRole())) {
+                throw new BusinessException("超级管理员角色不可变更");
+            }
+            user.setRole(validate.getRole());
         }
         user.setUpdateTime(LocalDateTime.now());
         adminUserMapper.updateById(user);

@@ -75,6 +75,12 @@ public class AdminUser implements Serializable {
     private Integer status;
 
     /**
+     * 角色 1:管理员 2:开发者 3:终端用户
+     */
+    @TableField(value = "role")
+    private Integer role;
+
+    /**
      * 最近登录 ip
      */
     @TableField(value = "last_login_ip")

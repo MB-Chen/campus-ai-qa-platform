@@ -46,4 +46,7 @@ public class AdminUserVo implements Serializable {
 
     @Schema(description = "更新时间")
     private String updateTime;
+
+    @Schema(description = "角色 1管理员 2开发者 3终端用户")
+    private Integer role;
 }

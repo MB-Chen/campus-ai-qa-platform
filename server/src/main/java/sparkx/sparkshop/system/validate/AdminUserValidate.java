@@ -57,6 +57,13 @@ public class AdminUserValidate implements Serializable {
     private Integer status;
 
     /**
+     * 角色 1:管理员 2:开发者 3:终端用户
+     * 可空：新增默认 3（终端用户），编辑不传保持原值
+     */
+    @Schema(description = "角色 1:管理员 2:开发者 3:终端用户")
+    private Integer role;
+
+    /**
      * 头像
      */
     @Schema(description = "头像")
