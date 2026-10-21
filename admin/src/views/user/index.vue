@@ -231,7 +231,11 @@
   }
 
   async function handleSave() {
-    await formRef.value?.validate();
+    try {
+      await formRef.value?.validate();
+    } catch {
+      return;
+    }
     saving.value = true;
     try {
       const res = form.id
@@ -244,23 +248,29 @@
       } else {
         message.error(res?.message || '保存失败');
       }
+    } catch (e) {
+      message.error('保存失败，请重试');
     } finally {
       saving.value = false;
     }
   }
 
   async function handleToggle(row: AdminUser, enabled: boolean) {
-    const res = await editAdminUser({
-      id: row.id,
-      account: row.account,
-      nickname: row.nickname,
-      status: enabled ? 1 : 2,
-    });
-    if (res?.code === 0) {
-      message.success(enabled ? '已启用' : '已禁用');
-      await load();
-    } else {
-      message.error(res?.message || '操作失败');
+    try {
+      const res = await editAdminUser({
+        id: row.id,
+        account: row.account,
+        nickname: row.nickname,
+        status: enabled ? 1 : 2,
+      });
+      if (res?.code === 0) {
+        message.success(enabled ? '已启用' : '已禁用');
+        await load();
+      } else {
+        message.error(res?.message || '操作失败');
+      }
+    } catch (e) {
+      message.error('操作失败，请重试');
     }
   }
 
@@ -271,12 +281,16 @@
       positiveText: '删除',
       negativeText: '取消',
       onPositiveClick: async () => {
-        const res = await delAdminUser(row.id);
-        if (res?.code === 0) {
-          message.success('已删除');
-          await load();
-        } else {
-          message.error(res?.message || '删除失败');
+        try {
+          const res = await delAdminUser(row.id);
+          if (res?.code === 0) {
+            message.success('已删除');
+            await load();
+          } else {
+            message.error(res?.message || '删除失败');
+          }
+        } catch (e) {
+          message.error('删除失败，请重试');
         }
       },
     });
