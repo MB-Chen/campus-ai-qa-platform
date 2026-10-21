@@ -160,6 +160,10 @@ public class AdminUserServiceImpl implements IAdminUserService {
             }
             user.setRole(validate.getRole());
         }
+        // 超管不可禁用（防止系统无主）
+        if (Integer.valueOf(1).equals(user.getId()) && Integer.valueOf(2).equals(user.getStatus())) {
+            throw new BusinessException("超级管理员不可禁用");
+        }
         user.setUpdateTime(LocalDateTime.now());
         adminUserMapper.updateById(user);
     }

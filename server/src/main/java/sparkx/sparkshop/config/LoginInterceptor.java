@@ -18,14 +18,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.util.List;
 
 /**
  * 登录鉴权拦截器：
  * <ul>
  *   <li>读取请求头 token（或 Authorization: Bearer xxx）</li>
  *   <li>校验 JWT 签名 / 过期，失败返回 code=912（前端约定）</li>
- *   <li>校验通过即放行（角色体系已移除，所有登录用户权限一致）</li>
+ *   <li>角色体系：1 管理员 / 2 开发者 / 3 终端用户，按 URI 白名单分级</li>
  * </ul>
  */
 @Slf4j
@@ -34,6 +37,20 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Value("${sparkx.jwt-secret}")
     private String jwtSecret;
+
+    /** 终端用户(3)可访问的对话面白名单（Ant 风格）；开发者(2)=全量除 /admin；管理员(1)=全量 */
+    private static final List<String> USER_ALLOWED = List.of(
+            "/api/v1/sessions/**",
+            "/api/campus/**",
+            "/knowledge/agent/list",
+            "/knowledge/agent/info",
+            "/knowledge/agent/chat",
+            "/workflow/index",
+            "/workflow/info",
+            "/workflow/chat",
+            "/workflow/runDetail"
+    );
+    private static final AntPathMatcher MATCHER = new AntPathMatcher();
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -61,11 +78,36 @@ public class LoginInterceptor implements HandlerInterceptor {
             return write(response, AjaxResult.unauthorized());
         }
 
-        // 2. 校验通过，记录 adminId（roleId 已无角色体系，置 null 兼容旧读取处）
+        // 2. 校验通过，记录 adminId 与 roleId
         Integer adminId = JwtUtils.getAdminId(token);
         request.setAttribute("adminId", adminId);
-        request.setAttribute("roleId", null);
-        return true;
+        Integer roleId = JwtUtils.getRoleId(token);
+        request.setAttribute("roleId", roleId);
+
+        // 角色分级：无 role 的旧 token 一律失效强制重登；管理员全通；开发者禁 /admin；终端用户仅对话面
+        if (roleId == null) {
+            write(response, AjaxResult.unauthorized());
+            return false;
+        }
+        String uri = request.getRequestURI();
+        if (roleId == 1) {
+            return true;
+        }
+        if (uri.startsWith("/admin/")) {
+            write(response, AjaxResult.forbidden());
+            return false;
+        }
+        if (roleId == 2) {
+            return true;
+        }
+        if (roleId == 3) {
+            boolean ok = USER_ALLOWED.stream().anyMatch(p -> MATCHER.match(p, uri));
+            if (ok) return true;
+            write(response, AjaxResult.forbidden());
+            return false;
+        }
+        write(response, AjaxResult.unauthorized());
+        return false;
     }
 
     /**

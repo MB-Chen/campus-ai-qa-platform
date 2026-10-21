@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
  * 登录服务：验证码、账号密码校验、签发 token。
  * <p>
  * 菜单已改为前端静态写死（{@code admin/src/router/staticMenus.ts}），不再下发动态菜单；
- * 角色体系已移除，所有登录用户权限一致。
+ * 登录签发携带角色（1管理员/2开发者/3终端用户），由拦截器按 URI 白名单分级鉴权。
  */
 @Slf4j
 @Service
@@ -140,13 +140,14 @@ public class LoginServiceImpl implements ILoginService {
         update.setLastLoginTime(LocalDateTime.now());
         adminUserMapper.updateById(update);
 
-        // 6. 组装返回（roleId/roleName 已无角色体系，置 null/空）
+        // 6. 组装返回（role: 1管理员 2开发者 3终端用户；旧数据 null 兜 3）
+        Integer role = user.getRole() == null ? 3 : user.getRole();
         SystemUserVo userInfo = new SystemUserVo(
                 user.getNickname(), user.getAccount(), user.getId(),
-                null, "", user.getAvatar());
+                role, roleNameOf(role), user.getAvatar());
 
         long expireAt = System.currentTimeMillis() / 1000 + jwtExpireHours * 3600;
-        String token = JwtUtils.create(jwtSecret, user.getId(), null,
+        String token = JwtUtils.create(jwtSecret, user.getId(), role,
                 user.getNickname(), expireAt);
 
         LoginReturnVo vo = new LoginReturnVo();
@@ -226,5 +227,20 @@ public class LoginServiceImpl implements ILoginService {
             ip = ip.split(",")[0].trim();
         }
         return ip;
+    }
+
+    /**
+     * 角色 id 转角色名（1 管理员 / 2 开发者 / 3 终端用户）
+     *
+     * @param role 角色 id
+     * @return 角色名
+     */
+    private static String roleNameOf(Integer role) {
+        if (role == null) return "终端用户";
+        return switch (role) {
+            case 1 -> "管理员";
+            case 2 -> "开发者";
+            default -> "终端用户";
+        };
     }
 }

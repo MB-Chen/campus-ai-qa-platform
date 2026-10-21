@@ -82,9 +82,9 @@ public class AjaxResult<T> implements Serializable {
     }
 
     /**
-     * 无权限
+     * 无权限访问（角色不足）
      */
     public static <T> AjaxResult<T> forbidden() {
-        return new AjaxResult<>(403, "无权限访问此接口", null);
+        return new AjaxResult<>(403, "无权访问", null);
     }
 }
