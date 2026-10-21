@@ -34,6 +34,8 @@ export interface Meta {
   externalLink?: string;
   //隐藏
   hidden?: boolean;
+  //可见角色（1管理员/2开发者/3终端用户），缺省=所有角色可见
+  roles?: number[];
 }
 
 export interface Menu {

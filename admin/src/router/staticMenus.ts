@@ -23,6 +23,7 @@ const chatMenu = {
   meta: {
     title: '新对话',
     icon: 'MessageOutlined',
+    roles: [1, 2, 3],
     alwaysShow: false,
   },
   children: [
@@ -55,6 +56,7 @@ const knowledgeMenu = {
   meta: {
     title: '知识库',
     icon: 'BookOutlined',
+    roles: [1, 2],
     alwaysShow: false,
   },
   children: [
@@ -86,6 +88,7 @@ const agentMenu = {
   meta: {
     title: '智能体',
     icon: 'AppstoreOutlined',
+    roles: [1, 2],
     alwaysShow: false,
   },
   children: [
@@ -108,6 +111,7 @@ const workflowMenu = {
   meta: {
     title: '编排',
     icon: 'DeploymentUnitOutlined',
+    roles: [1, 2],
     alwaysShow: false,
   },
   children: [
@@ -142,6 +146,7 @@ const userMenu = {
   meta: {
     title: '用户管理',
     icon: 'UserOutlined',
+    roles: [1],
     alwaysShow: false,
   },
   children: [
@@ -165,6 +170,7 @@ const systemMenu = {
   meta: {
     title: '系统设置',
     icon: 'SettingOutlined',
+    roles: [1, 2],
     hidden: true,
     // 多子项默认展开，不设 alwaysShow:false
   },

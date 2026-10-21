@@ -8,11 +8,15 @@ import { login } from '@/api/user';
 // 菜单存储key
 const USER_MENUS = 'USER_MENUS';
 
-export type UserInfoType = {
-  // TODO: add your own data
+export interface UserInfoType {
   username: string;
   email: string;
-};
+  roleId?: number;
+  roleName?: string;
+  account?: string;
+  id?: number;
+  avatar?: string;
+}
 
 export interface LoginResponse {
   code: number;

@@ -8,6 +8,7 @@ import { useUser } from '@/store/modules/user';
 import { generateRoutes, asyncImportRoute } from '@/router/generator';
 import { preloadIcons } from '@/utils/iconLoader';
 import { STATIC_MENUS } from '@/router/staticMenus';
+import type { AppRouteRecordRaw } from '@/router/types';
 
 interface TreeHelperConfig {
   id: string;
@@ -44,6 +45,22 @@ function extractIconNames(menus: any[]): string[] {
 
   extractFromMenu(menus);
   return Array.from(iconNames);
+}
+
+// 按登录角色过滤静态菜单树：meta.roles 缺省=放行；子全被滤空的父节点删除
+function filterMenusByRole(menus: AppRouteRecordRaw[], roleId: number): AppRouteRecordRaw[] {
+  const out: AppRouteRecordRaw[] = [];
+  for (const m of menus) {
+    let children = m.children;
+    if (children && children.length) {
+      children = filterMenusByRole(children, roleId);
+      if (!children.length) continue;
+    }
+    const roles = (m.meta as any)?.roles as number[] | undefined;
+    if (roles && !roles.includes(roleId)) continue;
+    out.push({ ...m, children } as AppRouteRecordRaw);
+  }
+  return out;
 }
 
 export interface IAsyncRouteState {
@@ -118,7 +135,8 @@ export const useAsyncRouteStore = defineStore({
       if (unref(permissionMode) === 'BACK') {
         // 菜单写死在前端（STATIC_MENUS），不再依赖后端 /login/doLogin 下发的 menu 字段。
         // 后续若恢复动态菜单，把这里的 STATIC_MENUS 换回 userStore.getMenus 即可。
-        const userMenus = STATIC_MENUS;
+        const roleId = (data as any)?.roleId ?? 1; // 旧缓存无 roleId 时兜底管理员；重登后自愈
+        const userMenus = filterMenusByRole(STATIC_MENUS as unknown as AppRouteRecordRaw[], roleId);
 
         // 预加载菜单中的所有图标
         const iconNames = extractIconNames(userMenus);
