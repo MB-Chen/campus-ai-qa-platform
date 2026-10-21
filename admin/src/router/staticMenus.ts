@@ -134,6 +134,28 @@ const workflowMenu = {
   ],
 };
 
+// 用户管理：LAYOUT + 单子项，扁平化叶子（对接框架已有 /admin 接口，自研界面）
+const userMenu = {
+  path: '#',
+  name: 'user',
+  component: 'LAYOUT',
+  meta: {
+    title: '用户管理',
+    icon: 'UserOutlined',
+    alwaysShow: false,
+  },
+  children: [
+    {
+      path: 'index',
+      name: 'user_index',
+      component: '/user/index',
+      meta: {
+        title: '用户管理',
+      },
+    },
+  ],
+};
+
 // 系统设置：已迁移至左下角用户下拉菜单（与「修改密码/退出登录」合并），
 // 故在这里设为 hidden —— 路由仍注册（/system/xxx 可跳转），但侧边栏不再展示。
 const systemMenu = {
@@ -203,5 +225,6 @@ export const STATIC_MENUS = [
   knowledgeMenu,
   agentMenu,
   workflowMenu,
+  userMenu,
   systemMenu,
 ];
