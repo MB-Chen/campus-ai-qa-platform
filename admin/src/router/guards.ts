@@ -22,10 +22,6 @@ export function createRouterGuards(router: Router) {
   router.beforeEach(async (to, from, next) => {
     const Loading = window['$loading'] || null;
     Loading && Loading.start();
-    if (from.path === LOGIN_PATH && to.name === 'errorPage') {
-      next(PageEnum.BASE_HOME);
-      return;
-    }
 
     // Whitelist can be directly entered
     if (whitePathList.includes(to.path as PageEnum)) {
@@ -97,9 +93,14 @@ export function createRouterGuards(router: Router) {
       }
 
       const redirect = decodeURIComponent(redirectPath);
-      const nextData = to.path === redirect ? { ...to, replace: true } : { path: redirect };
       asyncRouteStore.setDynamicRouteAdded(true);
-      next(nextData);
+      // 按 path（而非展开注册前解析的 to）重导航：to 可能携带动态路由注册前
+      // 解析出的 catch-all 404 name，spread 后会被按 name 优先解析导致闪 404
+      if (to.path === redirect) {
+        next({ path: to.path, query: to.query, hash: to.hash, replace: true });
+      } else {
+        next({ path: redirect });
+      }
     } catch (error) {
       console.error('路由守卫错误:', error);
       next(PageEnum.BASE_HOME_REDIRECT);
