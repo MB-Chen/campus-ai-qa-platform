@@ -56,15 +56,15 @@
             </n-avatar>
             <div class="user-panel-info">
               <span class="user-panel-name">{{ displayName }}</span>
-              <span class="user-panel-role">管理员</span>
+              <span v-if="roleLabel" class="user-panel-role">{{ roleLabel }}</span>
             </div>
           </div>
 
           <!-- 分隔线 -->
           <div class="user-panel-divider" />
 
-          <!-- 系统设置区：带图标的导航项 -->
-          <div class="user-panel-section">
+          <!-- 系统设置区：带图标的导航项（终端用户无权限，整组连同分隔线隐藏） -->
+          <div v-if="systemSettingItems.length" class="user-panel-section">
             <div
               v-for="item in systemSettingItems"
               :key="item.key"
@@ -82,7 +82,7 @@
           </div>
 
           <!-- 分隔线 -->
-          <div class="user-panel-divider" />
+          <div v-if="systemSettingItems.length" class="user-panel-divider" />
 
           <!-- 操作区 -->
           <div class="user-panel-section">
@@ -479,9 +479,12 @@
     return name ? name.charAt(0).toUpperCase() : 'U';
   });
 
+  // 当前登录角色文案：取登录下发的 roleName（管理员/开发者/终端用户），缺省不显示
+  const roleLabel = computed(() => (userStore.getUserInfo as any)?.roleName || '');
+
   // 系统设置子项（原侧边栏「系统设置」一级菜单，已迁移到此处）
   // key 唯一；path 为 generateRoutes 生成的真实路由（父 name 'system' → /system）
-  const systemSettingItems = [
+  const SYSTEM_SETTING_ITEMS = [
     { label: '配置模型', key: 'sys:model', path: '/system/model', icon: RobotOutlined },
     { label: '意图路由', key: 'sys:intent', path: '/system/intent', icon: ApartmentOutlined },
     { label: '解析引擎', key: 'sys:service', path: '/system/service', icon: ToolOutlined },
@@ -489,6 +492,14 @@
     { label: '样例查询', key: 'sys:sample-query', path: '/system/sample-query', icon: SearchOutlined },
     { label: '知识图谱', key: 'sys:knowledge-graph', path: '/system/knowledge-graph', icon: ShareAltOutlined },
   ];
+
+  // 与路由过滤（asyncRoute.generateRoutes）同源：STATIC_MENUS 中 systemMenu 的
+  // meta.roles=[1,2]，仅管理员/开发者可见；终端用户(3)隐藏整组，避免点进 /system/* 404。
+  // roleId 缺省兜底 1，与 guards.ts / generateRoutes 的 `roleId ?? 1` 保持一致。
+  const systemSettingItems = computed(() => {
+    const roleId = (userStore.getUserInfo as any)?.roleId ?? 1;
+    return roleId === 1 || roleId === 2 ? SYSTEM_SETTING_ITEMS : [];
+  });
 
   // 导航到指定路径（同时关闭 popover）
   function navigateTo(path: string) {

@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia';
 import { store } from '@/store';
-import { ACCESS_TOKEN, CURRENT_USER, IS_SCREENLOCKED } from '@/store/mutation-types';
+import { ACCESS_TOKEN, CURRENT_USER, IS_SCREENLOCKED, TABS_ROUTES } from '@/store/mutation-types';
 
 import { storage } from '@/utils/Storage';
 import { login } from '@/api/user';
+import { useAsyncRoute } from '@/store/modules/asyncRoute';
+import router from '@/router/index';
 
 // 菜单存储key
 const USER_MENUS = 'USER_MENUS';
@@ -178,6 +180,25 @@ export const useUserStore = defineStore({
       storage.remove(ACCESS_TOKEN);
       storage.remove(CURRENT_USER);
       storage.remove(USER_MENUS);
+      // 清空持久化的标签页缓存，避免同标签页换账号后旧标签残留
+      storage.remove(TABS_ROUTES);
+
+      // 重置动态路由状态，让守卫在下次登录后重新执行 generateRoutes。
+      // isDynamicRouteAdded 只在 guards.ts 置 true、无复位点，纯 SPA 登出不清
+      // 就会跳过路由重建，导致上一账号（如管理员）的路由/菜单残留到下一账号。
+      // 注意：asyncRoute 与本 store 互相 import，故在函数体内取 store（Pinia 允许）。
+      const asyncRouteStore = useAsyncRoute();
+      // 精确移除上一位用户动态注册的业务路由：routersAdded 里存的就是守卫顶层
+      // addRoute 的那批（LAYOUT 壳），子路由随父一并移除；不碰 Login/Root/Redirect
+      // 等常量路由，也不会误删守卫追加的 ErrorPage（不在 routersAdded 里）。
+      asyncRouteStore.getRouters().forEach((item: any) => {
+        if (item?.name && router.hasRoute(item.name)) {
+          router.removeRoute(item.name);
+        }
+      });
+      asyncRouteStore.setMenus([]);
+      asyncRouteStore.setRouters([]);
+      asyncRouteStore.setDynamicRouteAdded(false);
     },
   },
 });
