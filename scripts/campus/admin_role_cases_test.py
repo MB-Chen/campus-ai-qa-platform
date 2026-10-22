@@ -2,12 +2,27 @@
 # 三角色权限矩阵契约测试：admin(1)/developer(2)/user(3) 接口可达性、
 # 角色分配/变更/保护、旧 token 语义。用法（后端角色版已部署）：
 #   python scripts/campus/admin_role_cases_test.py
-import json, shutil, subprocess, sys, time, urllib.request, urllib.error, io
+import json, shutil, subprocess, sys, time, urllib.request, urllib.error, io, http.client
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 BASE = 'http://localhost:7026'
 DOCKER = shutil.which('docker') or r'C:\Users\shitBro\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe'
 TS = str(int(time.time()))[-6:]
+
+def raw_call(path, token):
+    """绕过客户端 URI 归一化，用 http.client 原样发送畸形 request line（矩阵参数/点号遍历/空段）。
+    正常返回 JSON dict；容器层直接拒绝时返回 {'code': 'http-<status>'}。"""
+    conn = http.client.HTTPConnection('localhost', 7026, timeout=30)
+    try:
+        conn.request('GET', path, headers=({'token': token} if token else {}))
+        resp = conn.getresponse()
+        body = resp.read()
+        try:
+            return json.loads(body.decode('utf-8'))
+        except Exception:
+            return {'code': 'http-%d' % resp.status, 'message': body[:80].decode('utf-8', 'replace')}
+    finally:
+        conn.close()
 
 def full(path, token, body=None):
     """返回完整响应 dict（含 data）。"""
@@ -89,6 +104,12 @@ def main():
              and (find_account(AT, 'zz_usr_' + TS) or {}).get('role') == 2)
         # R5 超管禁用保护（R任务2 步骤2.0 的产物）
         case('R5 超管不可禁用', call('/admin/edit', AT, {'id': 1, 'account': 'admin', 'nickname': '管理员', 'status': 2})[0] == -1)
+        # B 畸形 URI 绕过回归（C1 矩阵参数 / C2 点号遍历 / 空段）：http.client 原样发出 request line，
+        # 期望被拦截器畸形 deny（403）或越权（403）或容器归一化拒绝（http-4xx），绝不能 code==0 泄露管理员数据
+        case('B1 dev 矩阵参数 /admin;x=1/index 不放行', raw_call('/admin;x=1/index', DT).get('code') != 0)
+        case('B2 dev 点号遍历 ../../admin/index 不放行', raw_call('/api/campus/../../admin/index', DT).get('code') != 0)
+        case('B3 user 编码点号 %2e%2e/admin/index 不放行', raw_call('/api/campus/%2e%2e/admin/index', UT).get('code') != 0)
+        case('B4 user 空段 //admin/index 不放行', raw_call('//admin/index', UT).get('code') != 0)
     finally:
         for i in ids: call('/admin/del', AT, {'id': i})
         print('清理 %d 个测试账号' % len(ids))
