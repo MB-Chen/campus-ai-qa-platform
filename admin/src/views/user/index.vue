@@ -73,7 +73,7 @@
           <n-select
             v-model:value="form.role"
             :options="roleOptions"
-            :disabled="!!form.id && form.id === 1"
+            :disabled="form.id === 1"
           />
         </n-form-item>
         <n-form-item label="状态" path="status">
@@ -171,7 +171,11 @@
       key: 'role',
       width: 110,
       render: (row: AdminUser) =>
-        h(NTag, { size: 'small', type: ROLE_TAG[row.role ?? 3] }, () => ROLE_LABEL[row.role ?? 3]),
+        h(
+          NTag,
+          { size: 'small', type: ROLE_TAG[row.role ?? 3] ?? 'default' },
+          () => ROLE_LABEL[row.role ?? 3] ?? `角色?`,
+        ),
     },
     {
       title: '状态',

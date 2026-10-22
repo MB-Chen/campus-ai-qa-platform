@@ -97,6 +97,9 @@ export const Alova = createAlova({
           closable: false,
           maskClosable: false,
           onOk: async () => {
+            // 与主动登出等价：复用 logout() 复位动态路由（isDynamicRouteAdded / routersAdded），
+            // 避免 token 过期后同页重登时上一账号的路由/菜单残留；logout() 无远程调用、不跳转。
+            useUser().logout();
             storage.clear();
           },
         });
@@ -108,6 +111,9 @@ export const Alova = createAlova({
           const router = (window as any).$router;
           const route = (window as any).$route;
           const redirectPath = route?.fullPath && route.fullPath !== '/' ? route.fullPath : '/chat/index';
+          // 与主动登出等价：复位动态路由状态，保证同页重登时守卫重新 generateRoutes。
+          // logout() 无远程调用、不做跳转，跳转仍由下面 replace 负责；幂等，与 onOk 分支重复调用安全。
+          useUser().logout();
           storage.clear();
           if (router) {
             router.replace({
