@@ -102,7 +102,9 @@ public class MinioService {
             response.setContentType("application/octet-stream");
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
-            response.setHeader("Content-Disposition", "attachment;filename=" + encoded);
+            // RFC 5987：中文文件名需 filename*=UTF-8'' 形式，浏览器才会百分号解码还原；
+            // 仅 filename=<pct-encoded> 时浏览器不解码，下载名变成 %E5%A5%96... 乱码。
+            response.setHeader("Content-Disposition", "attachment;filename=" + encoded + ";filename*=UTF-8''" + encoded);
 
             ServletOutputStream os = response.getOutputStream();
             byte[] buf = new byte[8192];

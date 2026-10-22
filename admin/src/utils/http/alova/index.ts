@@ -63,12 +63,13 @@ export const Alova = createAlova({
   },
   responded: {
     onSuccess: async (response, method) => {
-      const res = (response.json && (await response.json())) || response.body;
-
-      // 是否返回原生响应头 比如：需要获取响应头时使用该属性
+      // 二进制下载/导出场景：必须在调用 response.json() 之前透传原生 Response，
+      // 否则 octet-stream 流体会被按 JSON 解析并抛 SyntaxError；
+      // 且调用方契约是 fetch Response（读 headers/.blob()），返回解析后的对象会使其失效。
       if (method.meta?.isReturnNativeResponse) {
-        return res;
+        return response;
       }
+      const res = (response.json && (await response.json())) || response.body;
       // 请根据自身情况修改数据结构
       const { code } = res;
 
