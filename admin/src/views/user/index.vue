@@ -69,6 +69,13 @@
             :placeholder="form.id ? '留空表示不修改密码' : '默认 123456'"
           />
         </n-form-item>
+        <n-form-item label="角色" path="role">
+          <n-select
+            v-model:value="form.role"
+            :options="roleOptions"
+            :disabled="!!form.id && form.id === 1"
+          />
+        </n-form-item>
         <n-form-item label="状态" path="status">
           <n-radio-group v-model:value="form.status">
             <n-radio :value="1">正常</n-radio>
@@ -88,7 +95,7 @@
 
 <script setup lang="ts">
   import { ref, reactive, computed, onMounted, h } from 'vue';
-  import { useMessage, useDialog, NSwitch, NButton, NSpace } from 'naive-ui';
+  import { useMessage, useDialog, NSwitch, NButton, NSpace, NTag } from 'naive-ui';
   import { SearchOutlined, PlusOutlined } from '@vicons/antd';
   import {
     getAdminUserList,
@@ -101,6 +108,14 @@
 
   const message = useMessage();
   const dialog = useDialog();
+
+  const ROLE_LABEL: Record<number, string> = { 1: '管理员', 2: '开发者', 3: '终端用户' };
+  const ROLE_TAG: Record<number, 'error' | 'warning' | 'default'> = { 1: 'error', 2: 'warning', 3: 'default' };
+  const roleOptions = [
+    { label: '管理员', value: 1 },
+    { label: '开发者', value: 2 },
+    { label: '终端用户', value: 3 },
+  ];
 
   const loading = ref(false);
   const saving = ref(false);
@@ -118,6 +133,7 @@
     nickname: '',
     password: '',
     status: 1,
+    role: 3,
   });
 
   const rules = {
@@ -150,6 +166,13 @@
     { title: 'ID', key: 'id', width: 70 },
     { title: '账号', key: 'account', width: 160 },
     { title: '昵称', key: 'nickname', width: 160 },
+    {
+      title: '角色',
+      key: 'role',
+      width: 110,
+      render: (row: AdminUser) =>
+        h(NTag, { size: 'small', type: ROLE_TAG[row.role ?? 3] }, () => ROLE_LABEL[row.role ?? 3]),
+    },
     {
       title: '状态',
       key: 'status',
@@ -214,6 +237,7 @@
     form.nickname = '';
     form.password = '';
     form.status = 1;
+    form.role = 3;
   }
 
   function openCreate() {
@@ -227,6 +251,7 @@
     form.nickname = row.nickname;
     form.password = '';
     form.status = row.status;
+    form.role = row.role ?? 3;
     showModal.value = true;
   }
 
@@ -239,8 +264,8 @@
     saving.value = true;
     try {
       const res = form.id
-        ? await editAdminUser({ id: form.id, account: form.account, nickname: form.nickname, status: form.status, password: form.password || undefined })
-        : await addAdminUser({ account: form.account, nickname: form.nickname, password: form.password, status: form.status });
+        ? await editAdminUser({ id: form.id, account: form.account, nickname: form.nickname, status: form.status, role: form.role, password: form.password || undefined })
+        : await addAdminUser({ account: form.account, nickname: form.nickname, password: form.password, status: form.status, role: form.role });
       if (res?.code === 0) {
         message.success(form.id ? '已保存' : '已新增，初始密码即页面上填写的密码');
         showModal.value = false;

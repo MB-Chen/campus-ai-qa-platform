@@ -25,7 +25,7 @@
     overflow: hidden;
     white-space: nowrap;
     font-weight: 700;
-    font-size: 20px;
+    font-size: 16px;
 
     img {
       width: auto;
@@ -35,7 +35,7 @@
     .title {
       margin: 0;
       font-weight: 700;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
       background: linear-gradient(120deg, #10b981 0%, #059669 50%, #047857 100%);
       background-size: 200% auto;
       -webkit-background-clip: text;

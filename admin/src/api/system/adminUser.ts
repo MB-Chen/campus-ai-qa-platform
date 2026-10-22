@@ -7,6 +7,7 @@ export interface AdminUser {
   nickname: string;
   avatar?: string;
   status: number; // 1正常 2禁用
+  role?: number; // 1管理员 2开发者 3终端用户
   lastLoginIp?: string;
   lastLoginTime?: string;
   createTime?: string;
@@ -20,6 +21,7 @@ export interface AdminUserPayload {
   password?: string;
   status?: number;
   avatar?: string;
+  role?: number;
 }
 
 // 账号列表（分页 + 模糊搜索）
