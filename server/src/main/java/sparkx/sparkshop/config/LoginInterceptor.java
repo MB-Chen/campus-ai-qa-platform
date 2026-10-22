@@ -52,6 +52,14 @@ public class LoginInterceptor implements HandlerInterceptor {
     );
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
 
+    /**
+     * 畸形 URI 特征序列（对原始 getRequestURI() 小写后匹配）：与容器路由归一化/剥离等价、
+     * 合法前端 URI 均不包含的绕过手法（矩阵参数、点号遍历、反斜杠、空段及其编码变体）
+     */
+    private static final String[] MALFORMED_SEQUENCES = {
+            ";", "%3b", "..", "%2e", "\\", "%5c", "//", "%2f"
+    };
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     /**
@@ -84,29 +92,64 @@ public class LoginInterceptor implements HandlerInterceptor {
         Integer roleId = JwtUtils.getRoleId(token);
         request.setAttribute("roleId", roleId);
 
+        String rawUri = request.getRequestURI();
+
+        // 3. 纵深防御：原始 URI 含矩阵参数/点号遍历/反斜杠/空段（或其编码形式）即畸形，
+        //    一律先拒绝，避免与容器路由归一化结果不一致造成绕过；合法前端请求不含这些序列
+        if (isMalformed(rawUri)) {
+            log.warn("拦截畸形URI请求 adminId={}, roleId={}, uri={}", adminId, roleId, rawUri);
+            return write(response, AjaxResult.forbidden());
+        }
+
         // 角色分级：无 role 的旧 token 一律失效强制重登；管理员全通；开发者禁 /admin；终端用户仅对话面
         if (roleId == null) {
-            write(response, AjaxResult.unauthorized());
-            return false;
+            log.warn("旧token缺少角色，强制重登 adminId={}, roleId={}, uri={}", adminId, roleId, rawUri);
+            return write(response, AjaxResult.unauthorized());
         }
-        String uri = request.getRequestURI();
+
+        // 4. 角色判定使用与容器路由同源的路径：getServletPath() 已由 Tomcat 完成 URL 解码、
+        //    ".." 归一化、空段折叠、矩阵参数剥离，且不含 context-path（为 null/空时兜底原始 URI）
+        String servletPath = request.getServletPath();
+        String path = StrUtil.isEmpty(servletPath) ? rawUri : servletPath;
+
         if (roleId == 1) {
             return true;
         }
-        if (uri.startsWith("/admin/")) {
-            write(response, AjaxResult.forbidden());
-            return false;
+        if (path.startsWith("/admin/")) {
+            log.warn("越权访问管理面 adminId={}, roleId={}, uri={}", adminId, roleId, rawUri);
+            return write(response, AjaxResult.forbidden());
         }
         if (roleId == 2) {
             return true;
         }
         if (roleId == 3) {
-            boolean ok = USER_ALLOWED.stream().anyMatch(p -> MATCHER.match(p, uri));
-            if (ok) return true;
-            write(response, AjaxResult.forbidden());
+            boolean ok = USER_ALLOWED.stream().anyMatch(p -> MATCHER.match(p, path));
+            if (ok) {
+                return true;
+            }
+            log.warn("越权访问非白名单接口 adminId={}, roleId={}, uri={}", adminId, roleId, rawUri);
+            return write(response, AjaxResult.forbidden());
+        }
+        log.warn("未知角色值，按未授权处理 adminId={}, roleId={}, uri={}", adminId, roleId, rawUri);
+        return write(response, AjaxResult.unauthorized());
+    }
+
+    /**
+     * 判定原始请求 URI 是否为畸形路径（含绕过手法特征序列），大小写不敏感
+     *
+     * @param rawUri request.getRequestURI() 原始值
+     * @return true 表示畸形
+     */
+    private boolean isMalformed(String rawUri) {
+        if (StrUtil.isEmpty(rawUri)) {
             return false;
         }
-        write(response, AjaxResult.unauthorized());
+        String lower = rawUri.toLowerCase();
+        for (String seq : MALFORMED_SEQUENCES) {
+            if (lower.contains(seq)) {
+                return true;
+            }
+        }
         return false;
     }
 
